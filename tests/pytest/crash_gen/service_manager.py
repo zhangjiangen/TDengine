@@ -363,10 +363,13 @@ class TdeSubProcess:
 
         def doKill(proc: subprocess.Popen, sig: int):
             pid = proc.pid
-            topSubProc = psutil.Process(pid)
-            for child in topSubProc.children(recursive=True):  # or parent.children() for recursive=False
-                Logging.warning("Unexpected child to be killed")
-                doKillChild(child, sig)
+            try:
+                topSubProc = psutil.Process(pid)
+                for child in topSubProc.children(recursive=True):  # or parent.children() for recursive=False
+                    Logging.warning("Unexpected child to be killed")
+                    doKillChild(child, sig)
+            except psutil.NoSuchProcess as err:
+                Logging.info("Process not found, can't kill, pid = {}".format(pid))
             
             return doKillTdService(proc, sig)
             # TODO: re-examine if we need to kill the top process, which is always the SHELL for now
