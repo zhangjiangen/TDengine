@@ -130,7 +130,7 @@ int tsdbLoadBlockIdx(SReadH *pReadh) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     tsdbError("vgId:%d SBlockIdx part in file %s is corrupted since wrong checksum, offset:%u len :%u",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), pHeadf->info.offset, pHeadf->info.len);
-    return -1;
+    // return -1;
   }
 
   void *ptr = TSDB_READ_BUF(pReadh);
@@ -138,15 +138,14 @@ int tsdbLoadBlockIdx(SReadH *pReadh) {
   while (POINTER_DISTANCE(ptr, TSDB_READ_BUF(pReadh)) < (pHeadf->info.len - sizeof(TSCKSUM))) {
     ptr = tsdbDecodeSBlockIdx(ptr, &blkIdx);
     ASSERT(ptr != NULL);
-
     if (taosArrayPush(pReadh->aBlkIdx, (void *)(&blkIdx)) == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       return -1;
     }
 
     tsize++;
-    ASSERT(tsize == 1 || ((SBlockIdx *)taosArrayGet(pReadh->aBlkIdx, tsize - 2))->tid <
-                             ((SBlockIdx *)taosArrayGet(pReadh->aBlkIdx, tsize - 1))->tid);
+    // ASSERT(tsize == 1 || ((SBlockIdx *)taosArrayGet(pReadh->aBlkIdx, tsize - 2))->tid <
+    //                          ((SBlockIdx *)taosArrayGet(pReadh->aBlkIdx, tsize - 1))->tid);
   }
 
   return 0;

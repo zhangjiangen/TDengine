@@ -180,6 +180,23 @@ static FORCE_INLINE void *taosDecodeFixedU64(void *buf, uint64_t *value) {
   return POINTER_SHIFT(buf, sizeof(*value));
 }
 
+static FORCE_INLINE void *taosDecodeFixedU64_KL_TEST(void *buf, uint64_t *value) {
+  if (!IS_LITTLE_ENDIAN()) {
+    memcpy(value, buf, sizeof(*value));
+  } else {
+    ((uint8_t *)value)[7] = ((uint8_t *)buf)[0];
+    ((uint8_t *)value)[6] = ((uint8_t *)buf)[1];
+    ((uint8_t *)value)[5] = ((uint8_t *)buf)[2];
+    ((uint8_t *)value)[4] = ((uint8_t *)buf)[3];
+    ((uint8_t *)value)[3] = ((uint8_t *)buf)[4];
+    ((uint8_t *)value)[2] = ((uint8_t *)buf)[5];
+    ((uint8_t *)value)[1] = ((uint8_t *)buf)[6];
+    ((uint8_t *)value)[0] = ((uint8_t *)buf)[7];
+  }
+
+  return NULL;
+}
+
 // ---- Fixed I64
 static FORCE_INLINE int taosEncodeFixedI64(void **buf, int64_t value) {
   return taosEncodeFixedU64(buf, ZIGZAGE(int64_t, value));

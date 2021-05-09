@@ -25,6 +25,8 @@ static const char *tsdbTxnFname[] = {"current.t", "current"};
 
 static pthread_once_t tsTsdbClearBakOnce = PTHREAD_ONCE_INIT;
 
+static int checkBlockIdx(STsdbRepo *pRepo);
+
 static int  tsdbComparFidFSet(const void *arg1, const void *arg2);
 static void tsdbResetFSStatus(SFSStatus *pStatus);
 static int  tsdbSaveFSStatus(SFSStatus *pStatus, int vid);
@@ -272,12 +274,52 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
     return -1;
   }
 
+  checkBlockIdx(pRepo);
+
   // Load meta cache if has meta file
   if ((!(pRepo->state & TSDB_STATE_BAD_META)) && tsdbLoadMetaCache(pRepo, true) < 0) {
     tsdbError("vgId:%d failed to open FS while loading meta cache since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
   }
 
+  return 0;
+}
+static int checkBlockIdx(STsdbRepo *pRepo) {
+#if 0
+  // SBlockIdx part corrupted partially
+  // char *headFileAName = "/var/lib/taos/vnode/vnode4/tsdb/data/v4f1798.head-ver202"; //bad SBlockIdx since tsize 4085
+  // char *headFileRName = "vnode/vnode4/tsdb/data/v4f1798.head-ver202";
+
+  char *headFileAName = "/var/lib/taos/vnode/vnode3/tsdb/data/v3f1874.head-ver254";  // bad SBlockIdx since tsize ??
+  char *headFileRName = "vnode/vnode3/tsdb/data/v3f1874.head-ver254";
+
+  // SBlockInfo part corrupted partially
+  // char *headFileAName = "/var/lib/taos/vnode/vnode4/tsdb/data/v4f1861.head-ver236";
+  // char *headFileRName = "vnode/vnode4/tsdb/data/v4f1861.head-ver236";
+
+  SReadH  readh;
+  SReadH *pReadH = &readh;
+  tsdbInitReadH(pReadH, pRepo);
+
+  SDFile *pHeadf = pReadH->rSet.files;
+  snprintf(pHeadf->f.aname, TSDB_FILENAME_LEN, "%s", headFileAName);
+  snprintf(pHeadf->f.rname, TSDB_FILENAME_LEN, "%s", headFileRName);
+
+  pHeadf->fd = open(TSDB_FILE_FULL_NAME(pHeadf), O_RDONLY);
+  if (pHeadf->fd < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  if (tsdbLoadDFileHeader(pHeadf, &(pHeadf->info)) < 0) {
+    tsdbError("vgId:%d failed to load DFile %s header since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pHeadf),
+              tstrerror(terrno));
+    return -1;
+  }
+
+  tsdbLoadBlockIdx(pReadH);
+  tsdbDestroyReadH(pReadH);
+#endif
   return 0;
 }
 
@@ -708,6 +750,9 @@ static int tsdbScanAndTryFixFS(STsdbRepo *pRepo) {
 
 int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
   char      tbuf[128];
+  // uint64_t  raw_uid;
+  // uint64_t  raw_offset;
+  // uint64_t  raw_size;
   STsdbFS * pfs = REPO_FS(pRepo);
   SMFile    mf;
   SMFile *  pMFile = &mf;
@@ -733,6 +778,7 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
   }
 
   while (true) {
+    tsdbInfo("========================================================================================");
     int64_t tsize = tsdbReadMFile(pMFile, tbuf, sizeof(SKVRecord));
     if (tsize == 0) break;
 
@@ -749,6 +795,15 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
       return -1;
     }
 
+#if 0
+    taosDecodeFixedU64_KL_TEST(tbuf, &raw_uid);
+    taosDecodeFixedU64_KL_TEST(tbuf + 8, &raw_offset);
+    taosDecodeFixedU64_KL_TEST(tbuf + 16, &raw_size);
+
+    tsdbInfo("vgId:%d SKVRecordin meta file %s, Raw hex data is %016lx-%016lx-%016lx", REPO_ID(pRepo),
+             TSDB_FILE_FULL_NAME(pMFile), raw_uid, raw_offset, raw_size);
+#endif
+
     void *ptr = tsdbDecodeKVRecord(tbuf, &rInfo);
     ASSERT(POINTER_DISTANCE(ptr, tbuf) == sizeof(SKVRecord));
     // ASSERT((rInfo.offset > 0) ? (pStore->info.size == rInfo.offset) : true);
@@ -762,7 +817,7 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
       pStore->info.tombSize += (rInfo.size + sizeof(SKVRecord) * 2);
 #endif
     } else {
-      ASSERT(rInfo.offset > 0 && rInfo.size > 0);
+      // ASSERT(rInfo.offset > 0 && rInfo.size > 0);
       if (taosHashPut(pfs->metaCache, (void *)(&rInfo.uid), sizeof(rInfo.uid), &rInfo, sizeof(rInfo)) < 0) {
         tsdbError("vgId:%d failed to load meta cache from file %s since OOM", REPO_ID(pRepo),
                   TSDB_FILE_FULL_NAME(pMFile));
@@ -772,7 +827,22 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
       }
 
       maxBufSize = MAX(maxBufSize, rInfo.size);
+#if 0
+      tsdbInfo("vgId:%d file %s. SKVRecord info - uid: %lu, offset: %ld, size: %ld", REPO_ID(pRepo),
+               TSDB_FILE_FULL_NAME(pMFile), rInfo.uid, rInfo.offset, rInfo.size);
 
+      tsdbInfo("vgId:%d file %s. SKVRecord info. hex %016lx-%016lx-%016lx", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
+               rInfo.uid, rInfo.offset, rInfo.size);
+      if (rInfo.size > 1024 || rInfo.size < 0) {
+        rInfo.size = 166;
+        
+        tsdbInfo("vgId:%d file %s. SKVRecord info - uid: %lu, offset: %ld, sizeAdapt: %ld", REPO_ID(pRepo),
+                 TSDB_FILE_FULL_NAME(pMFile), rInfo.uid, rInfo.offset, rInfo.size);
+      } else {
+        tsdbInfo("vgId:%d file %s. SKVRecord info - uid: %lu, offset: %ld, size: %ld", REPO_ID(pRepo),
+                 TSDB_FILE_FULL_NAME(pMFile), rInfo.uid, rInfo.offset, rInfo.size);
+      }
+#endif
       if (tsdbSeekMFile(pMFile, rInfo.size, SEEK_CUR) < 0) {
         tsdbError("vgId:%d failed to lseek file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
                   tstrerror(terrno));
