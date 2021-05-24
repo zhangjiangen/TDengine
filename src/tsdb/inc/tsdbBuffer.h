@@ -25,11 +25,11 @@ typedef struct {
 
 typedef struct {
   pthread_cond_t poolNotEmpty;
-  int            bufBlockSize;
-  int            tBufBlocks;
-  int            nBufBlocks;
-  int            nRecycleBlocks;
-  int64_t        index;
+  int            bufBlockSize;    // block size, e.g. 16*1024*1024 bytes
+  int            tBufBlocks;      // total buffer blocks, e.g. 6
+  int            nBufBlocks;      // number of buffer blocks
+  int            nRecycleBlocks;  // recycle when decrease blocks from config
+  int64_t        index;           // block id
   SList*         bufBlockList;  
 } STsdbBufPool;
 

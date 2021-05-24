@@ -17,9 +17,9 @@
 #define TSDB_MAX_SUBBLOCKS 8
 static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
   if (key < 0) {
-    return (int)((key + 1) / tsMsPerDay[precision] / days - 1);
+    return (int)((key + 1) / tsMsPerDay[precision] / days - 1);  // e.g. -2*86400 ~ -86401, -86400 ~ -1
   } else {
-    return (int)((key / tsMsPerDay[precision] / days));
+    return (int)((key / tsMsPerDay[precision] / days));  // e.g. 0 ~ 86399, 86400 ~ (2*86400-1)
   }
 }
 
@@ -222,6 +222,9 @@ void tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn) {
   midKey = now - pCfg->keep2 * tsMsPerDay[pCfg->precision];
   maxKey = now - pCfg->keep1 * tsMsPerDay[pCfg->precision];
 
+  // (new data) => keep 1  =  keep 2   = keep (old data)
+  //            maxKey        midKey    minKey
+  
   pRtn->minKey = minKey;
   pRtn->minFid = (int)(TSDB_KEY_FID(minKey, pCfg->daysPerFile, pCfg->precision));
   pRtn->midFid = (int)(TSDB_KEY_FID(midKey, pCfg->daysPerFile, pCfg->precision));

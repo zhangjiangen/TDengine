@@ -117,7 +117,7 @@ int       tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId
 STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 
 // ----------------- Semantic timestamp key definition
-typedef uint64_t TKEY;
+typedef uint64_t TKEY; // 内部使用：主要为了兼容删除使用，一位标记删除，一位标记负值。与之对应的TSKEY是外部使用。
 
 #define TKEY_INVALID UINT64_MAX
 #define TKEY_NULL TKEY_INVALID

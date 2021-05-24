@@ -29,7 +29,7 @@ extern "C" {
 #ifdef TSKEY32
 #define TSKEY int32_t;
 #else
-#define TSKEY int64_t
+#define TSKEY int64_t  // 外部使用。 与之对应的TKEY用于内部：主要为了兼容删除使用，一位标记删除，一位标记负值。
 #endif
 
 #define TSWINDOW_INITIALIZER ((STimeWindow) {INT64_MIN, INT64_MAX})

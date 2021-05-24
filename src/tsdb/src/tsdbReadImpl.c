@@ -130,6 +130,7 @@ int tsdbLoadBlockIdx(SReadH *pReadh) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     tsdbError("vgId:%d SBlockIdx part in file %s is corrupted since wrong checksum, offset:%u len :%u",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), pHeadf->info.offset, pHeadf->info.len);
+    tsdbPrintBinary(TSDB_READ_REPO_ID(pReadh), pHeadf->f.rname, 0, pHeadf->info.len, pHeadf->info.offset);
     // return -1;
   }
 

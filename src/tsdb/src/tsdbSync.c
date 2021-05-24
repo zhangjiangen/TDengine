@@ -440,7 +440,7 @@ static int32_t tsdbSyncRecvDFileSetArray(SSyncH *pSynch) {
         // Create local files and copy from remote
         SDiskID   did;
         SDFileSet fset;
-
+        
         tfsAllocDisk(tsdbGetFidLevel(pSynch->pdf->fid, &(pSynch->rtn)), &(did.level), &(did.id));
         if (did.level == TFS_UNDECIDED_LEVEL) {
           terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;

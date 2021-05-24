@@ -23,4 +23,32 @@ int tsdbRecoverDataMain(STsdbRepo *pRepo);
 
 void tsdbClearBakFiles();
 
+/**
+ * Print buffer as binary.
+ */
+#define TSDB_PRINT_BUF_STACK_LEN_MAX 128
+FORCE_INLINE void tsdbPrintBinary(int32_t vgId, const char* fileName, void* bufStart, int len, int offset) {
+  char printBuf[2 * TSDB_PRINT_BUF_STACK_LEN_MAX + 1] = "\0";
+  int  lenPrint = len;
+  int  bufIndex = 0;
+  int  printIndex = 0;
+  do {
+    if (lenPrint >= TSDB_PRINT_BUF_STACK_LEN_MAX) {
+      for (int i = 0; i < TSDB_PRINT_BUF_STACK_LEN_MAX; ++i) {
+        snprintf(printBuf + i * 2, 2 * TSDB_PRINT_BUF_STACK_LEN_MAX, "%x", *((char*)bufStart + bufIndex++));
+      }
+      tsdbDebug("vgId:%d file %s, offset %d, bin[%d][%d]: %s", vgId, fileName, offset, printIndex++,
+                TSDB_PRINT_BUF_STACK_LEN_MAX, printBuf);
+    } else {
+      for (int i = 0; i < lenPrint; ++i) {
+        snprintf(printBuf + 2 * i, 2 * TSDB_PRINT_BUF_STACK_LEN_MAX, "%x", *((char*)bufStart + bufIndex++));
+      }
+      tsdbDebug("vgId:%d file %s, offset %d, bin[%d][%d]: %s", vgId, fileName, offset, printIndex++, lenPrint,
+                printBuf);
+      break;
+    }
+    memset(printBuf, 0, 2 * TSDB_PRINT_BUF_STACK_LEN_MAX + 1);
+  } while ((lenPrint -= TSDB_PRINT_BUF_STACK_LEN_MAX) > 0);
+}
+
 #endif /* _TD_TSDB_RECOVER_H_ */

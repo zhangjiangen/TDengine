@@ -42,10 +42,10 @@ typedef struct {
 typedef struct {
   pthread_rwlock_t lock;
 
-  SFSStatus* cstatus;    // current status
-  SHashObj*  metaCache;  // meta cache
-  bool       intxn;
-  SFSStatus* nstatus;  // new status
+  SFSStatus *cstatus;    // current status
+  SHashObj * metaCache;  // meta cache
+  bool       intxn;      // transaction
+  SFSStatus *nstatus;    // new status
 } STsdbFS;
 
 #define FS_CURRENT_STATUS(pfs) ((pfs)->cstatus)

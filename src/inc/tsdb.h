@@ -62,8 +62,8 @@ typedef struct {
   int32_t totalBlocks;
   int32_t daysPerFile;  // day per file sharding policy
   int32_t keep;         // day of data to keep
-  int32_t keep1;
-  int32_t keep2;
+  int32_t keep1;        // days in level 1 storage
+  int32_t keep2;        // days in level 2 storage
   int32_t minRowsPerFileBlock;  // minimum rows per file block
   int32_t maxRowsPerFileBlock;  // maximum rows per file block
   int8_t  precision;
