@@ -1074,9 +1074,9 @@ static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) return code;
   SDbObj *pDb = pMsg->pDb;
 
-  void *pIter = NULL;
+  void *  pIter = NULL;
   SVgObj *pVgroup = NULL;
-    while (1) {
+  while (1) {
     pIter = mnodeGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
     if (pVgroup->pDb == pDb) {
