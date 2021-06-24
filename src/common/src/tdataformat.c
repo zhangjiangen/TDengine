@@ -401,6 +401,7 @@ void tdResetDataCols(SDataCols *pCols) {
 }
 
 void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols) {
+  // assert no rows, or key of row to append > keyLast of rows in SDataCols
   ASSERT(pCols->numOfRows == 0 || dataColsKeyLast(pCols) < dataRowKey(row));
 
   int rcol = 0;

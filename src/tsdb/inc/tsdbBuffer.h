@@ -33,7 +33,7 @@ typedef struct {
   SList*         bufBlockList;  
 } STsdbBufPool;
 
-#define TSDB_BUFFER_RESERVE 1024  // Reseve 1K as commit threshold
+#define TSDB_BUFFER_RESERVE 1024  // Reserve 1K as commit threshold
 
 STsdbBufPool* tsdbNewBufPool();
 void          tsdbFreeBufPool(STsdbBufPool* pBufPool);

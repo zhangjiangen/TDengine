@@ -19,34 +19,37 @@
 typedef struct SReadH SReadH;
 
 typedef struct {
-  int32_t  tid;
-  uint32_t len;
-  uint32_t offset;
-  uint32_t hasLast : 2;
-  uint32_t numOfBlocks : 30;
-  uint64_t uid;
-  TSKEY    maxKey;
-} SBlockIdx;
+  int32_t  tid;               // tid in one vgroup
+  uint32_t len;               // the length of one SBlockInfo/SBlock block in .head file, e.g. 140,180,620,60
+  uint32_t offset;            // offset of one SBlockInfo/SBlock block in .head file
+  uint32_t hasLast : 2;       // whether one SBlock Array has index to last file
+  uint32_t numOfBlocks : 30;  // num of Super Blocks for one SBlockIdx
+  uint64_t uid;               // unique table id
+  TSKEY    maxKey;  // keyLast in this group of Super Blocks. Exactly, the keyLast in the last SupBlock in this group.
+} SBlockIdx;        // In .head file, the table index part.
 
 typedef struct {
-  int64_t last : 1;
-  int64_t offset : 63;
-  int32_t algorithm : 8;
-  int32_t numOfRows : 24;
-  int32_t len;
+  int64_t last : 1;       // last means if this block index to a .last file
+  int64_t offset : 63;    // For real block, it's the offset of data block in the .data file(e.g. the 1st offset in one
+                          // data file is 512) For virtual supblock, it's the offset of the subblocks in the .head file.
+  int32_t algorithm : 8;  // e.g. 2
+  int32_t numOfRows : 24;  // num of rows in one data block in the .data file, e.g. 3276
+  int32_t len;     // the length of data block in the .data file(including statistics part + real data, e.g. 34779)
   int32_t keyLen;  // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
-  int16_t numOfSubBlocks;
+  int16_t numOfSubBlocks;  // numOfSubBlocks, e.g. 1
+                           // for super block: 1: the supblock itself, >1: the # of subblocks the supblock point to
+                           // for sub block:   it is always 0
   int16_t numOfCols;  // not including timestamp column
-  TSKEY   keyFirst;
-  TSKEY   keyLast;
-} SBlock;
+  TSKEY   keyFirst;   // e.g. 1500000000000
+  TSKEY   keyLast;    // e.g. 1500000003275
+} SBlock;             // In .head file, SBlock blocks[] arrays inside of SBlockInfo.
 
 typedef struct {
-  int32_t  delimiter;  // For recovery usage
+  int32_t delimiter;  // For recovery usage 如果以二进制方式查看文件，可以看到该标识符为 0ffa 0af0。
   int32_t  tid;
   uint64_t uid;
   SBlock   blocks[];
-} SBlockInfo;
+} SBlockInfo;  // In .head file, SBlockInfo header + SBlock array.
 
 typedef struct {
   int16_t  colId;

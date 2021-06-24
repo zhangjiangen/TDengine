@@ -25,14 +25,14 @@ static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) 
 
 typedef struct {
   SRtn         rtn;     // retention snapshot
-  SFSIter      fsIter;  // tsdb file iterator
+  SFSIter      fsIter;  // tsdb file-set iterator
   int          niters;  // memory iterators
   SCommitIter *iters;
   bool         isRFileSet;  // read and commit FSET
   SReadH       readh;
   SDFileSet    wSet;
-  bool         isDFileSame;
-  bool         isLFileSame;
+  bool         isDFileSame;  // v*f*.data file
+  bool         isLFileSame;  // v*f*.last file
   TSKEY        minKey;
   TSKEY        maxKey;
   SArray *     aBlkIdx;  // SBlockIdx array
@@ -184,14 +184,14 @@ int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray
   pBlkInfo->tid = TABLE_TID(pTable);
   pBlkInfo->uid = TABLE_UID(pTable);
 
-  memcpy((void *)(pBlkInfo->blocks), taosArrayGet(pSupA, 0), nSupBlocks * sizeof(SBlock));
+  memcpy((void *)(pBlkInfo->blocks), taosArrayGet(pSupA, 0), nSupBlocks * sizeof(SBlock));  // super blocks
   if (nSubBlocks > 0) {
-    memcpy((void *)(pBlkInfo->blocks + nSupBlocks), taosArrayGet(pSubA, 0), nSubBlocks * sizeof(SBlock));
+    memcpy((void *)(pBlkInfo->blocks + nSupBlocks), taosArrayGet(pSubA, 0), nSubBlocks * sizeof(SBlock));  // sub blocks
 
-    for (int i = 0; i < nSupBlocks; i++) {
+    for (int i = 0; i < nSupBlocks; i++) {  // adjust the offset for virtual blocks
       pBlock = pBlkInfo->blocks + i;
 
-      if (pBlock->numOfSubBlocks > 1) {
+      if (pBlock->numOfSubBlocks > 1) {  // virtual block: point to the sub blocks instead of data blocks
         pBlock->offset += (sizeof(SBlockInfo) + sizeof(SBlock) * nSupBlocks);
       }
     }
@@ -206,12 +206,12 @@ int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray
   tsdbUpdateDFileMagic(pHeadf, POINTER_SHIFT(pBlkInfo, tlen - sizeof(TSCKSUM)));
 
   // Set pIdx
-  pBlock = taosArrayGetLast(pSupA);
+  pBlock = taosArrayGetLast(pSupA);  // the last element in array
 
   pIdx->tid = TABLE_TID(pTable);
   pIdx->uid = TABLE_UID(pTable);
-  pIdx->hasLast = pBlock->last ? 1 : 0;
-  pIdx->maxKey = pBlock->keyLast;
+  pIdx->hasLast = pBlock->last ? 1 : 0;  // whether last sup block has last
+  pIdx->maxKey = pBlock->keyLast;        // max key of last sup
   pIdx->numOfBlocks = (uint32_t)nSupBlocks;
   pIdx->len = tlen;
   pIdx->offset = (uint32_t)offset;
@@ -395,11 +395,11 @@ static int tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void
   rInfo.size = contLen;
 
   int tlen = tsdbEncodeKVRecord((void **)(&pBuf), &rInfo);
-  if (tsdbAppendMFile(pMFile, buf, tlen, NULL) < tlen) {
+  if (tsdbAppendMFile(pMFile, buf, tlen, NULL) < tlen) {  // append SKVRecord - rInfo
     return -1;
   }
 
-  if (tsdbAppendMFile(pMFile, cont, contLen, NULL) < contLen) {
+  if (tsdbAppendMFile(pMFile, cont, contLen, NULL) < contLen) {  // append  *cont
     return -1;
   }
 
@@ -425,7 +425,7 @@ static int tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid) {
     return -1;
   }
 
-  rInfo.offset = -pRecord->offset;
+  rInfo.offset = -pRecord->offset;  // minus
   rInfo.uid = pRecord->uid;
   rInfo.size = pRecord->size;
 
@@ -439,7 +439,7 @@ static int tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid) {
   pMFile->info.magic = taosCalcChecksum(pMFile->info.magic, (uint8_t *)buf, sizeof(SKVRecord));
   pMFile->info.nDels++;
   pMFile->info.nRecords--;
-  pMFile->info.tombSize += (rInfo.size + sizeof(SKVRecord) * 2);
+  pMFile->info.tombSize += (rInfo.size + sizeof(SKVRecord) * 2);  // TODOX: How to understand tombSize here?
 
   taosHashRemove(pfs->metaCache, (void *)(&uid), sizeof(uid));
   return 0;
@@ -454,7 +454,7 @@ static int tsdbCommitTSData(STsdbRepo *pRepo) {
 
   memset(&commith, 0, sizeof(commith));
 
-  if (pMem->numOfRows <= 0) {
+  if (pMem->numOfRows <= 0) { 
     // No memory data, just apply retention on each file on disk
     if (tsdbApplyRtn(pRepo) < 0) {
       return -1;

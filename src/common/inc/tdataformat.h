@@ -169,7 +169,7 @@ static FORCE_INLINE int tkeyComparFn(const void *tkey1, const void *tkey2) {
  * +----------+----------+---------------------------------+---------------------------------+
  * |   len    | sversion |           First part            |             Second part         |
  * +----------+----------+---------------------------------+---------------------------------+
- *
+ *                       |TKEY|
  * NOTE: timestamp in this row structure is TKEY instead of TSKEY
  */
 typedef void *SDataRow;

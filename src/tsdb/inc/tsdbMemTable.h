@@ -48,17 +48,17 @@ typedef struct {
 #else
 typedef struct __attribute__((packed)){
 #endif
-  char     act;
+  char     act;  // action
   uint64_t uid;
-} SActObj;
+} SActObj;  // action object
 #ifdef WINDOWS
 #pragma pack(pop) 
 #endif
 
 typedef struct {
   int  len;
-  char cont[];
-} SActCont;
+  char cont[];  // content
+} SActCont;     // action content
 
 int   tsdbRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
 int   tsdbUnRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
