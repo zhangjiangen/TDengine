@@ -6,6 +6,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.sql.*;
 
 public class RestfulPreparedStatementTest {
@@ -172,7 +173,7 @@ public class RestfulPreparedStatementTest {
         Assert.assertFalse(pstmt_insert.execute());
     }
 
-    private class Person {
+    public static class Person implements Serializable {
         String name;
         int age;
         boolean sex;

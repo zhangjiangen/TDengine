@@ -1,8 +1,11 @@
 package com.taosdata.jdbc;
 
+import com.taosdata.jdbc.rs.RestfulPreparedStatementTest;
 import org.junit.*;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.math.BigDecimal;
 import java.sql.*;
 import java.util.ArrayList;
@@ -844,7 +847,12 @@ public class TSDBPreparedStatementTest {
     public void setBytes() throws SQLException, IOException {
         // given
         long ts = System.currentTimeMillis();
-        byte[] f8 = "{\"name\": \"john\", \"age\": 10, \"address\": \"192.168.1.100\"}".getBytes();
+//        byte[] f8 = "{\"name\": \"john\", \"age\": 10, \"address\": \"192.168.1.100\"}".getBytes();
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ObjectOutputStream oos = new ObjectOutputStream(baos);
+        oos.writeObject(new RestfulPreparedStatementTest.Person("john", 33, true));
+        oos.flush();
+        byte[] f8 = baos.toByteArray();
 
         // when
         pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
