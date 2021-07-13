@@ -666,12 +666,18 @@ static int tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, int32_t *
   STable *       pTable = NULL;
   SSubmitBlkIter blkIter = {0};
   SDataRow       row = NULL;
-  void *         rows[TSDB_MAX_INSERT_BATCH] = {0};
+  void **        rows = NULL;
   int            rowCounter = 0;
 
   ASSERT(pBlock->tid < pMeta->maxTables);
   pTable = pMeta->tables[pBlock->tid];
   ASSERT(pTable != NULL && TABLE_UID(pTable) == pBlock->uid);
+
+  rows = (void **)calloc(pBlock->numOfRows, sizeof(void *));
+  if (rows == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    return -1;
+  }
 
   tsdbInitSubmitBlkIter(pBlock, &blkIter);
   while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
@@ -686,18 +692,9 @@ static int tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, int32_t *
     if (rows[rowCounter] != NULL) {
       rowCounter++;
     }
-
-    if (rowCounter == TSDB_MAX_INSERT_BATCH) {
-      if (tsdbInsertDataToTableImpl(pRepo, pTable, rows, rowCounter) < 0) {
-        goto _err;
-      }
-
-      rowCounter = 0;
-      memset(rows, 0, sizeof(rows));
-    }
   }
 
-  if (rowCounter > 0 && tsdbInsertDataToTableImpl(pRepo, pTable, rows, rowCounter) < 0) {
+  if (tsdbInsertDataToTableImpl(pRepo, pTable, rows, rowCounter) < 0) {
     goto _err;
   }
 
@@ -705,9 +702,11 @@ static int tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, int32_t *
   pRepo->stat.pointsWritten += points * schemaNCols(pSchema);
   pRepo->stat.totalStorage += points * schemaVLen(pSchema);
 
+  free(rows);
   return 0;
 
 _err:
+  free(rows);
   return -1;
 }
 
