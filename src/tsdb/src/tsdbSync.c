@@ -431,61 +431,69 @@ static int32_t tsdbSyncRecvDFileSetArray(SSyncH *pSynch) {
         // Need to copy from remote
         tsdbInfo("vgId:%d, fileset:%d will be received", REPO_ID(pRepo), pSynch->pdf->fid);
 
-        // Notify remote to send there file here
-        if (tsdbSendDecision(pSynch, true) < 0) {
-          tsdbError("vgId:%d, failed to send decision since %s", REPO_ID(pRepo), tstrerror(terrno));
-          return -1;
-        }
-
-        // Create local files and copy from remote
-        SDiskID   did;
-        SDFileSet fset;
-
-        tfsAllocDisk(tsdbGetFidLevel(pSynch->pdf->fid, &(pSynch->rtn)), &(did.level), &(did.id));
-        if (did.level == TFS_UNDECIDED_LEVEL) {
-          terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
-          tsdbError("vgId:%d, failed allc disk since %s", REPO_ID(pRepo), tstrerror(terrno));
-          return -1;
-        }
-
-        tsdbInitDFileSet(&fset, did, REPO_ID(pRepo), pSynch->pdf->fid, FS_TXN_VERSION(pfs));
-
-        // Create new FSET
-        if (tsdbCreateDFileSet(&fset, false) < 0) {
-          tsdbError("vgId:%d, failed to create fileset since %s", REPO_ID(pRepo), tstrerror(terrno));
-          return -1;
-        }
-
-        for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-          SDFile *pDFile = TSDB_DFILE_IN_SET(&fset, ftype);         // local file
-          SDFile *pRDFile = TSDB_DFILE_IN_SET(pSynch->pdf, ftype);  // remote file
-
-          tsdbInfo("vgId:%d, file:%s will be received, osize:%" PRIu64 " rsize:%" PRIu64, REPO_ID(pRepo),
-                   pDFile->f.aname, pDFile->info.size, pRDFile->info.size);
-
-          int64_t writeLen = pRDFile->info.size;
-          int64_t ret = taosCopyFds(pSynch->socketFd, pDFile->fd, writeLen);
-          if (ret != writeLen) {
-            terrno = TAOS_SYSTEM_ERROR(errno);
-            tsdbError("vgId:%d, failed to recv file:%s since %s, ret:%" PRId64 " writeLen:%" PRId64, REPO_ID(pRepo),
-                      pDFile->f.aname, tstrerror(terrno), ret, writeLen);
-            tsdbCloseDFileSet(&fset);
-            tsdbRemoveDFileSet(&fset);
+        int expLevel = tsdbGetFidLevel(pSynch->pdf->fid, &(pSynch->rtn));
+        if (expLevel >= 0) {
+          // Notify remote to send there file here
+          if (tsdbSendDecision(pSynch, true) < 0) {
+            tsdbError("vgId:%d, failed to send decision since %s", REPO_ID(pRepo), tstrerror(terrno));
             return -1;
           }
 
-          // Update new file info
-          pDFile->info = pRDFile->info;
-          tsdbInfo("vgId:%d, file:%s is received, size:%" PRId64, REPO_ID(pRepo), pDFile->f.aname, writeLen);
-        }
+          // Create local files and copy from remote
+          SDiskID   did;
+          SDFileSet fset;
 
-        tsdbCloseDFileSet(&fset);
-        if (tsdbUpdateDFileSet(pfs, &fset) < 0) {
-          tsdbInfo("vgId:%d, fileset:%d failed to update since %s", REPO_ID(pRepo), fset.fid, tstrerror(terrno));
-          return -1;
-        }
+          tfsAllocDisk(expLevel, &(did.level), &(did.id));
+          if (did.level == TFS_UNDECIDED_LEVEL) {
+            terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
+            tsdbError("vgId:%d, failed allc disk since %s", REPO_ID(pRepo), tstrerror(terrno));
+            return -1;
+          }
 
-        tsdbInfo("vgId:%d, fileset:%d is received", REPO_ID(pRepo), pSynch->pdf->fid);
+          tsdbInitDFileSet(&fset, did, REPO_ID(pRepo), pSynch->pdf->fid, FS_TXN_VERSION(pfs));
+
+          // Create new FSET
+          if (tsdbCreateDFileSet(&fset, false) < 0) {
+            tsdbError("vgId:%d, failed to create fileset since %s", REPO_ID(pRepo), tstrerror(terrno));
+            return -1;
+          }
+
+          for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+            SDFile *pDFile = TSDB_DFILE_IN_SET(&fset, ftype);         // local file
+            SDFile *pRDFile = TSDB_DFILE_IN_SET(pSynch->pdf, ftype);  // remote file
+
+            tsdbInfo("vgId:%d, file:%s will be received, osize:%" PRIu64 " rsize:%" PRIu64, REPO_ID(pRepo),
+                     pDFile->f.aname, pDFile->info.size, pRDFile->info.size);
+
+            int64_t writeLen = pRDFile->info.size;
+            int64_t ret = taosCopyFds(pSynch->socketFd, pDFile->fd, writeLen);
+            if (ret != writeLen) {
+              terrno = TAOS_SYSTEM_ERROR(errno);
+              tsdbError("vgId:%d, failed to recv file:%s since %s, ret:%" PRId64 " writeLen:%" PRId64, REPO_ID(pRepo),
+                        pDFile->f.aname, tstrerror(terrno), ret, writeLen);
+              tsdbCloseDFileSet(&fset);
+              tsdbRemoveDFileSet(&fset);
+              return -1;
+            }
+
+            // Update new file info
+            pDFile->info = pRDFile->info;
+            tsdbInfo("vgId:%d, file:%s is received, size:%" PRId64, REPO_ID(pRepo), pDFile->f.aname, writeLen);
+          }
+
+          tsdbCloseDFileSet(&fset);
+          if (tsdbUpdateDFileSet(pfs, &fset) < 0) {
+            tsdbInfo("vgId:%d, fileset:%d failed to update since %s", REPO_ID(pRepo), fset.fid, tstrerror(terrno));
+            return -1;
+          }
+
+          tsdbInfo("vgId:%d, fileset:%d is received", REPO_ID(pRepo), pSynch->pdf->fid);
+        } else {
+          if (tsdbSendDecision(pSynch, false) < 0) {
+            tsdbError("vgId:%d, failed to send decision since %s", REPO_ID(pRepo), tstrerror(terrno));
+            return -1;
+          }
+        }
       }
 
       // Move forward
