@@ -80,7 +80,7 @@ int32_t filterInitUnitsFields(SFilterInfo *info) {
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE SFilterRangeNode* filterNewRange(SFilterRMCtx *ctx, SFilterRange* ra) {
+static FORCE_INLINE SFilterRangeNode* filterNewRange(SFilterRangeCtx *ctx, SFilterRange* ra) {
   SFilterRangeNode *r = NULL;
   
   if (ctx->rf) {
@@ -97,13 +97,13 @@ static FORCE_INLINE SFilterRangeNode* filterNewRange(SFilterRMCtx *ctx, SFilterR
   return r;
 }
 
-void* filterInitMergeRange(int32_t type, int32_t options) {
+void* filterInitRangeCtx(int32_t type, int32_t options) {
   if (type > TSDB_DATA_TYPE_UBIGINT || type < TSDB_DATA_TYPE_BOOL || type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
     qError("not supported range type:%d", type);
     return NULL;
   }
   
-  SFilterRMCtx *ctx = calloc(1, sizeof(SFilterRMCtx));
+  SFilterRangeCtx *ctx = calloc(1, sizeof(SFilterRangeCtx));
 
   ctx->type = type;
   ctx->options = options;
@@ -113,7 +113,7 @@ void* filterInitMergeRange(int32_t type, int32_t options) {
 }
 
 
-int32_t filterResetMergeRangeCtx(SFilterRMCtx *ctx) {
+int32_t filterResetRangeCtx(SFilterRangeCtx *ctx) {
   ctx->status = 0;
 
   if (ctx->rf == NULL) {
@@ -137,8 +137,8 @@ int32_t filterResetMergeRangeCtx(SFilterRMCtx *ctx) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterReuseMergeRangeCtx(SFilterRMCtx *ctx, int32_t type, int32_t options) {
-  filterResetMergeRangeCtx(ctx);
+int32_t filterReuseRangeCtx(SFilterRangeCtx *ctx, int32_t type, int32_t options) {
+  filterResetRangeCtx(ctx);
 
   ctx->type = type;
   ctx->options = options;
@@ -148,7 +148,7 @@ int32_t filterReuseMergeRangeCtx(SFilterRMCtx *ctx, int32_t type, int32_t option
 }
 
 
-int32_t filterPostProcessRange(SFilterRMCtx *cur, SFilterRange *ra, bool *notNull) {
+int32_t filterPostProcessRange(SFilterRangeCtx *cur, SFilterRange *ra, bool *notNull) {
   if (!FILTER_GET_FLAG(ra->sflag, RA_NULL)) {
     int32_t sr = cur->pCompareFunc(&ra->s, getDataMin(cur->type));
     if (sr == 0) {
@@ -173,8 +173,8 @@ int32_t filterPostProcessRange(SFilterRMCtx *cur, SFilterRange *ra, bool *notNul
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterAddMergeOptr(void* h, uint8_t raOptr, int32_t optr, bool *empty, bool *all) {
-  SFilterRMCtx *ctx = (SFilterRMCtx *)h;
+int32_t filterAddRangeOptr(void* h, uint8_t raOptr, int32_t optr, bool *empty, bool *all) {
+  SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
 
   if (optr == TSDB_RELATION_AND) {
     SET_AND_OPTR(ctx, raOptr);
@@ -195,8 +195,8 @@ int32_t filterAddMergeOptr(void* h, uint8_t raOptr, int32_t optr, bool *empty, b
 
 
 
-int32_t filterAddMergeRangeImpl(void* h, SFilterRange* ra, int32_t optr) {
-  SFilterRMCtx *ctx = (SFilterRMCtx *)h;
+int32_t filterAddRangeImpl(void* h, SFilterRange* ra, int32_t optr) {
+  SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
 
   if (ctx->rs == NULL) {
     if ((FILTER_GET_FLAG(ctx->status, MR_ST_START) == 0) 
@@ -325,7 +325,7 @@ int32_t filterAddMergeRangeImpl(void* h, SFilterRange* ra, int32_t optr) {
     if (notnull) {
       bool all = false;
       FREE_FROM_RANGE(ctx, ctx->rs);
-      filterAddMergeOptr(h, TSDB_RELATION_NOTNULL, optr, NULL, &all);
+      filterAddRangeOptr(h, TSDB_RELATION_NOTNULL, optr, NULL, &all);
       if (all) {
         FILTER_SET_FLAG(ctx->status, MR_ST_ALL);
       }
@@ -335,8 +335,8 @@ int32_t filterAddMergeRangeImpl(void* h, SFilterRange* ra, int32_t optr) {
   return TSDB_CODE_SUCCESS;  
 }
 
-int32_t filterAddMergeRange(void* h, SFilterRange* ra, int32_t optr) {
-  SFilterRMCtx *ctx = (SFilterRMCtx *)h;
+int32_t filterAddRange(void* h, SFilterRange* ra, int32_t optr) {
+  SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
   
   if (FILTER_GET_FLAG(ra->sflag, RA_NULL)) {
     SIMPLE_COPY_VALUES(&ra->s, getDataMin(ctx->type));
@@ -348,23 +348,15 @@ int32_t filterAddMergeRange(void* h, SFilterRange* ra, int32_t optr) {
     //FILTER_CLR_FLAG(ra->eflag, RA_NULL);
   }
 
-  return filterAddMergeRangeImpl(h, ra, optr);
+  return filterAddRangeImpl(h, ra, optr);
 }
 
 
-int32_t filterAddMergeRangeCtx(void *dst, void *src, int32_t optr) {
-  SFilterRMCtx *dctx = (SFilterRMCtx *)dst;
-  SFilterRMCtx *sctx = (SFilterRMCtx *)src;
+int32_t filterAddRangeCtx(void *dst, void *src, int32_t optr) {
+  SFilterRangeCtx *dctx = (SFilterRangeCtx *)dst;
+  SFilterRangeCtx *sctx = (SFilterRangeCtx *)src;
 
-  if (optr == TSDB_RELATION_AND) {
-    dctx->isnull &= sctx->isnull;
-    dctx->notnull &= sctx->notnull;
-    dctx->isrange &= sctx->isrange;
-  } else {
-    dctx->isnull |= sctx->isnull;
-    dctx->notnull |= sctx->notnull;
-    dctx->isrange |= sctx->isrange;
-  }
+  assert(optr == TSDB_RELATION_OR);
 
   if (sctx->rs == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -373,16 +365,16 @@ int32_t filterAddMergeRangeCtx(void *dst, void *src, int32_t optr) {
   SFilterRangeNode *r = sctx->rs;
   
   while (r) {
-    filterAddMergeRange(dctx, &r->ra, optr);
+    filterAddRange(dctx, &r->ra, optr);
     r = r->next;
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterCopyMergeRangeCtx(void *dst, void *src) {
-  SFilterRMCtx *dctx = (SFilterRMCtx *)dst;
-  SFilterRMCtx *sctx = (SFilterRMCtx *)src;
+int32_t filterCopyRangeCtx(void *dst, void *src) {
+  SFilterRangeCtx *dctx = (SFilterRangeCtx *)dst;
+  SFilterRangeCtx *sctx = (SFilterRangeCtx *)src;
 
   dctx->status = sctx->status;
   
@@ -408,8 +400,8 @@ int32_t filterCopyMergeRangeCtx(void *dst, void *src) {
 
 
 
-int32_t filterFinMergeRange(void* h) {
-  SFilterRMCtx *ctx = (SFilterRMCtx *)h;
+int32_t filterFinishRange(void* h) {
+  SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
 
   if (FILTER_GET_FLAG(ctx->status, MR_ST_FIN)) {
     return TSDB_CODE_SUCCESS;
@@ -440,10 +432,10 @@ int32_t filterFinMergeRange(void* h) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterGetMergeRangeNum(void* h, int32_t* num) {
-  filterFinMergeRange(h);
+int32_t filterGetRangeNum(void* h, int32_t* num) {
+  filterFinishRange(h);
   
-  SFilterRMCtx *ctx = (SFilterRMCtx *)h;
+  SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
 
   *num = 0;
 
@@ -458,10 +450,10 @@ int32_t filterGetMergeRangeNum(void* h, int32_t* num) {
 }
 
 
-int32_t filterGetMergeRangeRes(void* h, SFilterRange *ra) {
-  filterFinMergeRange(h);
+int32_t filterGetRangeRes(void* h, SFilterRange *ra) {
+  filterFinishRange(h);
 
-  SFilterRMCtx *ctx = (SFilterRMCtx *)h;
+  SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
   uint32_t num = 0;
   SFilterRangeNode* r = ctx->rs;
   
@@ -482,28 +474,28 @@ int32_t filterGetMergeRangeRes(void* h, SFilterRange *ra) {
 }
 
 
-int32_t filterSourceRangeFromCtx(SFilterRMCtx *ctx, void *sctx, int32_t optr, bool *empty, bool *all) {
-  SFilterRMCtx *src = (SFilterRMCtx *)sctx;
+int32_t filterSourceRangeFromCtx(SFilterRangeCtx *ctx, void *sctx, int32_t optr, bool *empty, bool *all) {
+  SFilterRangeCtx *src = (SFilterRangeCtx *)sctx;
 
   if (src->isnull){
-    filterAddMergeOptr(ctx, TSDB_RELATION_ISNULL, optr, empty, all);
+    filterAddRangeOptr(ctx, TSDB_RELATION_ISNULL, optr, empty, all);
     if (FILTER_GET_FLAG(ctx->status, MR_ST_ALL)) {
       *all = true;
     }
   }
 
   if (src->notnull) {
-    filterAddMergeOptr(ctx, TSDB_RELATION_NOTNULL, optr, empty, all);
+    filterAddRangeOptr(ctx, TSDB_RELATION_NOTNULL, optr, empty, all);
     if (FILTER_GET_FLAG(ctx->status, MR_ST_ALL)) {
       *all = true;
     }
   }
 
   if (src->isrange) {
-    filterAddMergeOptr(ctx, 0, optr, empty, all);
+    filterAddRangeOptr(ctx, 0, optr, empty, all);
 
     if (!(optr == TSDB_RELATION_OR && ctx->notnull)) {
-      filterAddMergeRangeCtx(ctx, src, optr);
+      filterAddRangeCtx(ctx, src, optr);
     }
     
     if (FILTER_GET_FLAG(ctx->status, MR_ST_ALL)) {
@@ -516,12 +508,12 @@ int32_t filterSourceRangeFromCtx(SFilterRMCtx *ctx, void *sctx, int32_t optr, bo
 
 
 
-int32_t filterFreeMergeRange(void* h) {
+int32_t filterFreeRangeCtx(void* h) {
   if (h == NULL) {
     return TSDB_CODE_SUCCESS;
   }
   
-  SFilterRMCtx *ctx = (SFilterRMCtx *)h;
+  SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
   SFilterRangeNode *r = ctx->rs;
   SFilterRangeNode *rn = NULL;
   
@@ -532,6 +524,250 @@ int32_t filterFreeMergeRange(void* h) {
   }
 
   free(ctx);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t filterInitVarCtx(int32_t type, int32_t options) {
+  SFilterVarCtx *ctx = calloc(1, sizeof(SFilterVarCtx));
+
+  ctx->type = type;
+  ctx->options = options;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t filterAddVarValue(SFilterVarCtx *ctx, int32_t optr, void *key, int32_t keyLen, char *value, bool wild, bool *empty, bool *all) {
+  SHashObj **hash = wild ? &ctx->wild : &ctx->value;
+
+  if (*hash == NULL) {
+    *hash = taosHashInit(FILTER_DEFAULT_GROUP_SIZE * FILTER_DEFAULT_VALUE_SIZE, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false)
+  }
+  
+  if (optr == TSDB_RELATION_AND) {
+    SET_AND_OPTR(ctx, 0);
+
+    if (ctx->status == 0) {
+      taosHashPut(*hash, key, keyLen, value, sizeof(*value));
+      FILTER_SET_FLAG(ctx->status, *value);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    char *v = taosHashGet(*hash, key, keyLen);
+    if (v) {
+      *v |= *value;
+      
+      if (*v == RA_EMPTY) {
+        *empty = true;
+      }
+
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (wild) {
+      taosHashPut(*hash, key, keyLen, value, sizeof(*value));
+      FILTER_SET_FLAG(ctx->status, *value);
+      
+      return TSDB_CODE_SUCCESS;
+    }
+    
+    if (*value == RA_INCLUDE) {
+      if (FILTER_GET_FLAG(ctx->status, *value)) {
+        *empty = true;
+        return TSDB_CODE_SUCCESS;
+      }
+
+      taosHashClear(*hash);
+      taosHashPut(*hash, key, keyLen, value, sizeof(*value));
+      FILTER_SET_FLAG(ctx->status, *value);
+      
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (FILTER_GET_FLAG(ctx->status, RA_INCLUDE)) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    taosHashPut(*hash, key, keyLen, value, sizeof(*value));
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // OR PROCESS
+
+  SET_OR_OPTR(ctx, 0);
+  
+  if (ctx->status == 0) {
+    taosHashPut(*hash, key, keyLen, value, sizeof(*value));
+    FILTER_SET_FLAG(ctx->status, *value);
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  char *v = taosHashGet(*hash, key, keyLen);
+  if (v) {
+    *v |= *value;
+    
+    if (*v == RA_ALL) {
+      *all = true;
+      FILTER_SET_FLAG(ctx->status, MR_ST_ALL);
+    }
+  
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  return -1;
+}
+
+int32_t filterAddVarOptr(SFilterVarCtx *ctx, int32_t optr, int32_t raOptr, bool *empty, bool *all) {
+  if (optr == TSDB_RELATION_AND) {
+    SET_AND_OPTR(ctx, raOptr);
+    if (CHK_AND_OPTR(ctx)) {
+      FILTER_SET_FLAG(ctx->status, MR_ST_EMPTY);
+      *empty = true;
+    }
+  } else {
+    SET_OR_OPTR(ctx, raOptr);
+    if (CHK_OR_OPTR(ctx)) {
+      FILTER_SET_FLAG(ctx->status, MR_ST_ALL);
+      *all = true;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t filterCopyVarCtx(void *dst, void *src) {
+  SFilterVarCtx *dctx = (SFilterVarCtx *)dst;
+  SFilterVarCtx *sctx = (SFilterVarCtx *)src;
+
+  dctx->status = sctx->status;
+  
+  dctx->isnull = sctx->isnull;
+  dctx->notnull = sctx->notnull;
+  dctx->isrange = sctx->isrange;
+
+  void *p = taosHashIterate(sctx->wild, NULL);
+  while(p) {
+    void *key = taosHashGetDataKey(sctx->wild, p);
+    size_t keyLen = (size_t)taosHashGetDataKeyLen(sctx->wild, p);
+    size_t dataLen = (size_t)varDataTLen(p);
+    
+    taosHashPut(dctx->wild, key, keyLen, p, dataLen);
+    
+    p = taosHashIterate(sctx->wild, p);
+  }
+
+  void *p = taosHashIterate(sctx->value, NULL);
+  while(p) {
+    void *key = taosHashGetDataKey(sctx->value, p);
+    size_t keyLen = (size_t)taosHashGetDataKeyLen(sctx->value, p);
+    size_t dataLen = (size_t)varDataTLen(p);
+    
+    taosHashPut(dctx->value, key, keyLen, p, dataLen);
+    
+    p = taosHashIterate(sctx->value, p);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t filterResetVarCtx(SFilterVarCtx *ctx) {
+  ctx->status = 0;
+
+  ctx->isnull = false;
+  ctx->notnull = false;
+  ctx->isrange = false;
+
+  taosHashClear(ctx->wild);
+  taosHashClear(ctx->value);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t filterReuseVarCtx(SFilterVarCtx *ctx, int32_t type, int32_t options) {
+  filterResetRangeCtx(ctx);
+
+  ctx->type = type;
+  ctx->options = options;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+void filterFreeVarCtx(SFilterVarCtx *ctx) {
+  if (ctx == NULL) {
+    return;
+  }
+  
+  taosHashCleanup(ctx->wild);
+  taosHashCleanup(ctx->value);
+  
+  tfree(ctx);
+}
+
+
+int32_t filterAddVarCtx(void *dst, void *src, int32_t optr) {
+  SFilterVarCtx *dctx = (SFilterVarCtx *)dst;
+  SFilterVarCtx *sctx = (SFilterVarCtx *)src;
+  bool all = false;
+
+  void *p = taosHashIterate(sctx->value, NULL);
+  while(p) {
+    void *key = taosHashGetDataKey(sctx->value, p);
+    size_t keyLen = (size_t)taosHashGetDataKeyLen(sctx->value, p);
+    
+    filterAddVarValue(dctx, optr, key, keyLen, p, false, NULL, &all);
+    if (all) {
+      return TSDB_CODE_SUCCESS;
+    }
+    
+    p = taosHashIterate(sctx->value, p);
+  } 
+
+  p = taosHashIterate(sctx->wild, NULL);
+  while(p) {
+    void *key = taosHashGetDataKey(sctx->wild, p);
+    size_t keyLen = (size_t)taosHashGetDataKeyLen(sctx->wild, p);
+    
+    filterAddVarValue(dctx, optr, key, keyLen, p, true, NULL, NULL);
+    
+    p = taosHashIterate(sctx->wild, p);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t filterSourceVarFromCtx(SFilterVarCtx *ctx, void *sctx, int32_t optr, bool *empty, bool *all) {
+  SFilterVarCtx *src = (SFilterVarCtx *)sctx;
+
+  if (src->isnull){
+    filterAddVarOptr(ctx, TSDB_RELATION_ISNULL, optr, empty, all);
+    if (FILTER_GET_FLAG(ctx->status, MR_ST_ALL)) {
+      *all = true;
+    }
+  }
+
+  if (src->notnull) {
+    filterAddVarOptr(ctx, TSDB_RELATION_NOTNULL, optr, empty, all);
+    if (FILTER_GET_FLAG(ctx->status, MR_ST_ALL)) {
+      *all = true;
+    }
+  }
+
+  if (src->isrange) {
+    filterAddVarOptr(ctx, 0, optr, empty, all);
+
+    if (!(optr == TSDB_RELATION_OR && ctx->notnull)) {
+      filterAddVarCtx(ctx, src, optr);
+    }
+    
+    if (FILTER_GET_FLAG(ctx->status, MR_ST_ALL)) {
+      *all = true;
+    }
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -757,7 +993,7 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
   int32_t len = 0;
   uint16_t uidx = 0;
 
-  if (tree->_node.optr == TSDB_RELATION_IN && (!IS_VAR_DATA_TYPE(type))) {
+  if (tree->_node.optr == TSDB_RELATION_IN) {
     void *data = NULL;
     convertFilterSetFromBinary((void **)&data, var->pz, var->nLen, type);
     CHK_LRET(data == NULL, TSDB_CODE_QRY_APP_ERROR, "failed to convert in param");
@@ -835,7 +1071,7 @@ int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit* u
 }
 
 
-int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRMCtx *ctx, uint16_t cidx, SFilterGroup *g, int32_t optr, SArray *res) {
+int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRangeCtx *ctx, uint16_t cidx, SFilterGroup *g, int32_t optr, SArray *res) {
   SFilterFieldId left, right;
   uint16_t uidx = 0;
 
@@ -1117,7 +1353,7 @@ void filterFreeColInfo(void *data) {
   if (info->type == RANGE_TYPE_COL_RANGE) {
     tfree(info->info);
   } else if (info->type == RANGE_TYPE_MR_CTX) {
-    filterFreeMergeRange(info->info);  
+    filterFreeRangeCtx(info->info);  
   } else if (info->type == RANGE_TYPE_UNIT) {
     taosArrayDestroy((SArray *)info->info);
   }
@@ -1132,7 +1368,7 @@ void filterFreeColCtx(void *data) {
   SFilterColCtx* ctx = (SFilterColCtx *)data;
 
   if (ctx->ctx) {
-    filterFreeMergeRange(ctx->ctx);
+    filterFreeRangeCtx(ctx->ctx);
   }
 }
 
@@ -1259,7 +1495,7 @@ bool filterDoCompare(SFilterUnit *unit, void *left, void *right) {
 }
 
 
-int32_t filterAddUnitRange(SFilterInfo *info, SFilterUnit* u, SFilterRMCtx *ctx, int32_t optr) {
+int32_t filterAddUnitRange(SFilterInfo *info, SFilterUnit* u, SFilterRangeCtx *ctx, int32_t optr) {
   int32_t type = FILTER_UNIT_DATA_TYPE(u);
   uint8_t uoptr = FILTER_UNIT_OPTR(u);
   void *val = FILTER_UNIT_VAL_DATA(info, u);
@@ -1304,12 +1540,12 @@ int32_t filterAddUnitRange(SFilterInfo *info, SFilterUnit* u, SFilterRMCtx *ctx,
       assert(0);
   }
   
-  filterAddMergeRange(ctx, &ra, optr);
+  filterAddRange(ctx, &ra, optr);
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterCompareRMCtx(SFilterRMCtx *ctx1, SFilterRMCtx *ctx2, bool *equal) {
+int32_t filterCompareRangeCtx(SFilterRangeCtx *ctx1, SFilterRangeCtx *ctx2, bool *equal) {
   CHK_JMP(ctx1->status != ctx2->status);
   CHK_JMP(ctx1->isnull != ctx2->isnull);
   CHK_JMP(ctx1->notnull != ctx2->notnull);
@@ -1340,17 +1576,17 @@ _err_return:
 }
 
 
-int32_t filterMergeUnits(SFilterInfo *info, SFilterGroupCtx* gRes, uint16_t colIdx, bool *empty) {
+int32_t filterMergeUnitsImpl(SFilterInfo *info, SFilterGroupCtx* gRes, uint16_t colIdx, bool *empty) {
   SArray* colArray = (SArray *)gRes->colInfo[colIdx].info;
   int32_t size = (int32_t)taosArrayGetSize(colArray);
   int32_t type = gRes->colInfo[colIdx].dataType;
-  SFilterRMCtx* ctx = filterInitMergeRange(type, 0);
+  SFilterRangeCtx* ctx = filterInitRangeCtx(type, 0);
   
   for (uint32_t i = 0; i < size; ++i) {
     SFilterUnit* u = taosArrayGetP(colArray, i);
     uint8_t optr = FILTER_UNIT_OPTR(u);
 
-    filterAddMergeOptr(ctx, optr, TSDB_RELATION_AND, empty, NULL);
+    filterAddRangeOptr(ctx, optr, TSDB_RELATION_AND, empty, NULL);
     CHK_JMP(*empty);
 
     if (!FILTER_NO_MERGE_OPTR(optr)) {
@@ -1367,14 +1603,69 @@ int32_t filterMergeUnits(SFilterInfo *info, SFilterGroupCtx* gRes, uint16_t colI
 
 _err_return:
 
-  *empty = true;
+  filterFreeRangeCtx(ctx);
 
-  filterFreeMergeRange(ctx);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t filterMergeUnitsVarImpl(SFilterInfo *info, SFilterGroupCtx* gRes, uint16_t colIdx, bool *empty) {
+  SArray* colArray = (SArray *)gRes->colInfo[colIdx].info;
+  int32_t size = (int32_t)taosArrayGetSize(colArray);
+  int32_t type = gRes->colInfo[colIdx].dataType;
+  SFilterVarCtx* ctx = filterInitVarCtx(type, 0);
+  char value = RA_INCLUDE;
+  
+  for (uint32_t i = 0; i < size; ++i) {
+    SFilterUnit* u = taosArrayGetP(colArray, i);
+    uint8_t optr = FILTER_UNIT_OPTR(u);
+    void *data = FILTER_UNIT_VAL_DATA(info, u);
+
+    switch (optr) {
+      case TSDB_RELATION_LIKE:
+        value = RA_INCLUDE;
+        filterAddVarValue(ctx, TSDB_RELATION_AND, data, varDataLen(data), &value, true, empty, NULL);
+        break;
+      case TSDB_RELATION_EQUAL:
+        value = RA_INCLUDE;
+        filterAddVarValue(ctx, TSDB_RELATION_AND, data, varDataLen(data), &value, false, empty, NULL);
+        break;
+      case TSDB_RELATION_NOT_EQUAL:
+        value = RA_EXCLUDE;
+        filterAddVarValue(ctx, TSDB_RELATION_AND, data, varDataLen(data), &value, false, empty, NULL);
+        break;
+      case TSDB_RELATION_ISNULL:
+      case TSDB_RELATION_NOTNULL:
+        filterAddVarOptr(ctx, TSDB_RELATION_AND, optr, empty, NULL);
+        break;
+      default:
+        assert(0);
+    }
+      
+    CHK_JMP(*empty);
+  }
+
+  taosArrayDestroy(colArray);
+
+  FILTER_PUSH_VAR_HASH(gRes->colInfo[colIdx], ctx);
 
   return TSDB_CODE_SUCCESS;
 
+_err_return:
+
+  filterFreeVarCtx(ctx);
+
+  return TSDB_CODE_SUCCESS;
 }
 
+
+int32_t filterMergeUnits(SFilterInfo *info, SFilterGroupCtx* gRes, uint16_t colIdx, bool *empty) {
+  int32_t type = gRes->colInfo[colIdx].dataType;
+  if (IS_VAR_DATA_TYPE(type)) {
+    return filterMergeUnitsVarImpl(info, gRes, colIdx, empty);
+  }
+
+  return filterMergeUnitsImpl(info, gRes, colIdx, empty);
+}
 
 int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t* gResNum) {
   bool empty = false;
@@ -1410,12 +1701,6 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t
     }
 
     for (uint16_t l = 0; l < colIdxi; ++l) {
-      int32_t type = gRes[gResIdx]->colInfo[colIdx[l]].dataType;
-
-      if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-        continue;
-      }
-
       filterMergeUnits(info, gRes[gResIdx], colIdx[l], &empty);
 
       if (empty) {
@@ -1446,7 +1731,7 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
-void filterCheckColumns(SFilterGroupCtx* gRes1, SFilterGroupCtx* gRes2, bool *conflict) {
+void filterCheckColConflict(SFilterGroupCtx* gRes1, SFilterGroupCtx* gRes2, bool *conflict) {
   uint16_t idx1 = 0, idx2 = 0, m = 0, n = 0;
   bool equal = false;
   
@@ -1465,11 +1750,6 @@ void filterCheckColumns(SFilterGroupCtx* gRes1, SFilterGroupCtx* gRes2, bool *co
       if (idx1 > idx2) {
         continue;
       }
-
-      if (FILTER_NO_MERGE_DATA_TYPE(gRes1->colInfo[idx1].dataType)) {
-        *conflict = true;
-        return;
-      }
       
       ++n;
       equal = true;
@@ -1487,30 +1767,102 @@ void filterCheckColumns(SFilterGroupCtx* gRes1, SFilterGroupCtx* gRes2, bool *co
 }
 
 
-int32_t filterMergeTwoGroupsImpl(SFilterInfo *info, SFilterRMCtx **ctx, int32_t optr, uint16_t cidx, SFilterGroupCtx* gRes1, SFilterGroupCtx* gRes2, bool *empty, bool *all) {
+int32_t filterMergeTwoGroupsImpl(SFilterInfo *info, void **ctx, int32_t optr, uint16_t cidx, SFilterGroupCtx* gRes1, SFilterGroupCtx* gRes2, bool *empty, bool *all) {
   SFilterField *fi = FILTER_GET_COL_FIELD(info, cidx);
   int32_t type = FILTER_GET_COL_FIELD_TYPE(fi);
 
   if ((*ctx) == NULL) {
-    *ctx = filterInitMergeRange(type, 0);
+    *ctx = filterInitRangeCtx(type, 0);
   } else {
-    filterReuseMergeRangeCtx(*ctx, type, 0);
+    filterReuseRangeCtx(*ctx, type, 0);
   }
 
   assert(gRes2->colInfo[cidx].type == RANGE_TYPE_MR_CTX);
   assert(gRes1->colInfo[cidx].type == RANGE_TYPE_MR_CTX);
 
-  filterCopyMergeRangeCtx(*ctx, gRes2->colInfo[cidx].info);
+  filterCopyRangeCtx(*ctx, gRes2->colInfo[cidx].info);
   filterSourceRangeFromCtx(*ctx, gRes1->colInfo[cidx].info, optr, empty, all);
 
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t filterMergeTwoVarGroupsImpl(SFilterInfo *info, void **ctx, int32_t optr, uint16_t cidx, SFilterGroupCtx* gRes1, SFilterGroupCtx* gRes2, bool *empty, bool *all) {
+  SFilterField *fi = FILTER_GET_COL_FIELD(info, cidx);
+  int32_t type = FILTER_GET_COL_FIELD_TYPE(fi);
+
+  if ((*ctx) == NULL) {
+    *ctx = filterInitVarCtx(type, 0);
+  } else {
+    filterReuseVarCtx(*ctx, type, 0);
+  }
+
+  assert(gRes2->colInfo[cidx].type == RANGE_TYPE_MR_CTX);
+  assert(gRes1->colInfo[cidx].type == RANGE_TYPE_MR_CTX);
+
+  filterCopyVarCtx(*ctx, gRes2->colInfo[cidx].info);
+  filterSourceVarFromCtx(*ctx, gRes1->colInfo[cidx].info, optr, empty, all);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t filterCheckGroupMergeRes(SFilterRangeCtx *ctx, SFilterGroupCtx** gRes1, SFilterGroupCtx** gRes2, uint16_t idx, SArray* colCtxs,
+                                         uint16_t *equal1, uint16_t *equal2, uint16_t total, bool *success) {
+  SFilterColCtx colCtx = {0};
+  bool equal = false;
+
+  if ((*gRes1)->colNum == (*gRes2)->colNum) {
+    if ((*gRes1)->colNum == 1) {
+      ++(*equal1);
+      colCtx.colIdx = idx;
+      colCtx.ctx = ctx;
+      taosArrayPush(colCtxs, &colCtx);
+      break;
+    } else {
+      filterCompareRangeCtx(ctx, (*gRes1)->colInfo[idx].info, &equal);
+      if (equal) {
+        ++(*equal1);
+      }
+      
+      filterCompareRangeCtx(ctx, (*gRes2)->colInfo[idx].info, &equal);
+      if (equal) {
+        ++(*equal2);
+      }
+  
+      CHK_JMP((*equal1) != total && (*equal2) != total);
+      colCtx.colIdx = idx;
+      colCtx.ctx = ctx;
+      ctx = NULL;
+      taosArrayPush(colCtxs, &colCtx);
+    }
+  } else {
+    filterCompareRangeCtx(ctx, (*gRes1)->colInfo[idx].info, &equal);
+    if (equal) {
+      ++(*equal1);
+    }
+  
+    CHK_JMP((*equal1) != total);
+    colCtx.colIdx = idx;
+    colCtx.ctx = ctx;        
+    ctx = NULL;
+    taosArrayPush(colCtxs, &colCtx);
+  }
+
+  *success = true;
+
+  return TSDB_CODE_SUCCESS;
+
+_err_return:
+  *success = false;
+  return TSDB_CODE_SUCCESS;
+}
+
+
 
 int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx** gRes1, SFilterGroupCtx** gRes2, bool *all) {
   bool conflict = false;
   
-  filterCheckColumns(*gRes1, *gRes2, &conflict);
+  filterCheckColConflict(*gRes1, *gRes2, &conflict);
   if (conflict) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1519,11 +1871,12 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx** gRes1, SFilter
 
   uint16_t idx1 = 0, idx2 = 0, m = 0, n = 0;
   bool numEqual = (*gRes1)->colNum == (*gRes2)->colNum;
-  bool equal = false;
-  uint16_t equal1 = 0, equal2 = 0, merNum = 0;
-  SFilterRMCtx *ctx = NULL;
-  SFilterColCtx colCtx = {0};
+  bool success = false;
+  uint16_t equal1 = 0, equal2 = 0, total = 0;
+  void *ctx = NULL;  
+  void *vctx = NULL;
   SArray* colCtxs = taosArrayInit((*gRes2)->colNum, sizeof(SFilterColCtx));
+  int32_t dataType = 0;
 
   for (; m < (*gRes1)->colNum; ++m) {
     idx1 = (*gRes1)->colIdx[m];
@@ -1537,47 +1890,26 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx** gRes1, SFilter
 
       assert(idx1 == idx2);
       
-      ++merNum;
-      
-      filterMergeTwoGroupsImpl(info, &ctx, TSDB_RELATION_OR, idx1, *gRes1, *gRes2, NULL, all);
+      ++total;
 
-      CHK_JMP(*all);
+      dataType = gRes1->colInfo[idx1].dataType;
 
-      if (numEqual) {
-        if ((*gRes1)->colNum == 1) {
-          ++equal1;
-          colCtx.colIdx = idx1;
-          colCtx.ctx = ctx;
-          taosArrayPush(colCtxs, &colCtx);
-          break;
-        } else {
-          filterCompareRMCtx(ctx, (*gRes1)->colInfo[idx1].info, &equal);
-          if (equal) {
-            ++equal1;
-          }
-          
-          filterCompareRMCtx(ctx, (*gRes2)->colInfo[idx2].info, &equal);
-          if (equal) {
-            ++equal2;
-          }
+      if (IS_VAR_DATA_TYPE(dataType)) {
+        filterMergeTwoVarGroupsImpl(info, &vctx, TSDB_RELATION_OR, idx1, *gRes1, *gRes2, NULL, all);
 
-          CHK_JMP(equal1 != merNum && equal2 != merNum);
-          colCtx.colIdx = idx1;
-          colCtx.ctx = ctx;
-          ctx = NULL;
-          taosArrayPush(colCtxs, &colCtx);
-        }
+        CHK_JMP(*all);
+
+        filterCheckGroupMergeRes(vctx, gRes1, gRes2, idx1, colCtxs, &equal1, &equal2, total, &success);
+
+        CHK_JMP(!success);
       } else {
-        filterCompareRMCtx(ctx, (*gRes1)->colInfo[idx1].info, &equal);
-        if (equal) {
-          ++equal1;
-        }
+        filterMergeTwoGroupsImpl(info, &ctx, TSDB_RELATION_OR, idx1, *gRes1, *gRes2, NULL, all);
 
-        CHK_JMP(equal1 != merNum);
-        colCtx.colIdx = idx1;
-        colCtx.ctx = ctx;        
-        ctx = NULL;
-        taosArrayPush(colCtxs, &colCtx);
+        CHK_JMP(*all);
+
+        filterCheckGroupMergeRes(ctx, gRes1, gRes2, idx1, colCtxs, &equal1, &equal2, total, &success);
+
+        CHK_JMP(!success);
       }
 
       ++n;
@@ -1585,10 +1917,10 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx** gRes1, SFilter
     }
   }
 
-  assert(merNum > 0);
+  assert(total > 0);
 
   SFilterColInfo *colInfo = NULL;
-  assert (merNum == equal1 || merNum == equal2);
+  assert (total == equal1 || total == equal2);
 
   filterFreeGroupCtx(*gRes2);
   *gRes2 = NULL;
@@ -1616,8 +1948,9 @@ _err_return:
     taosArrayDestroyEx(colCtxs, filterFreeColCtx);
   }
 
-  filterFreeMergeRange(ctx);
-
+  filterFreeVarCtx(vctx);
+  filterFreeRangeCtx(ctx);
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1956,13 +2289,13 @@ _err_return:
 
 int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
   SFilterRange ra = {0};
-  SFilterRMCtx *prev = filterInitMergeRange(TSDB_DATA_TYPE_TIMESTAMP, FI_OPTION_TIMESTAMP);
-  SFilterRMCtx *tmpc = filterInitMergeRange(TSDB_DATA_TYPE_TIMESTAMP, FI_OPTION_TIMESTAMP);
-  SFilterRMCtx *cur = NULL;
+  SFilterRangeCtx *prev = filterInitRangeCtx(TSDB_DATA_TYPE_TIMESTAMP, FI_OPTION_TIMESTAMP);
+  SFilterRangeCtx *tmpc = filterInitRangeCtx(TSDB_DATA_TYPE_TIMESTAMP, FI_OPTION_TIMESTAMP);
+  SFilterRangeCtx *cur = NULL;
   int32_t num = 0;
   int32_t optr = 0;
   int32_t code = TSDB_CODE_QRY_INVALID_TIME_CONDITION;
-  bool empty = false;
+  bool empty = false, all = false;
 
   for (int32_t i = 0; i < info->groupNum; ++i) {
     SFilterGroup *group = &info->groups[i];
@@ -1980,7 +2313,7 @@ int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
 
       uint8_t raOptr = FILTER_UNIT_OPTR(unit);
       
-      filterAddMergeOptr(cur, raOptr, TSDB_RELATION_AND, &empty, NULL);
+      filterAddRangeOptr(cur, raOptr, TSDB_RELATION_AND, &empty, NULL);
       CHK_JMP(empty);
       
       if (FILTER_NO_MERGE_OPTR(raOptr)) {
@@ -1994,7 +2327,7 @@ int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
       SIMPLE_COPY_VALUES(&ra.s, s);
       SIMPLE_COPY_VALUES(&ra.e, e);
       
-      filterAddMergeRange(cur, &ra, optr);
+      filterAddRange(cur, &ra, optr);
     }
 
     if (cur->notnull) {
@@ -2003,28 +2336,31 @@ int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
     }
 
     if (group->unitNum > 1) {
-      filterAddMergeRangeCtx(prev, cur, TSDB_RELATION_OR);      
-      filterResetMergeRangeCtx(cur);
+      filterSourceRangeFromCtx(prev, cur, TSDB_RELATION_OR, &empty, &all);
+      filterResetRangeCtx(cur);
+      if (all) {
+        break;
+      }
     }
   }
 
   if (prev->notnull) {
     *win = TSWINDOW_INITIALIZER;
   } else {
-    filterGetMergeRangeNum(prev, &num);
+    filterGetRangeNum(prev, &num);
     if (num != 1) {
       qError("only one time range accepted, num:%d", num);
       ERR_JRET(TSDB_CODE_QRY_INVALID_TIME_CONDITION);
     }
 
     SFilterRange tra;
-    filterGetMergeRangeRes(prev, &tra);
+    filterGetRangeRes(prev, &tra);
     win->skey = tra.s; 
     win->ekey = tra.e;
   }
 
-  filterFreeMergeRange(prev);
-  filterFreeMergeRange(tmpc);
+  filterFreeRangeCtx(prev);
+  filterFreeRangeCtx(tmpc);
 
   qDebug("qFilter time range:[%"PRId64 "]-[%"PRId64 "]", win->skey, win->ekey);
   return TSDB_CODE_SUCCESS;
@@ -2033,8 +2369,8 @@ _err_return:
 
   *win = TSWINDOW_DESC_INITIALIZER;
 
-  filterFreeMergeRange(prev);
-  filterFreeMergeRange(tmpc);
+  filterFreeRangeCtx(prev);
+  filterFreeRangeCtx(tmpc);
 
   qDebug("qFilter time range:[%"PRId64 "]-[%"PRId64 "]", win->skey, win->ekey);
 
