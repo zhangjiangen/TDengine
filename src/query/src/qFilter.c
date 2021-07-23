@@ -1603,6 +1603,8 @@ int32_t filterMergeUnitsImpl(SFilterInfo *info, SFilterGroupCtx* gRes, uint16_t 
 
 _err_return:
 
+  *empty = true;
+
   filterFreeRangeCtx(ctx);
 
   return TSDB_CODE_SUCCESS;
