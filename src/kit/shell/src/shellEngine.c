@@ -564,7 +564,11 @@ static void shellPrintNChar(const char *str, int length, int width) {
     }
 
     if (width <= 0) {
+#ifdef WINDOWS
+      wprintf(L"%lc", wc);
+#else
       printf("%lc", wc);
+#endif      
       continue;
     }
 
@@ -573,7 +577,11 @@ static void shellPrintNChar(const char *str, int length, int width) {
       break;
     }
     if (totalCols <= (width - 3)) {
+#ifdef WINDOWS
+      wprintf(L"%lc", wc);
+#else
       printf("%lc", wc);
+#endif 
       cols += w;
     } else {
       tail[tailLen] = wc;
@@ -592,7 +600,11 @@ static void shellPrintNChar(const char *str, int length, int width) {
     }
   } else {
     for (int i = 0; i < tailLen; i++) {
+#ifdef WINDOWS
+      wprintf(L"%lc", tail[i]);
+#else
       printf("%lc", tail[i]);
+#endif     
     }
     cols = totalCols;
   }
