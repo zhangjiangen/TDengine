@@ -1286,10 +1286,12 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
       if (!isRowDel) {
         if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
           pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, dataRowVersion(row));
-          ASSERT(pSchema != NULL);
+          // ASSERT(pSchema != NULL);
         }
 
-        tdAppendDataRowToDataCol(row, pSchema, pTarget);
+        if (pSchema) {
+          tdAppendDataRowToDataCol(row, pSchema, pTarget);
+        }
       }
 
       tSkipListIterNext(pCommitIter->pIter);
@@ -1298,10 +1300,12 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
         if (!isRowDel) {
           if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
             pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, dataRowVersion(row));
-            ASSERT(pSchema != NULL);
+            // ASSERT(pSchema != NULL);
           }
 
-          tdAppendDataRowToDataCol(row, pSchema, pTarget);
+          if (pSchema) {
+            tdAppendDataRowToDataCol(row, pSchema, pTarget);
+          }
         }
       } else {
         ASSERT(!isRowDel);
