@@ -13,23 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-struct SRaftServer {
-  // TODO
+#ifndef _TD_MSG_TYPE_H_
+#define _TD_MSG_TYPE_H_
+
+enum raft_msg_type_t {
+  client_req = 0,
+  append_entries_req,
+  append_entries_rsp,
+  RAFT_MAX_MSGS
 };
 
-static struct SRaftServer gRaftServer;
-
-int traftInit() {
-  // TODO
-  return 0;
-}
-
-int traftClear() {
-  // TODO
-  return 0;
-}
-
-int traftProcessMsg(SRaftHandle *pRafth, SRaftMsg *pMsg) {
-  // TODO
-  return 0;
-}
+#endif /*_TD_MSG_TYPE_H_*/

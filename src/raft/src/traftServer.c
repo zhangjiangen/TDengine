@@ -12,42 +12,32 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "tmsg.h"
 
-#ifndef _TD_TMSG_H_
-#define _TD_TMSG_H_
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include <stdint.h>
-
-#include "tlogstore.h"
-
-#define RAFT_MSG_REQ 0
-#define RAFT_MSG_RSP 1
-
-typedef struct SRaftMsg {
-  uint8_t type;
-  char    body[];
-} SRaftMsg;
-
-#define RAFT_MSG_TYPE(m) ((m)->type)
-#define RAFT_MSG_BODY(m) ((m)->body)
-
-SRaftMsg *traftNewMsg(uint8_t type, size_t size);
-void      traftFreeMsg(SRaftMsg *pMsg);
-
-typedef struct SRaftReq {
+struct SRaftServer {
   // TODO
-} SRaftReq;
+};
 
-typedef struct SRaftRsp {
+static struct SRaftServer gRaftServer;
+int (*msg_process_fn)(SRaftHandle *pRafth, SRaftMsg *pMsg);
+static msg_process_fn msg_vtable[RAFT_MAX_MSGS] = {
+    NULL,  // client_req
+    NULL,  // append_entries_req,
+    NULL   // append_entries_rsp,
+};
+
+int traftInit() {
   // TODO
-} SRaftRsp;
-
-#ifdef __cplusplus
+  return 0;
 }
-#endif
 
-#endif /*_TD_TMSG_H_*/
+int traftClear() {
+  // TODO
+  return 0;
+}
+
+int traftProcessMsg(SRaftHandle *pRafth, SRaftMsg *pMsg) {
+  int code = (*msg_vtable[RAFT_MSG_TYPE(pMsg)])(pRafth, pMsg);
+  // TODO
+  return 0;
+}
