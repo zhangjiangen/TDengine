@@ -1,0 +1,36 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef _TD_TRAFT_LOG_H_
+#define _TD_TRAFT_LOG_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+extern int32_t traftDebugFlag;
+
+#define raftFatal(...) do { if (tsdbDebugFlag & DEBUG_FATAL) { taosPrintLog("SYN FATAL ", 255, __VA_ARGS__); }}     while(0)
+#define raftError(...) do { if (tsdbDebugFlag & DEBUG_ERROR) { taosPrintLog("SYN ERROR ", 255, __VA_ARGS__); }}     while(0)
+#define raftWarn(...)  do { if (tsdbDebugFlag & DEBUG_WARN)  { taosPrintLog("SYN WARN ", 255, __VA_ARGS__); }}      while(0)
+#define raftInfo(...)  do { if (tsdbDebugFlag & DEBUG_INFO)  { taosPrintLog("SYN ", 255, __VA_ARGS__); }}           while(0)
+#define raftDebug(...) do { if (tsdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("SYN ", tsdbDebugFlag, __VA_ARGS__); }} while(0)
+#define raftTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("SYN ", tsdbDebugFlag, __VA_ARGS__); }} while(0)
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_TRAFT_LOG_H_*/
