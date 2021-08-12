@@ -28,13 +28,22 @@ extern "C" {
 #define RAFT_MSG_REQ 0
 #define RAFT_MSG_RSP 1
 
-typedef struct SRaftMsg {
+typedef struct {
   raft_msg_type_t type;
+  raft_term_t     term;
+  log_idx_t       idx;
   char            body[];
+  bool            isSync;
 } SRaftMsg;
 
+typedef struct SRaftMsgBatch {
+  // TODO
+} SRaftMsgBatch;
+
 #define RAFT_MSG_TYPE(m) ((m)->type)
+#define RAFT_MSG_TERM(m) ((m)->term)
 #define RAFT_MSG_BODY(m) ((m)->body)
+#define RAFT_MSG_IS_SYNC(m) ((m)->isSync)
 
 SRaftMsg *traftNewMsg(uint8_t type, size_t size);
 void      traftFreeMsg(SRaftMsg *pMsg);

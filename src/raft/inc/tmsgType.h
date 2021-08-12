@@ -20,6 +20,8 @@ enum raft_msg_type_t {
   client_req = 0,
   append_entries_req,
   append_entries_rsp,
+  request_vote_req,
+  request_vote_rsp,
   RAFT_MAX_MSGS
 };
 

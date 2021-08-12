@@ -13,31 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LOG_SOTRE_H_
-#define _TD_LOG_SOTRE_H_
+#ifndef _TD_ITIMER_H_
+#define _TD_ITIMER_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef uint64_t log_idx_t;
+typedef struct ITimer {
+  // TODO
+} ITimer;
 
-typedef struct SLogStoreVTable {
-  // TODO: use function pointer to implement interfaces
-} SLogStoreVTable;
-
-typedef struct SLogStore {
-  log_idx_t       nextIdx;
-  SLogStoreVTable vtable;
-  void *          impl;
-} SLogStore;
-
-// TODO: add more interfaces for SLogStore
-int       tLogStoreInit(SLogStore *pStore, void *impl, const SLogStoreVTable *pVTable);
-log_idx_t logStoreNextIdx(SLogStore *pStore);
+// TODO: APIs defined below
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_LOG_SOTRE_H_*/
+#endif /*_TD_ITIMER_H_*/

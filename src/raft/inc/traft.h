@@ -23,7 +23,11 @@ extern "C" {
 #include "tlogStore.h"
 #include "tmsg.h"
 
-typedef struct SRaftHandle SRaftHandle;
+typedef struct SRaftCtx SRaftCtx;
+
+typedef uint64_t raft_term_t;
+
+enum raft_role_t { RAFT_ROLE_FOLLOWER = 1, RAFT_ROLE_CANDIDATE, RAFT_ROLE_LEADER };
 
 // Module Init/Clear APIs
 int traftInit();
@@ -32,13 +36,18 @@ int traftClear();
 // For multi-raft
 
 // Process Message request
-int traftProcessMsg(SRaftHandle *pRafth, SRaftMsg *pMsg);
+int traftProcessMsg(SRaftCtx *pRafth, SRaftMsg *pMsg);
 
 /*----------------Do NOT use definitions below----------------*/
-struct SRaftHandle {
-  uint64_t  term;
-  SLogStore logStore;
+struct SRaftCtx {
+  raft_term_t term;
+  raft_role_t role;
+  SLogStore   logStore;
 };
+
+#define RAFT_CTX_TERM(ctx) ((ctx)->term)
+#define RAFT_CTX_ROLE(ctx) ((ctx)->role)
+#define RAFT_CTX_UPDATE_TERM(ctx, term) (RAFT_CTX_TERM(ctx) = (term))
 
 #ifdef __cplusplus
 }
