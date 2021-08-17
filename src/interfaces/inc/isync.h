@@ -13,16 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MSG_TYPE_H_
-#define _TD_MSG_TYPE_H_
+#ifndef _TD_ISYNC_H_
+#define _TD_ISYNC_H_
 
-enum raft_msg_type_t {
-  client_req = 0,
-  append_entries_req,
-  append_entries_rsp,
-  request_vote_req,
-  request_vote_rsp,
-  RAFT_MAX_MSGS
-};
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#endif /*_TD_MSG_TYPE_H_*/
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_ISYNC_H_*/

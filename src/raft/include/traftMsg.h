@@ -13,51 +13,29 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TMSG_H_
-#define _TD_TMSG_H_
+#ifndef _TD_TRAFT_MSG_H_
+#define _TD_TRAFT_MSG_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
-
-#include "tlogstore.h"
-#include "tmsgType.h"
-
-#define RAFT_MSG_REQ 0
-#define RAFT_MSG_RSP 1
+#define RAFT_MSG_BASE   \
+  raft_msg_type_t type; \
+  traft_term_t    term;
 
 typedef struct {
-  raft_msg_type_t type;
-  raft_term_t     term;
-  log_idx_t       idx;
-  char            body[];
-  bool            isSync;
-} SRaftMsg;
+  RAFT_MSG_BASE
 
-typedef struct SRaftMsgBatch {
-  // TODO
-} SRaftMsgBatch;
+  raft_node_id_t from;
+  raft_node_id_t to;
+} SRaftMsg;
 
 #define RAFT_MSG_TYPE(m) ((m)->type)
 #define RAFT_MSG_TERM(m) ((m)->term)
-#define RAFT_MSG_BODY(m) ((m)->body)
-#define RAFT_MSG_IS_SYNC(m) ((m)->isSync)
-
-SRaftMsg *traftNewMsg(uint8_t type, size_t size);
-void      traftFreeMsg(SRaftMsg *pMsg);
-
-typedef struct SRaftReq {
-  // TODO
-} SRaftReq;
-
-typedef struct SRaftRsp {
-  // TODO
-} SRaftRsp;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TMSG_H_*/
+#endif /*_TD_TRAFT_MSG_H_*/

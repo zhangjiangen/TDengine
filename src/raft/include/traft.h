@@ -13,22 +13,38 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TPEER_H_
-#define _TD_TPEER_H_
+#ifndef _TD_TRAFT_H_
+#define _TD_TRAFT_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef int peer_id_t;
+#include "traftCfg.h"
+#include "traftNodeID.h"
+#include "traftRole.h"
+#include "traftTerm.h"
 
-typedef struct SRaftPeer {
-  peer_id_t id;
-  // TODO
-} SRaftPeer;
+typedef struct {
+  raft_term_t    term;    // current term
+  raft_node_id_t vote;    // voted for in this term
+  raft_node_id_t leader;  // leader ID of current term
+  raft_role_t    role;
+  bool           isLearner;
+
+  // Raft configuts
+  RAFT_CFGS
+} SRaft;
+
+#define RAFT_TERM(r) ((r)->term)
+#define RAFT_VOTE(r) ((r)->vote)
+#define RAFT_LEADER(r) ((r)->leader)
+#define RAFT_ROLE(r) ((r)->role)
+
+int raftProcessMsg(SRaft *pRaft, SRaftMsg *pMsg);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TPEER_H_*/
+#endif /*_TD_TRAFT_H_*/

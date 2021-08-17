@@ -13,22 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tmsg.h"
+#ifndef _TD_TRAFT_LOG_H_
+#define _TD_TRAFT_LOG_H_
 
-SRaftMsg *traftNewMsg(uint8_t type, size_t size) {
-  SRaftMsg *pMsg;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-  size_t tsize = sizeof(SRaftMsg) + size + (type == RAFT_MSG_REQ) ? sizeof(SRaftReq) : sizeof(SRaftRsp);
-  if ((pMsg = malloc(tsize)) == NULL) {
-    // TODO
-    return NULL;
-  }
+typedef struct SRaftLog {
+  // TODO
+} SRaftLog;
 
-  return pMsg;
+#ifdef __cplusplus
 }
+#endif
 
-void traftFreeMsg(SRaftMsg *pMsg) {
-  if (pMsg) {
-    free(pMsg);
-  }
-}
+#endif /*_TD_TRAFT_LOG_H_*/
