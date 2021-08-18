@@ -274,7 +274,7 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
     int32_t waitingDuring = tsShellActivityTimer * 500;
     tscDebug("0x%"PRIx64" send heartbeat in %dms", pSql->self, waitingDuring);
 
-    taosTmrReset(tscProcessActivityTimer, waitingDuring, (void *)pObj->rid, tscTmr, &pObj->pTimer);
+    //taosTmrReset(tscProcessActivityTimer, waitingDuring, (void *)pObj->rid, tscTmr, &pObj->pTimer);
   } else {
     tscDebug("0x%"PRIx64" start to close tscObj:%p, not send heartbeat again", pSql->self, pObj);
   }
