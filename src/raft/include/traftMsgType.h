@@ -35,23 +35,9 @@ enum raft_msg_type_t : uint8_t {
 
 static FORCE_INLINE const char *raftMsgToString(raft_msg_type_t type) {
   switch (type) {
-    case RAFT_CLIENT_REQ:
-      return "raft client request";
-    case RAFT_APPEND_ENTRIES_REQ:
-      return "raft append entries request";
-    case RAFT_APPEND_ENTRIES_RSP:
-      return "raft append entries response";
-    case RAFT_REQUEST_VOTE_REQ:
-      return "raft request vote request";
-    case RAFT_REQUEST_VOTE_RSP:
-      return "raft request vote response";
-    case RAFT_PRE_VOTE_REQ:
-      return "raft pre-vote request";
-    case RAFT_PRE_VOTE_RSP:
-      return "raft pre-vote response";
-    default:
-      return "invalid raft msg type";
+    // TODO
   }
+  return NULL;
 }
 
 #ifdef __cplusplus

@@ -16,9 +16,12 @@
 #include "traft.h"
 
 // Function declarations
-static int followerProcessMsg(SRaft *pRaft, SRaftMsg *pMsg);
-static int candidateProcessMsg(SRaft *pRaft, SRaftMsg *pMsg);
-static int leaderProcessMsg(SRaft *pRaft, SRaftMsg *pMsg);
+static int  followerProcessMsg(SRaft *pRaft, SRaftMsg *pMsg);
+static int  candidateProcessMsg(SRaft *pRaft, SRaftMsg *pMsg);
+static int  leaderProcessMsg(SRaft *pRaft, SRaftMsg *pMsg);
+static void raftBecomeFollower(SRaft *pRaft);
+static void raftBecomeCandidate(SRaft *pRaft);
+static void raftBecomeLeader(SRaft *pRaft);
 
 // Message process table
 typedef int (*raft_process_msg_fn)(SRaft *pRaft, SRaftMsg *pMsg);
@@ -43,10 +46,16 @@ int raftProcessMsg(SRaft *pRaft, SRaftMsg *pMsg) {
   // TODO: preprocess the message
 
   // Check term part
-  if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
-    // TODO: may need to become follower
-  } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
-    // TODO
+  if (RAFT_TERM_IS_VLD(RAFT_MSG_TERM(pMsg))) {
+    if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
+      // TODO: may need to become follower
+      raftBecomeFollower(pRaft);
+    } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
+      // Just ignore the message
+      return 0;
+    }
+  } else {
+    // A local message need to be handled by raft module
   }
 
   // call corresponding process function
@@ -92,14 +101,18 @@ static int leaderProcessMsg(SRaft *pRaft, SRaftMsg *pMsg) {
   return 0;
 }
 
-static void raftBecomeFollower(SRaft *pRaft) {
-  // TODO
+static void raftBecomeFollower(SRaft *pRaft, raft_term_t term) {
+  pRaft->term = term;
+  pRaft->role = RAFT_ROLE_FOLLOWER;
+  // TODO: need to reset timer
 }
 
 static void raftBecomeCandidate(SRaft *pRaft) {
+  pRaft->role = RAFT_ROLE_CANDIDATE;
   // TODO
 }
 
 static void raftBecomeLeader(SRaft *pRaft) {
+  pRaft->role = RAFT_ROLE_LEADER;
   // TODO
 }

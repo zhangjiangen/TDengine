@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #define RAFT_MSG_BASE   \
-  traft_term_t    term; \
+  raft_term_t     term; \
   raft_msg_type_t type;
 
 typedef struct {
@@ -31,8 +31,8 @@ typedef struct {
   raft_node_id_t to;
 } SRaftMsg;
 
-#define RAFT_MSG_TYPE(m) ((m)->type)
 #define RAFT_MSG_TERM(m) ((m)->term)
+#define RAFT_MSG_TYPE(m) ((m)->type)
 
 #ifdef __cplusplus
 }

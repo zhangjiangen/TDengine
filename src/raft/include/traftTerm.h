@@ -22,6 +22,8 @@ extern "C" {
 
 typedef uint64_t raft_term_t;
 
+#define RAFT_TERM_IS_VLD(term) ((term) > 0)
+
 #ifdef __cplusplus
 }
 #endif
