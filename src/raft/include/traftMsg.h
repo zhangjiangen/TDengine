@@ -21,8 +21,8 @@ extern "C" {
 #endif
 
 #define RAFT_MSG_BASE   \
-  raft_msg_type_t type; \
-  traft_term_t    term;
+  traft_term_t    term; \
+  raft_msg_type_t type;
 
 typedef struct {
   RAFT_MSG_BASE

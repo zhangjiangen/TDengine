@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+typedef void* SRow;
+
 #ifdef __cplusplus
 }
 #endif
