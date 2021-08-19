@@ -29,12 +29,14 @@ typedef struct {
 
   raft_node_id_t from;
   raft_node_id_t to;
+  SArray*        reqs;
 } SRaftMsg;
 
 #define RAFT_MSG_TERM(m) ((m)->term)
 #define RAFT_MSG_TYPE(m) ((m)->type)
 #define RAFT_MSG_FROM(m) ((m)->from)
 #define RAFT_MSG_TO(m) ((m)->to)
+#define RAFT_MSG_NUM_OF_REQS(m) taosArrayGetSize((m)->reqa)
 
 #ifdef __cplusplus
 }

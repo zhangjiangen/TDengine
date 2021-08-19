@@ -161,3 +161,47 @@ static void raftBecomeLeader(SRaft *pRaft) {
   pRaft->role = RAFT_ROLE_LEADER;
   // TODO
 }
+
+static int raftHandleClientReq(SRaft *pRaft, SRaftMsg *pMsg) {
+  ASSERT(RAFT_ROLE(pRaft) == RAFT_ROLE_MASTER);
+
+  // Set request term and indices
+  for (size_t i = 0; i < RAFT_MSG_NUM_OF_REQS; i++) {
+    /* code */
+  }
+
+  // Append entry to raft log
+  raftAppendEntries(pRaft, pMsg);
+
+  // broadcast to other nodes
+  raftBroadcastMsg(pRaft, pMsg);
+
+  // TODO
+  return 0;
+}
+
+static void raftBroadcastMsg(SRaft *pRaft, SRaftMsg *pMsg) {
+  for (size_t i = 0; i < taosArrayGetSize(pRaft->peers); i++) {
+    SRaftPeer *pPeer = taosArrayGet(pRaft->peers, i);
+
+    raftSendMsg(RAFT_PEER_ID(pPeer), pMsg);
+  }
+}
+
+static void raftAppendEntries(SRaft *pRaft, SRaftMsg *pMsg) {
+  // TODO
+}
+
+// TODO: refactor this function
+static int raftMaybeUpdateTerm(SRaft *pRaft, SRaftMsg *pMsg) {
+  if (RAFT_ROLE(pRaft) == RAFT_ROLE_FOLLOWER) {
+    // TODO
+  } else if (RAFT_ROLE(pRaft) == RAFT_ROLE_CANDIDATE) {
+    // TODO
+  } else if (RAFT_ROLE(pRaft) == RAFT_ROLE_LEADER) {
+    // TODO
+  } else {
+    NOT_POSSIBLE();
+  }
+  return 0;
+}

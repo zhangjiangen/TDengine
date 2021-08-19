@@ -34,6 +34,9 @@ typedef struct {
 
   // Raft configuts
   RAFT_CFGS
+
+  // Node peers
+  SArray *peers;
 } SRaft;
 
 #define RAFT_TERM(r) ((r)->term)

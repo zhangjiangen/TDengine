@@ -21,8 +21,11 @@ extern "C" {
 #endif
 
 typedef struct SRaftPeer {
+  raft_node_id_t id;
   // TODO
 } SRaftPeer;
+
+#define RAFT_PEER_ID(peer) ((peer)->id)
 
 #ifdef __cplusplus
 }
