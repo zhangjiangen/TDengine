@@ -21,13 +21,15 @@ extern "C" {
 #endif
 
 enum raft_msg_type_t : uint8_t {
-  RAFT_CLIENT_REQ = 0,
-  RAFT_APPEND_ENTRIES_REQ,
-  RAFT_APPEND_ENTRIES_RSP,
-  RAFT_REQUEST_VOTE_REQ,
-  RAFT_REQUEST_VOTE_RSP,
-  RAFT_PRE_VOTE_REQ,
-  RAFT_PRE_VOTE_RSP,
+  RAFT_CLIENT_REQ = 0,      // client req, only LEADER can handle this kind of msg req
+  RAFT_APPEND_ENTRIES_REQ,  // append entry request sent from LEADER, to FOLLOWER and CANDIDATE
+  RAFT_APPEND_ENTRIES_RSP,  // append entry response
+  RAFT_REQUEST_VOTE_REQ,    // vote req
+  RAFT_REQUEST_VOTE_RSP,    // vote rsp
+  RAFT_PRE_VOTE_REQ,        // pre-vote req
+  RAFT_PRE_VOTE_RSP,        // pre-vote rsp
+  RAFT_HEARTBEAT_REQ,       // heartbeat req
+  RAFT_HEARTBEAT_RSP,       // heartbeat rsp
   RAFT_MAX_MSGS
 };
 
@@ -35,9 +37,27 @@ enum raft_msg_type_t : uint8_t {
 
 static FORCE_INLINE const char *raftMsgToString(raft_msg_type_t type) {
   switch (type) {
-    // TODO
+    case RAFT_CLIENT_REQ:
+      return "raft client request";
+    case RAFT_APPEND_ENTRIES_REQ:
+      return "raft append entries request";
+    case RAFT_APPEND_ENTRIES_RSP:
+      return "raft append entries response";
+    case RAFT_REQUEST_VOTE_REQ:
+      return "raft request vote request";
+    case RAFT_REQUEST_VOTE_RSP:
+      return "raft request vote response";
+    case RAFT_PRE_VOTE_REQ:
+      return "raft pre-vote request";
+    case RAFT_PRE_VOTE_RSP:
+      return "raft pre-vote response";
+    case RAFT_HEARTBEAT_REQ:
+      return "raft heartbeat request";
+    case RAFT_HEARTBEAT_RSP:
+      return "raft heartbeat response";
+    default:
+      return "invalid raft msg type";
   }
-  return NULL;
 }
 
 #ifdef __cplusplus

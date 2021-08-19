@@ -12,21 +12,22 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef _TD_TRAFT_TERM_H_
-#define _TD_TRAFT_TERM_H_
+#ifndef _TD_TRAFT_TIMER_TASK_H_
+#define _TD_TRAFT_TIMER_TASK_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef uint64_t raft_term_t;
+typedef struct {
+  // TODO
+} SRaftTimerTask;
 
-#define RAFT_TERM_NONE ((raft_term_t)0)
-#define RAFT_TERM_IS_VLD(term) ((term) != RAFT_TERM_NONE)
+int raftInitTimerTask(SRaftTimerTask *pTask);
+int raftStopTimerTask(SRaftTimerTask *pTask);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TRAFT_TERM_H_*/
+#endif /*_TD_TRAFT_TIMER_TASK_H_*/

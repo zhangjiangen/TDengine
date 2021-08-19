@@ -46,16 +46,16 @@ int raftProcessMsg(SRaft *pRaft, SRaftMsg *pMsg) {
   // TODO: preprocess the message
 
   // Check term part
-  if (RAFT_TERM_IS_VLD(RAFT_MSG_TERM(pMsg))) {
-    if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
-      // TODO: may need to become follower
+  ASSERT(RAFT_TERM_IS_VLD(RAFT_MSG_TERM(pMsg)));
+  if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
+    if (false) {
+    } else {
+      // Become FOLLOWER by default
       raftBecomeFollower(pRaft);
-    } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
-      // Just ignore the message
-      return 0;
     }
-  } else {
-    // A local message need to be handled by raft module
+  } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
+    // Just ignore the message
+    return 0;
   }
 
   // call corresponding process function
