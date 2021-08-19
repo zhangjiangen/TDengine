@@ -43,6 +43,9 @@ typedef struct {
 
 int raftProcessMsg(SRaft *pRaft, SRaftMsg *pMsg);
 
+#define NOT_POSSIBLE() ASSERT(0)
+#define IGNORE()
+
 #ifdef __cplusplus
 }
 #endif

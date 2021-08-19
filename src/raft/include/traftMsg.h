@@ -33,6 +33,8 @@ typedef struct {
 
 #define RAFT_MSG_TERM(m) ((m)->term)
 #define RAFT_MSG_TYPE(m) ((m)->type)
+#define RAFT_MSG_FROM(m) ((m)->from)
+#define RAFT_MSG_TO(m) ((m)->to)
 
 #ifdef __cplusplus
 }

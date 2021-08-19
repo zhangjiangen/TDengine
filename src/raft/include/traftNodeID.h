@@ -28,6 +28,7 @@ typedef uint16_t raft_node_id_t;
 extern raft_node_id_t raftNodeID;
 
 #define RAFT_SELF_NODE_ID() raftNodeID
+#define RAFT_NODE_ID_IS_NONE(id) ((id) == RAFT_NODE_ID_NONE)
 
 #ifdef __cplusplus
 }

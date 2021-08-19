@@ -45,19 +45,6 @@ SRaft *traftFree(SRaft *pRaft) {
 int raftProcessMsg(SRaft *pRaft, SRaftMsg *pMsg) {
   // TODO: preprocess the message
 
-  // Check term part
-  ASSERT(RAFT_TERM_IS_VLD(RAFT_MSG_TERM(pMsg)));
-  if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
-    if (false) {
-    } else {
-      // Become FOLLOWER by default
-      raftBecomeFollower(pRaft);
-    }
-  } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
-    // Just ignore the message
-    return 0;
-  }
-
   // call corresponding process function
   int ret = (*raftProcessMsgTable[RAFT_ROLE(pRaft)])(pRaft, pMsg);
   if (ret < 0) {
@@ -80,25 +67,83 @@ static int candidateProcessMsg(SRaft *pRaft, SRaftMsg *pMsg) {
 }
 
 static int leaderProcessMsg(SRaft *pRaft, SRaftMsg *pMsg) {
+  int code = 0;
+
   switch (RAFT_MSG_TYPE(pMsg)) {
     case RAFT_CLIENT_REQ:
+      ASSERT(RAFT_MSG_TERM(pMsg) == RAFT_TERM_NONE);
+      // TODO: handle the RAFT_CLIENT_REQ msg
+      code = raftHandleClientReq(pRaft, pMsg);
       break;
     case RAFT_APPEND_ENTRIES_REQ:
+      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
+        raftBecomeFollower(pRaft, RAFT_MSG_TERM(pMsg));
+      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
+        // Just ignore the message
+        return 0;
+      } else {
+        NOT_POSSIBLE();
+      }
+
+      // When reaching here, the node must be a follower with same term as pMsg->term
+      ASSERT((RAFT_MSG_TERM(pMsg) == RAFT_TERM(pRaft)) && (RAFT_ROLE(pRaft) == RAFT_ROLE_FOLLOWER));
+      code = raftHandleAppendEntriesReq(pRaft, pMsg);
       break;
     case RAFT_APPEND_ENTRIES_RSP:
+      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
+        NOT_POSSIBLE();
+      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
+        // Just ignore the message
+        return 0;
+      }
+      code = raftHandleAppendEntriesRsp(pRaft, pMsg);
       break;
     case RAFT_REQUEST_VOTE_REQ:
+      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
+        raftBecomeFollower(pRaft, RAFT_MSG_TERM(pMsg));
+      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
+        raftSendMsg((SRaftMsg){.term = RAFT_TERM(pRaft), .to = RAFT_MSG_FROM(pMsg)});
+        return 0;
+      }
+
+      code = raftHandleRequestVoteReq(pRaft, pMsg);
       break;
     case RAFT_REQUEST_VOTE_RSP:
+      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
+        NOT_POSSIBLE();
+      } else {
+        // just ignore
+      }
       break;
     case RAFT_PRE_VOTE_REQ:
       break;
     case RAFT_PRE_VOTE_RSP:
       break;
+    case RAFT_HEARTBEAT_REQ:
+      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
+        raftBecomeFollower(pRaft, RAFT_MSG_TERM(pMsg));
+      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pMsg)) {
+        // Send current message to others
+        raftSendMsg();
+      } else {
+        NOT_POSSIBLE();
+      }
+
+      code = raftHandleHeartbeatReq(pRaft, pMsg);
+      break;
+    case RAFT_HEARTBEAT_RSP:
+      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
+        raftBecomeFollower(pRaft, RAFT_MSG_TERM(pMsg));
+      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pMsg)) {
+        IGNORE();
+      } else {
+        NOT_POSSIBLE();
+      }
+      break;
     default:
       break;
   }
-  return 0;
+  return code;
 }
 
 static void raftBecomeFollower(SRaft *pRaft, raft_term_t term) {
