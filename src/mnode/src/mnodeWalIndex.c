@@ -181,7 +181,7 @@ void mnodeSdbBuildWalIndex(void* handle) {
   char    name[TSDB_FILENAME_LEN] = {0};
   sprintf(name, "%s/wal/index", tsMnodeDir);
   remove(name);
-  int64_t tfd = tfOpen(name, O_RDWR | O_CREAT);
+  int64_t tfd = tfOpenM(name, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
   if (!tfValid(tfd)) {
     sdbError("file:%s, failed to open for build index since %s", name, strerror(errno));
     goto _err;

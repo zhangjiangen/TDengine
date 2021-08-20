@@ -388,8 +388,8 @@ static void sdbCacheReadIndex(mnodeSdbTable *pTable, void* p) {
   walIndex *pIndex = (walIndex*)p;
     
   walRecord *pWal = calloc(1, sizeof(walRecord) + pIndex->keyLen);
-
-  memcpy(&(pWal->index), pIndex, sizeof(walRecord) + pIndex->keyLen);
+  pWal->idx = 0;
+  memcpy(&(pWal->index), pIndex, sizeof(walIndex) + pIndex->keyLen);
 
   pthread_mutex_lock(&pCache->mutex);
   taosHashPut(pCache->pWalTable, pIndex->key, pIndex->keyLen, &pWal, sizeof(walRecord**));

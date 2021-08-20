@@ -209,9 +209,12 @@ static int32_t sdbInitWal() {
     exit(0);
     return 0;
   }
+
+#if 1
   sdbRestoreFromIndex(sdbWalIndexReader);
   sdbInfo("vgId:1, sdb wal index load success");
   return 0;
+#endif
 
   sdbInfo("vgId:1, open sdb wal for restore");
   int32_t code = walRestore(tsSdbMgmt.wal, NULL, sdbProcessWrite);

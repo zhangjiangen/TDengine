@@ -268,11 +268,21 @@ int32_t walRestoreAt(int64_t tfd, const char* name, int64_t offset, int32_t size
     return -1;
   }
 
+  assert(size == sizeof(SWalHead) + pHead->len);
+
+#if defined(WAL_CHECKSUM_WHOLE)
+  if ((pHead->sver >= 1) && !walValidateChecksum(pHead)) {
+    wError("file:%s, wal whole cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, name,
+             pHead->version, pHead->len, offset);
+    return -1;
+  }
+#else
   if (!taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
     wError("file:%s, wal head cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, name,
             pHead->version, pHead->len, offset);
     return -1;
   }
+#endif
 
   (*writeFp)(NULL, pHead, TAOS_QTYPE_WAL, NULL, NULL);
   free(buffer);
