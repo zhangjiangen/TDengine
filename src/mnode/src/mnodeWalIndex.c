@@ -51,6 +51,34 @@ int16_t nWalFileInfo;
 walIndexFileInfo* tsWalFileInfo;
 char* tsWalIndexBuffer;
 
+// index data type
+
+typedef enum walIndexContentType {
+  WAL_INDEX_HEADER        = 0,
+  WAL_INDEX_TABLE_HEADER  = 1,
+  WAL_INDEX_ITEM          = 2,
+}walIndexContentType;
+
+typedef struct walIndexHeaderMeta {
+  walIndexContentType type;
+  int64_t totalSize;
+  uint64_t version;
+  int64_t offset;
+  int32_t walNameSize;
+} walIndexHeaderMeta;
+
+typedef struct walIndexHeader {
+  walIndexHeaderMeta meta;
+
+  char walName[];
+} walIndexHeader;
+
+typedef struct walIndexTableHeader {
+  walIndexContentType type;
+  ESdbTable tableId;
+  int64_t tableSize;
+} walIndexTableHeader;
+
 static int32_t buildIndex(void *wparam, void *hparam, int32_t qtype, void *tparam, void* head) {
   //SSdbRow *pRow = wparam;
   SWalHead *pHead = hparam;
@@ -148,9 +176,10 @@ void mnodeSdbBuildWalIndex(void* handle) {
     goto _err;
   }
   
-  int64_t headerSize = sizeof(int64_t) + sizeof(uint64_t) + sizeof(int64_t) + sizeof(int32_t) + strlen(pFileInfo->name);
+  int64_t headerSize = sizeof(walIndexHeaderMeta) + strlen(pFileInfo->name);
+  
   int64_t indexTotal = pFileInfo->total;
-  int64_t tableHeaderTotal = SDB_TABLE_MAX*(sizeof(ESdbTable)+sizeof(int64_t));
+  int64_t tableHeaderTotal = SDB_TABLE_MAX*(sizeof(walIndexTableHeader));
   int64_t total = headerSize + indexTotal + tableHeaderTotal;
   char *buffer = calloc(1, total);
   if (buffer == NULL) {    
@@ -159,21 +188,33 @@ void mnodeSdbBuildWalIndex(void* handle) {
 
   // build header
   char* save = buffer;
-  *((int64_t*)buffer) = indexTotal + tableHeaderTotal;  buffer += sizeof(int64_t);
-  *((uint64_t*)buffer) = pFileInfo->version;  buffer += sizeof(uint64_t);
-  *((int64_t*)buffer) = pFileInfo->offset;  buffer += sizeof(int64_t);
-  *((int32_t*)buffer) = strlen(pFileInfo->name);  buffer += sizeof(int32_t);
+
+  // save header
+  walIndexHeaderMeta *pIndexHeader = (walIndexHeaderMeta*)buffer;
+  *pIndexHeader = (walIndexHeaderMeta) {
+    .type         = WAL_INDEX_HEADER,
+    .totalSize    = indexTotal + tableHeaderTotal,
+    .version      = pFileInfo->version,
+    .offset       = pFileInfo->offset,
+    .walNameSize  = strlen(pFileInfo->name),
+  };
+  buffer += sizeof(walIndexHeaderMeta);
   memcpy(buffer, pFileInfo->name, strlen(pFileInfo->name)); buffer += strlen(pFileInfo->name);
 
   // build table info
   for (i = 0; i < SDB_TABLE_MAX; ++i) {
     // build table header
-    *((ESdbTable*)buffer) = i;  buffer += sizeof(ESdbTable);
-    *((int64_t*)buffer) = pFileInfo->tableSize[i];  buffer += sizeof(int64_t);
+    walIndexTableHeader *pTableHeader = (walIndexTableHeader*)buffer;
+    *pTableHeader = (walIndexTableHeader) {
+      .type = WAL_INDEX_TABLE_HEADER,
+      .tableId = i,
+      .tableSize = pFileInfo->tableSize[i],
+    };
+    buffer += sizeof(walIndexTableHeader);
 
     char* pTableBegin = buffer;
 
-    // build index array
+    // build index item array
     walIndexItem* pItem = pFileInfo->head[i];
     while (pItem) {
       memcpy(buffer, &pItem->index, sizeof(walIndex) + pItem->index.keyLen);
@@ -244,13 +285,14 @@ int64_t sdbRestoreFromIndex(FWalIndexReader fpReader) {
   
   while (true) {
     // read header
-    int64_t total = *((int64_t*)buffer); buffer += sizeof(int64_t);
-    uint64_t walVersion = *((uint64_t*)buffer);  buffer += sizeof(uint64_t);
-    offset = *((int64_t*)buffer); buffer += sizeof(int64_t);
-    int32_t nameLen = *((int32_t*)buffer); buffer += sizeof(int32_t);
+    walIndexHeader *pHeader = (walIndexHeader*)buffer;
+    assert(pHeader->meta.type == WAL_INDEX_HEADER);
+    buffer += sizeof(walIndexHeaderMeta) + pHeader->meta.walNameSize;
     memset(name, 0, sizeof(name));
-    memcpy(name, buffer, nameLen);
-    buffer += nameLen;
+    memcpy(name, pHeader->walName, pHeader->meta.walNameSize);
+
+    int64_t total = pHeader->meta.totalSize;
+    uint64_t walVersion = pHeader->meta.version;
 
     int64_t fd = tfOpen(name, O_RDONLY);
     if (!tfValid(fd)) {
@@ -260,10 +302,14 @@ int64_t sdbRestoreFromIndex(FWalIndexReader fpReader) {
 
     // read table header
     while (total > 0) {
-      ESdbTable tableId = *((ESdbTable*)buffer);  buffer += sizeof(ESdbTable);
-      int64_t tableSize = *((int64_t*)buffer);  buffer += sizeof(int64_t);
+      walIndexTableHeader *pTableHeader = (walIndexTableHeader*)buffer;
+      assert(pTableHeader->type == WAL_INDEX_TABLE_HEADER);
 
-      total -= sizeof(ESdbTable) + sizeof(int64_t);
+      ESdbTable tableId = pTableHeader->tableId;
+      int64_t tableSize = pTableHeader->tableSize;
+      buffer += sizeof(walIndexTableHeader);
+
+      total -= sizeof(walIndexTableHeader);
 
       int64_t readBytes = 0;
       while (readBytes < tableSize) {
