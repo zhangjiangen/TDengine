@@ -20,9 +20,23 @@
 extern "C" {
 #endif
 
-typedef struct SRaftLog {
-  // TODO
+typedef uint64_t raft_index_t;
+
+typedef struct {
+  SArray *     logs;       // need another data structure to support the log array
+  raft_index_t committed;  // highest committed log index
+  raft_index_t applied;    // highest applied log index
 } SRaftLog;
+
+#define RAFT_LOG_COMMITTED(l) ((l)->committed)
+#define RAFT_LOG_APPLIED(l) ((l)->applied)
+#define RAFT_LOG_NUM_OF_LOGS(l)
+
+void         raftLogInit(SRaftLog *pRaftLog, size_t maxSize);
+void         raftLogClear(SRaftLog *pRaftLog);
+void         raftLogAppendEntries(SRaftLog *pRaftLog, SArray *logs);
+raft_index_t raftLogFirstIndex(SRaftLog *pRaftLog);
+raft_index_t raftLogLastIndex(SRaftLog *pRaftLog);
 
 #ifdef __cplusplus
 }

@@ -45,6 +45,15 @@ SRaft *traftFree(SRaft *pRaft) {
 int raftProcessMsg(SRaft *pRaft, SRaftMsg *pMsg) {
   // TODO: preprocess the message
 
+  // Check the msg term. The reason that the work is here is to
+  // call the corresponding handle function since the role may
+  // change.
+
+  int ret = raftCheckMsgTerm(pRaft, pMsg);
+  if (ret) {
+    // TODO
+  }
+
   // call corresponding process function
   int ret = (*raftProcessMsgTable[RAFT_ROLE(pRaft)])(pRaft, pMsg);
   if (ret < 0) {
@@ -57,12 +66,54 @@ int raftProcessMsg(SRaft *pRaft, SRaftMsg *pMsg) {
 }
 
 static int followerProcessMsg(SRaft *pRaft, SRaftMsg *pMsg) {
-  // TODO
+  switch (RAFT_MSG_TYPE(pRaft)) {
+    case RAFT_CLIENT_REQ:
+      break;
+    case RAFT_APPEND_ENTRIES_REQ:
+      break;
+    case RAFT_APPEND_ENTRIES_RSP:
+      break;
+    case RAFT_REQUEST_VOTE_REQ:
+      break;
+    case RAFT_REQUEST_VOTE_RSP:
+      break;
+    case RAFT_PRE_VOTE_REQ:
+      break;
+    case RAFT_PRE_VOTE_RSP:
+      break;
+    case RAFT_HEARTBEAT_REQ:
+      break;
+    case RAFT_HEARTBEAT_RSP:
+      break;
+    default:
+      NOT_POSSIBLE();
+  }
   return 0;
 }
 
 static int candidateProcessMsg(SRaft *pRaft, SRaftMsg *pMsg) {
-  // TODO
+  switch (RAFT_MSG_TYPE(pRaft)) {
+    case RAFT_CLIENT_REQ:
+      break;
+    case RAFT_APPEND_ENTRIES_REQ:
+      break;
+    case RAFT_APPEND_ENTRIES_RSP:
+      break;
+    case RAFT_REQUEST_VOTE_REQ:
+      break;
+    case RAFT_REQUEST_VOTE_RSP:
+      break;
+    case RAFT_PRE_VOTE_REQ:
+      break;
+    case RAFT_PRE_VOTE_RSP:
+      break;
+    case RAFT_HEARTBEAT_REQ:
+      break;
+    case RAFT_HEARTBEAT_RSP:
+      break;
+    default:
+      NOT_POSSIBLE();
+  }
   return 0;
 }
 
@@ -71,77 +122,30 @@ static int leaderProcessMsg(SRaft *pRaft, SRaftMsg *pMsg) {
 
   switch (RAFT_MSG_TYPE(pMsg)) {
     case RAFT_CLIENT_REQ:
-      ASSERT(RAFT_MSG_TERM(pMsg) == RAFT_TERM_NONE);
-      // TODO: handle the RAFT_CLIENT_REQ msg
       code = raftHandleClientReq(pRaft, pMsg);
       break;
     case RAFT_APPEND_ENTRIES_REQ:
-      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
-        raftBecomeFollower(pRaft, RAFT_MSG_TERM(pMsg));
-      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
-        // Just ignore the message
-        return 0;
-      } else {
-        NOT_POSSIBLE();
-      }
-
-      // When reaching here, the node must be a follower with same term as pMsg->term
-      ASSERT((RAFT_MSG_TERM(pMsg) == RAFT_TERM(pRaft)) && (RAFT_ROLE(pRaft) == RAFT_ROLE_FOLLOWER));
-      code = raftHandleAppendEntriesReq(pRaft, pMsg);
+      NOT_POSSIBLE();
       break;
     case RAFT_APPEND_ENTRIES_RSP:
-      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
-        NOT_POSSIBLE();
-      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
-        // Just ignore the message
-        return 0;
-      }
       code = raftHandleAppendEntriesRsp(pRaft, pMsg);
       break;
     case RAFT_REQUEST_VOTE_REQ:
-      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
-        raftBecomeFollower(pRaft, RAFT_MSG_TERM(pMsg));
-      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
-        raftSendMsg((SRaftMsg){.term = RAFT_TERM(pRaft), .to = RAFT_MSG_FROM(pMsg)});
-        return 0;
-      }
-
       code = raftHandleRequestVoteReq(pRaft, pMsg);
       break;
     case RAFT_REQUEST_VOTE_RSP:
-      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
-        NOT_POSSIBLE();
-      } else {
-        // just ignore
-      }
       break;
     case RAFT_PRE_VOTE_REQ:
       break;
     case RAFT_PRE_VOTE_RSP:
       break;
     case RAFT_HEARTBEAT_REQ:
-      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
-        raftBecomeFollower(pRaft, RAFT_MSG_TERM(pMsg));
-      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pMsg)) {
-        // Send current message to others
-        raftSendMsg();
-      } else {
-        NOT_POSSIBLE();
-      }
-
       code = raftHandleHeartbeatReq(pRaft, pMsg);
       break;
     case RAFT_HEARTBEAT_RSP:
-      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
-        raftBecomeFollower(pRaft, RAFT_MSG_TERM(pMsg));
-      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pMsg)) {
-        IGNORE();
-      } else {
-        NOT_POSSIBLE();
-      }
       break;
     default:
-      break;
+      NOT_POSSIBLE();
   }
   return code;
 }
@@ -163,11 +167,14 @@ static void raftBecomeLeader(SRaft *pRaft) {
 }
 
 static int raftHandleClientReq(SRaft *pRaft, SRaftMsg *pMsg) {
-  ASSERT(RAFT_ROLE(pRaft) == RAFT_ROLE_MASTER);
+  ASSERT(RAFT_ROLE(pRaft) == RAFT_ROLE_LEADER);
 
   // Set request term and indices
-  for (size_t i = 0; i < RAFT_MSG_NUM_OF_REQS; i++) {
-    /* code */
+  for (size_t i = 0; i < RAFT_MSG_NUM_OF_REQS(pMsg); i++) {
+    SRaftReq *pReq = RAFT_REQ_AT(pMsg, i);
+
+    pReq->term = RAFT_TERM(pRaft);
+    pReq->index = RAFT_NEXT_IDX(pRaft);
   }
 
   // Append entry to raft log
@@ -184,24 +191,225 @@ static void raftBroadcastMsg(SRaft *pRaft, SRaftMsg *pMsg) {
   for (size_t i = 0; i < taosArrayGetSize(pRaft->peers); i++) {
     SRaftPeer *pPeer = taosArrayGet(pRaft->peers, i);
 
-    raftSendMsg(RAFT_PEER_ID(pPeer), pMsg);
+    raftSendMsgToPeer(RAFT_PEER_ID(pPeer), pMsg);
   }
 }
 
 static void raftAppendEntries(SRaft *pRaft, SRaftMsg *pMsg) {
+  for (size_t i = 0; i < RAFT_MSG_NUM_OF_REQS(pMsg); i++) {
+    SRaftReq *pReq = RAFT_REQ_AT(pMsg, i);
+    // TODO: deal with the request
+  }
+}
+
+static int raftLeaderCheckMsgTerm(SRaft *pRaft, SRaftMsg *pMsg) {
+  switch (RAFT_MSG_TYPE(pMsg)) {
+    case RAFT_CLIENT_REQ:
+      return 0;
+    case RAFT_APPEND_ENTRIES_REQ:
+      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
+        // Now I am an out-of-date leader, there exists a leader
+        // with higher term, I need to become the follower, and
+        // process the message as a follower.
+        raftBecomeFollower(pRaft, RAFT_MSG_TERM(pMsg));
+        return 0;
+      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
+        // I am the leader with higher term, just ignre the message.
+        // But I have the responsibility to tell the peer that I am
+        // the new leader, just give up the leader role.
+
+        // TODO: code here need refact, also, we may set an error code here
+        SRaftMsg msg = {.term = RAFT_TERM(pRaft),
+                        .type = RAFT_APPEND_ENTRIES_RSP,
+                        .from = RAFT_SELF_NODE_ID(),
+                        .to = RAFT_MSG_TO(pMsg),
+                        reqs = NULL};
+        raftSendMsg(&msg);
+        return -1;
+      } else {
+        // There is another leader with the same term as me. That is
+        // no possible. There must be a bug.
+        NOT_POSSIBLE();
+      }
+      break;
+    case RAFT_APPEND_ENTRIES_RSP:
+      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
+        // TODO: Is it valid here ????????
+        NOT_POSSIBLE();
+      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
+        // TODO: how to handle this senario ??????
+      } else {
+        // I am the master, I need to handle this senario as normal
+        return 0;
+      }
+      break;
+    case RAFT_REQUEST_VOTE_REQ:
+      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
+        // I am the master but I recv a request vote msg with higher term. I need to become
+        // a follower and handle the request
+        raftBecomeFollower(pRaft, RAFT_MSG_TERM(pMsg));
+        return 0;
+      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
+        // Just ignore the message. Should I tell the peer that I am the master?
+        return -1;
+      } else {
+        // Another candidate with the same term ask for vote. I need to tell the peer that I
+        // am the leader now, jut be a follower.
+        return 0;
+      }
+    case RAFT_REQUEST_VOTE_RSP:
+      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
+        raftBecomeFollower(pRaft, RAFT_MSG_TERM(pMsg));
+        return 0;
+      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
+        // Do we need to tell the node that it is rejected?
+        return -1;
+      } else {
+        return 0;
+      }
+      break;
+    case RAFT_PRE_VOTE_REQ:
+      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
+        // TODO
+      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
+        // TODO
+      } else {
+        // TODO
+      }
+      break;
+    case RAFT_PRE_VOTE_RSP:
+      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
+        // TODO
+      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
+        // TODO
+      } else {
+        // TODO
+      }
+      break;
+    case RAFT_HEARTBEAT_REQ:
+      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
+        raftBecomeFollower(pRaft, RAFT_MSG_TERM(pMsg));
+        return 0;
+      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
+        // Just ignore the HB
+        return -1;
+      } else {
+        NOT_POSSIBLE();
+      }
+      break;
+    case RAFT_HEARTBEAT_RSP:
+      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
+        raftBecomeFollower(pRaft, RAFT_MSG_TERM(pMsg));
+        return 0;
+      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
+        // ignore
+        return -1;
+      } else {
+        // need to handle the HB rsp
+        return 0;
+      }
+      break;
+    default:
+      NOT_POSSIBLE();
+  }
+}
+
+static int raftFollwerCheckMsgTerm(SRaft *pRaft, SRaftMsg *pMsg) {
+  switch (RAFT_MSG_TYPE(pMsg)) {
+    case RAFT_CLIENT_REQ:
+      // I am a follower, I cannot handle client request
+      // I need to tell the client that I am not the leader
+      // and tell who is the leader now if I know (I must know), [TODO]
+      return -1;
+      break;
+    case RAFT_APPEND_ENTRIES_REQ:
+      if (RAFT_MSG_TERM(pMsg) > RAFT_TERM(pRaft)) {
+        // A leader with higher term exists, need to update
+        // self term, and handle the request as needed
+        raftBecomeFollower(pRaft, RAFT_TERM(pRaft));
+        return 0;
+      } else if (RAFT_MSG_TERM(pMsg) < RAFT_TERM(pRaft)) {
+        // No need to handle this kind of message
+        // TODO: should I tell the node that it is out of date????
+        return -1;
+      } else {
+        return 0;
+      }
+    case RAFT_APPEND_ENTRIES_RSP:
+      // I should not recv this kind of msg
+      NOT_POSSIBLE();
+      break;
+    case RAFT_REQUEST_VOTE_REQ:
+      break;
+    case RAFT_REQUEST_VOTE_RSP:
+      break;
+    case RAFT_PRE_VOTE_REQ:
+      break;
+    case RAFT_PRE_VOTE_RSP:
+      break;
+    case RAFT_HEARTBEAT_REQ:
+      break;
+    case RAFT_HEARTBEAT_RSP:
+      break;
+    default:
+      NOT_POSSIBLE();
+  }
+
+  return 0;
+}
+
+static int raftCandidateCheckMsgTerm(SRaft *pRaft, SRaftMsg *pMsg) {
+  switch (RAFT_MSG_TYPE(pMsg)) {
+    case RAFT_CLIENT_REQ:
+      break;
+    case RAFT_APPEND_ENTRIES_REQ:
+      break;
+    case RAFT_APPEND_ENTRIES_RSP:
+      break;
+    case RAFT_REQUEST_VOTE_REQ:
+      break;
+    case RAFT_REQUEST_VOTE_RSP:
+      break;
+    case RAFT_PRE_VOTE_REQ:
+      break;
+    case RAFT_PRE_VOTE_RSP:
+      break;
+    case RAFT_HEARTBEAT_REQ:
+      break;
+    case RAFT_HEARTBEAT_RSP:
+      break;
+    default:
+      NOT_POSSIBLE();
+  }
+  return 0;
+}
+
+static int raftCheckMsgTerm(SRaft *pRaft, SRaftMsg *pMsg) {
+  ASSERT((RAFT_MSG_TYPE(pMsg) != RAFT_CLIENT_REQ) || (RAFT_MSG_TERM(pMsg) == RAFT_TERM_NONE));
+
+  switch (RAFT_ROLE(pRaft)) {
+    case RAFT_ROLE_LEADER:
+      return raftLeaderCheckMsgTerm(pRaft, pMsg);
+    case RAFT_ROLE_FOLLOWER:
+      return raftFollwerCheckMsgTerm(pRaft, pMsg);
+    case RAFT_ROLE_CANDIDATE:
+      return raftCandidateCheckMsgTerm(pRaft, pMsg);
+    default:
+      NOT_POSSIBLE();
+  }
+}
+
+// TODO: this interface need to refact and take a decision
+static void raftSendMsg(SRaftMsg *pMsg) {
   // TODO
 }
 
-// TODO: refactor this function
-static int raftMaybeUpdateTerm(SRaft *pRaft, SRaftMsg *pMsg) {
-  if (RAFT_ROLE(pRaft) == RAFT_ROLE_FOLLOWER) {
-    // TODO
-  } else if (RAFT_ROLE(pRaft) == RAFT_ROLE_CANDIDATE) {
-    // TODO
-  } else if (RAFT_ROLE(pRaft) == RAFT_ROLE_LEADER) {
-    // TODO
-  } else {
-    NOT_POSSIBLE();
-  }
+static void raftSendMsgToPeer(raft_node_id_t id, SRaftMsg *pMsg) {
+  RAFT_MSG_TO(pMsg) = id;
+  raftSendMsg(pMsg);
+}
+
+static int raftHandleAppendEntriesRsp(SRaft *pRaft, SRaftMsg *pMsg) {
+  // TODO
   return 0;
 }

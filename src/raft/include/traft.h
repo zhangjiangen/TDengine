@@ -37,12 +37,16 @@ typedef struct {
 
   // Node peers
   SArray *peers;
+
+  // Raft log
+  SRaftLog log;
 } SRaft;
 
 #define RAFT_TERM(r) ((r)->term)
 #define RAFT_VOTE(r) ((r)->vote)
 #define RAFT_LEADER(r) ((r)->leader)
 #define RAFT_ROLE(r) ((r)->role)
+#define RAFT_NEXT_IDX(r)
 
 int raftProcessMsg(SRaft *pRaft, SRaftMsg *pMsg);
 
