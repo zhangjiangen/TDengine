@@ -180,14 +180,14 @@ static void *sdbGetTableFromId(int32_t tableId) {
   return tsSdbMgmt.tableList[tableId];
 }
 
-int32_t sdbWalIndexReader(int64_t tfd, const char* name, int32_t tableId, walIndex* pIndex) {
+int32_t sdbWalIndexReader(int64_t tfd, const char* walName, int32_t tableId, walIndex* pIndex) {
   SSdbTable *pTable = sdbGetTableFromId(tableId);
   assert(pTable != NULL);
 
   if (pTable->tableType == SDB_TABLE_HASH_TABLE) {
-    walRestoreAt(tfd, name, pIndex->offset, pIndex->size, sdbProcessWrite);
+    walRestoreAt(tfd, walName, pIndex->offset, pIndex->size, sdbProcessWrite);
   } else {
-    mnodeSdbTableReadIndex(pTable->iHandle, pIndex);
+    mnodeSdbTableReadIndex(pTable->iHandle, walName, pIndex);
   }
 
   return 0;
@@ -210,7 +210,7 @@ static int32_t sdbInitWal() {
     return 0;
   }
 
-#if 1
+#if 0
   sdbRestoreFromIndex(sdbWalIndexReader);
   sdbInfo("vgId:1, sdb wal index load success");
   return 0;

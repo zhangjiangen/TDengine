@@ -55,7 +55,7 @@ void mnodeSdbUnlockData(mnodeSdbTable *pTable, void*);
 
 void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, bool, void*, void*, void*);
 
-void mnodeSdbTableReadIndex(mnodeSdbTable *pTable, void*);
+void mnodeSdbTableReadIndex(mnodeSdbTable *pTable, const char*, void*);
 
 void mnodeSdbTableRemove(mnodeSdbTable *pTable, const struct SSdbRow* pRow);
 

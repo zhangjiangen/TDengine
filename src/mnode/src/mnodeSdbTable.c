@@ -56,7 +56,7 @@ static void* sdbCacheIterate(mnodeSdbTable *pTable, void *p);
 static int  sdbCacheIterValue(mnodeSdbTable *pTable,void *p, void** pRet);
 static void sdbCacheCancelIterate(mnodeSdbTable *pTable, void *p);
 static void sdbCacheFreeValue(mnodeSdbTable *pTable, void *p);
-static void sdbCacheReadIndex(mnodeSdbTable *pTable, void*);
+static void sdbCacheReadIndex(mnodeSdbTable *pTable, const char* walName, void*);
 
 static int loadCacheDataFromWal(void*, const void* key, uint8_t nkey, char** value, size_t *len, uint64_t *pExpire);
 
@@ -72,7 +72,7 @@ typedef int  (*sdb_table_iter_val_func_t)(mnodeSdbTable *pTable,void *p, void**)
 typedef void (*sdb_table_cancel_iter_func_t)(mnodeSdbTable *pTable, void *p);
 typedef void (*sdb_table_sync_wal_func_t)(mnodeSdbTable *pTable, bool, SWalHead*, SSdbRow*,SWalHeadInfo*);
 typedef void (*sdb_table_free_val_func_t)(mnodeSdbTable *pTable, void *p);
-typedef void (*sdb_read_index_func_t)(mnodeSdbTable *pTable, void*);
+typedef void (*sdb_read_index_func_t)(mnodeSdbTable *pTable, const char* walName, void*);
 
 struct mnodeSdbHashTable {
   SHashObj*    pTable;
@@ -156,9 +156,9 @@ void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, bool restore, void *wparam, voi
   }
 }
 
-void mnodeSdbTableReadIndex(mnodeSdbTable *pTable, void* p) {
+void mnodeSdbTableReadIndex(mnodeSdbTable *pTable, const char* walName, void* p) {
   if (pTable->readIndexFp) {
-    pTable->readIndexFp(pTable, p);
+    pTable->readIndexFp(pTable, walName, p);
   }
 }
 
@@ -319,19 +319,19 @@ static void sdbCacheCancelIterate(mnodeSdbTable *pTable, void* pIter) {
   taosHashCancelIterate(pCache->pWalTable, pIter);
 }
 
-static int16_t initCacheWalInfo(mnodeSdbTable *pTable, SWalHeadInfo* pHeadInfo) {
+static int16_t initCacheWalInfo(mnodeSdbTable *pTable, const char* walName) {
   int i = 0;
 
   for (i = 0; i < pTable->walSize; i++) {
-    if (strcmp(pTable->walInfo[i].name, pHeadInfo->name) == 0) {
+    if (strcmp(pTable->walInfo[i].name, walName) == 0) {
       return i;
     }
     if (strlen(pTable->walInfo[i].name) == 0) {
-      strcpy(pTable->walInfo[i].name, pHeadInfo->name);
+      strcpy(pTable->walInfo[i].name, walName);
       pTable->walInfo[i].idx = i;
-      pTable->walInfo[i].tfd = tfOpen(pHeadInfo->name, O_RDONLY);
+      pTable->walInfo[i].tfd = tfOpen(walName, O_RDONLY);
       if (!tfValid(pTable->walInfo[i].tfd)) {
-        sdbError("open wal file %s for read error since %s", pHeadInfo->name, strerror(errno));
+        sdbError("open wal file %s for read error since %s", walName, strerror(errno));
         return -1;
       }
 
@@ -347,9 +347,9 @@ static int16_t initCacheWalInfo(mnodeSdbTable *pTable, SWalHeadInfo* pHeadInfo) 
     return -1;
   }
   pTable->walInfo = p;
-  strcpy(pTable->walInfo[oldWal].name, pHeadInfo->name);
+  strcpy(pTable->walInfo[oldWal].name, walName);
   pTable->walInfo[oldWal].idx = oldWal;
-  pTable->walInfo[oldWal].tfd = tfOpen(pHeadInfo->name, O_RDONLY);
+  pTable->walInfo[oldWal].tfd = tfOpen(walName, O_RDONLY);
 
   return oldWal;
 }
@@ -383,12 +383,14 @@ SWalHead* readWal(mnodeSdbTable *pTable, int idx, int64_t offset, int32_t size) 
   return pHead;
 }
 
-static void sdbCacheReadIndex(mnodeSdbTable *pTable, void* p) {
+static void sdbCacheReadIndex(mnodeSdbTable *pTable, const char* walName, void* p) {
   mnodeSdbCacheTable* pCache = pTable->iHandle;
   walIndex *pIndex = (walIndex*)p;
     
+  int16_t idx = initCacheWalInfo(pTable, walName);
+
   walRecord *pWal = calloc(1, sizeof(walRecord) + pIndex->keyLen);
-  pWal->idx = 0;
+  pWal->idx = idx;
   memcpy(&(pWal->index), pIndex, sizeof(walIndex) + pIndex->keyLen);
 
   pthread_mutex_lock(&pCache->mutex);
@@ -404,7 +406,7 @@ static void sdbCacheSyncWal(mnodeSdbTable *pTable, bool restore, SWalHead* pHead
   
   pthread_mutex_lock(&pCache->mutex);
 
-  int16_t idx = initCacheWalInfo(pTable, pHeadInfo);
+  int16_t idx = initCacheWalInfo(pTable, pHeadInfo->name);
   assert(idx != -1);
 
   walRecord** ppRecord = (walRecord**)taosHashGet(pCache->pWalTable, key, keySize);
