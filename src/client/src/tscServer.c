@@ -38,6 +38,47 @@ void tscUpdateSubscriptionProgress(void* sub, int64_t uid, TSKEY ts);
 void tscSaveSubscriptionProgress(void* sub);
 static int32_t extractSTableQueryVgroupId(STableMetaInfo* pTableMetaInfo);
 
+static bool tscEpSetIsEqual(SRpcEpSet *s1, SRpcEpSet *s2);
+static void tscUpdateVgroupInfo(SSqlObj *pSql, SRpcEpSet *pEpSet);
+static void tscUpdateMgmtEpSet(SSqlObj *pSql, SRpcEpSet *pEpSet);
+
+static void tscHandleInvalidFqdn(SSqlObj *pSql, SRpcEpSet *pEpSet) {
+  // handle three situation 
+  // 1. epset retry, only return last failure ep   
+  // 2. no epset retry, like 'taos -h invalidFqdn', return invalidFqdn 
+  // 3. other situation, no expected 
+  SSqlCmd *pCmd = &pSql->cmd;
+  SSqlRes *pRes = &pSql->res;
+  SRpcEpSet tEpSet;
+  SRpcEpSet *p = pEpSet;
+  if (p == NULL) {
+    SRpcCorEpSet *pCorEpSet = pSql->pTscObj->tscCorMgmtEpSet;
+    taosCorBeginRead(&pCorEpSet->version); 
+    tEpSet = pCorEpSet->epSet;   
+    taosCorEndRead(&pCorEpSet->version); 
+    p = &tEpSet;
+  }
+
+  tscAllocPayload(pCmd, TSDB_FQDN_LEN + 64); 
+  if (p != NULL && p->numOfEps > 0 && p->inUse >= 0) {
+    sprintf(tscGetErrorMsgPayload(pCmd), "%s\"%s\"", tstrerror(pRes->code),pEpSet->fqdn[(p->inUse)%(p->numOfEps)]);
+  } else {
+    sprintf(tscGetErrorMsgPayload(pCmd), "%s", tstrerror(pRes->code));
+  }
+}
+ 
+static void tscMayUpdateEpSet(SSqlObj *pSql, SRpcEpSet *pEpSet) {
+  if (pEpSet == NULL) { return; }
+
+  SSqlCmd *pCmd = &pSql->cmd;
+  if (!tscEpSetIsEqual(&pSql->epSet, pEpSet)) {
+    if (pCmd->command < TSDB_SQL_MGMT) {
+      tscUpdateVgroupInfo(pSql, pEpSet);
+    } else {
+      tscUpdateMgmtEpSet(pSql, pEpSet);
+    }
+  }
+}
 static int32_t minMsgSize() { return tsRpcHeadSize + 100; }
 static int32_t getWaitingTimeInterval(int32_t count) {
   int32_t initial = 100; // 100 ms by default
@@ -337,16 +378,11 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
-  SRpcMsg* rpcMsg = pSchedMsg->ahandle;
-  SRpcEpSet* pEpSet = pSchedMsg->thandle;
-
+void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   TSDB_CACHE_PTR_TYPE handle = (TSDB_CACHE_PTR_TYPE) rpcMsg->ahandle;
   SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, handle);
   if (pSql == NULL) {
     rpcFreeCont(rpcMsg->pCont);
-    free(rpcMsg);
-    free(pEpSet);
     return;
   }
 
@@ -364,8 +400,6 @@ static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
     taosRemoveRef(tscObjRef, handle);
     taosReleaseRef(tscObjRef, handle);
     rpcFreeCont(rpcMsg->pCont);
-    free(rpcMsg);
-    free(pEpSet);
     return;
   }
 
@@ -377,24 +411,13 @@ static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
     taosRemoveRef(tscObjRef, handle);
     taosReleaseRef(tscObjRef, handle);
     rpcFreeCont(rpcMsg->pCont);
-    free(rpcMsg);
-    free(pEpSet);
     return;
   }
 
-  if (pEpSet) {
-    if (!tscEpSetIsEqual(&pSql->epSet, pEpSet)) {
-      if (pCmd->command < TSDB_SQL_MGMT) {
-        tscUpdateVgroupInfo(pSql, pEpSet);
-      } else {
-        tscUpdateMgmtEpSet(pSql, pEpSet);
-      }
-    }
-  }
-
-  int32_t cmd = pCmd->command;
+  tscMayUpdateEpSet(pSql, pEpSet);
 
   // set the flag to denote that sql string needs to be re-parsed and build submit block with table schema
+  int32_t cmd = pCmd->command;
   if (cmd == TSDB_SQL_INSERT && rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
     pSql->cmd.insertParam.schemaAttached = 1;
   }
@@ -432,8 +455,6 @@ static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
         if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
           taosReleaseRef(tscObjRef, handle);
           rpcFreeCont(rpcMsg->pCont);
-          free(rpcMsg);
-          free(pEpSet);
           return;
         }
       }
@@ -454,6 +475,7 @@ static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
   }
 
   if (pRes->code != TSDB_CODE_TSC_QUERY_CANCELLED) {
+     
     assert(rpcMsg->msgType == pCmd->msgType + 1);
     pRes->code    = rpcMsg->code;
     pRes->rspType = rpcMsg->msgType;
@@ -495,36 +517,17 @@ static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
 
-  bool shouldFree = tscShouldBeFreed(pSql);
   if (rpcMsg->code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     if (rpcMsg->code != TSDB_CODE_SUCCESS) {
       pRes->code = rpcMsg->code;
     }
     rpcMsg->code = (pRes->code == TSDB_CODE_SUCCESS) ? (int32_t)pRes->numOfRows : pRes->code;
     if (pRes->code == TSDB_CODE_RPC_FQDN_ERROR) {
-      tscAllocPayload(pCmd, TSDB_FQDN_LEN + 64); 
-      // handle three situation 
-      // 1. epset retry, only return last failure ep   
-      // 2. no epset retry, like 'taos -h invalidFqdn', return invalidFqdn 
-      // 3. other situation, no expected 
-      if (pEpSet) {
-        sprintf(tscGetErrorMsgPayload(pCmd), "%s\"%s\"", tstrerror(pRes->code),pEpSet->fqdn[(pEpSet->inUse)%(pEpSet->numOfEps)]);
-      } else if (pCmd->command >= TSDB_SQL_MGMT) {
-        SRpcEpSet tEpset;
-
-        SRpcCorEpSet *pCorEpSet = pSql->pTscObj->tscCorMgmtEpSet;
-        taosCorBeginRead(&pCorEpSet->version); 
-        tEpset = pCorEpSet->epSet;   
-        taosCorEndRead(&pCorEpSet->version); 
-
-        sprintf(tscGetErrorMsgPayload(pCmd), "%s\"%s\"", tstrerror(pRes->code),tEpset.fqdn[(tEpset.inUse)%(tEpset.numOfEps)]);
-      } else {
-        sprintf(tscGetErrorMsgPayload(pCmd), "%s", tstrerror(pRes->code));
-      }
+      tscHandleInvalidFqdn(pSql, pEpSet);
     }
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
   }
-
+  bool shouldFree = tscShouldBeFreed(pSql);
   if (shouldFree) { // in case of table-meta/vgrouplist query, automatically free it
     tscDebug("0x%"PRIx64" sqlObj is automatically freed", pSql->self);
     taosRemoveRef(tscObjRef, handle);
@@ -532,35 +535,6 @@ static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
 
   taosReleaseRef(tscObjRef, handle);
   rpcFreeCont(rpcMsg->pCont);
-  free(rpcMsg);
-  free(pEpSet);
-}
-
-void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
-  int64_t st = taosGetTimestampUs();
-  SSchedMsg schedMsg = {0};
-
-  schedMsg.fp = doProcessMsgFromServer;
-
-  SRpcMsg* rpcMsgCopy = calloc(1, sizeof(SRpcMsg));
-  memcpy(rpcMsgCopy, rpcMsg, sizeof(struct SRpcMsg));
-  schedMsg.ahandle = (void*)rpcMsgCopy;
-
-  SRpcEpSet* pEpSetCopy = NULL;
-  if (pEpSet != NULL) {
-    pEpSetCopy = calloc(1, sizeof(SRpcEpSet));
-    memcpy(pEpSetCopy, pEpSet, sizeof(SRpcEpSet));
-  }
-
-  schedMsg.thandle = (void*)pEpSetCopy;
-  schedMsg.msg = NULL;
-
-  taosScheduleTask(tscQhandle, &schedMsg);
-
-  int64_t et = taosGetTimestampUs();
-  if (et - st > 100) {
-    tscDebug("add message to task queue, elapsed time:%"PRId64, et - st);
-  }
 }
 
 int doBuildAndSendMsg(SSqlObj *pSql) {
