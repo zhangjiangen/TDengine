@@ -15,6 +15,17 @@
 
 #include "traft.h"
 
+struct SRaft {
+  raft_term_t    term;
+  raft_node_id_t vote;
+  raft_node_id_t leader;
+  raft_role_t    role;
+  bool           isLearner;
+  SRaftLog *     log;
+  raft_index_t   commitIdx;
+  raft_index_t   appliedIdx;
+};
+
 // Function declarations
 static int  followerProcessMsg(SRaft *pRaft, SRaftMsg *pMsg);
 static int  candidateProcessMsg(SRaft *pRaft, SRaftMsg *pMsg);

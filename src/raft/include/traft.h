@@ -20,38 +20,23 @@
 extern "C" {
 #endif
 
+#include "traftDefs.h"
 #include "traftCfg.h"
-#include "traftNodeID.h"
-#include "traftRole.h"
-#include "traftTerm.h"
 
-typedef struct {
-  raft_term_t    term;    // current term
-  raft_node_id_t vote;    // voted for in this term
-  raft_node_id_t leader;  // leader ID of current term
-  raft_role_t    role;
-  bool           isLearner;
+// Global node ID definition
+extern raft_node_id_t raftNodeId;
+#define RAFT_SELF_NODE_ID() raftNodeId
 
-  // Raft configuts
-  RAFT_CFGS
+// SRaftLog Definition
+typedef struct SRaftLog SRaftLog;
 
-  // Node peers
-  SArray *peers;
+// SRaft Definition
+typedef struct SRaft SRaft;
 
-  // Raft log
-  SRaftLog log;
-} SRaft;
-
-#define RAFT_TERM(r) ((r)->term)
-#define RAFT_VOTE(r) ((r)->vote)
-#define RAFT_LEADER(r) ((r)->leader)
-#define RAFT_ROLE(r) ((r)->role)
-#define RAFT_NEXT_IDX(r)
+// SLogEntry definition
+typedef struct SLogEntry SLogEntry;
 
 int raftProcessMsg(SRaft *pRaft, SRaftMsg *pMsg);
-
-#define NOT_POSSIBLE() ASSERT(0)
-#define IGNORE()
 
 #ifdef __cplusplus
 }
