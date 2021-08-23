@@ -124,6 +124,12 @@ static int32_t sdbUpdateHash(SSdbTable *pTable, SSdbRow *pRow);
 static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbRow *pRow);
 static void    sdbCloseTableObj(void *handle);
 
+static int32_t sdbRestoreByIndex(void *wparam, void *hparam, int32_t qtype, void *tparam, void* pHeadInfo);
+
+static int32_t sdbPerformInsertAction(SWalHead *pHead, SSdbTable *pTable, SSdbRow* pRow);
+static int32_t sdbPerformDeleteAction(SWalHead *pHead, SSdbTable *pTable);
+static int32_t sdbPerformUpdateAction(SWalHead *pHead, SSdbTable *pTable, SSdbRow* pRow);
+
 int32_t sdbGetId(void *pTable) {
   return ((SSdbTable *)pTable)->autoIndex;
 }
@@ -180,16 +186,68 @@ static void *sdbGetTableFromId(int32_t tableId) {
   return tsSdbMgmt.tableList[tableId];
 }
 
-int32_t sdbWalIndexReader(int64_t tfd, const char* walName, int32_t tableId, walIndex* pIndex) {
+static int32_t sdbRestoreByIndex(void *wparam, void *hparam, int32_t qtype, void *tparam, void* pHeadInfo) {
+  //SSdbRow *pRow = wparam;
+  SWalHead *pHead = hparam;  
+  int32_t tableId = pHead->msgType / 10;
+  int32_t action = pHead->msgType % 10;
+
+  // restore by index MUST only by SDB_ACTION_INSERT or SDB_ACTION_UPDATE
+  assert(action == SDB_ACTION_INSERT || action == SDB_ACTION_UPDATE);
+  // transfer all action to insert
+  action = SDB_ACTION_INSERT;
+
+  SSdbTable *pTable = sdbGetTableFromId(tableId);
+  assert(pTable != NULL);
+
+  if (!mnodeIsRunning() && tsSdbMgmt.version % 100000 == 0) {
+    char stepDesc[TSDB_STEP_DESC_LEN] = {0};
+    snprintf(stepDesc, TSDB_STEP_DESC_LEN, "%" PRIu64 " rows have been restored", tsSdbMgmt.version);
+    dnodeReportStep("mnode-sdb", stepDesc, 0);
+  }
+
+  pthread_mutex_lock(&tsSdbMgmt.mutex);
+
+  SWalHeadInfo headInfo;
+  int32_t code;
+  bool restore = pHeadInfo != NULL;
+  if (pHeadInfo != NULL) {
+    headInfo = *(SWalHeadInfo*)pHeadInfo;
+    code = walWrite(tsSdbMgmt.wal, pHead, NULL);    
+  } else {
+    code = walWrite(tsSdbMgmt.wal, pHead, &headInfo);
+  }
+
+  if (code < 0) {
+    pthread_mutex_unlock(&tsSdbMgmt.mutex);
+    return code;
+  }
+
+  pthread_mutex_unlock(&tsSdbMgmt.mutex);
+
+  sdbTrace("vgId:1, sdb:%s, record from %s is disposed, action:%s key:%s hver:%" PRIu64, pTable->name, qtypeStr[qtype],
+           actStr[action], sdbGetKeyStr(pTable, pHead->cont), pHead->version);
+
+  // from wal or forward msg, row not created, should add into hash
+  SSdbRow row;
+  code = sdbPerformInsertAction(pHead, pTable, &row);
+  if (code == 0 && pTable->tableType == SDB_TABLE_CACHE_TABLE) {
+    mnodeSdbTableSyncWal(pTable->iHandle, restore, pHead, &row, &headInfo);
+  }
+  return code;
+}
+
+int32_t sdbWalIndexReader(int64_t tfd, const char* walName, int32_t tableId, uint64_t walVersion, walIndex* pIndex) {
   SSdbTable *pTable = sdbGetTableFromId(tableId);
   assert(pTable != NULL);
 
   if (pTable->tableType == SDB_TABLE_HASH_TABLE) {
-    walRestoreAt(tfd, walName, pIndex->offset, pIndex->size, sdbProcessWrite);
+    walRestoreAt(tfd, walName, pIndex->offset, pIndex->size, sdbRestoreByIndex);    
   } else {
     mnodeSdbTableReadIndex(pTable->iHandle, walName, pIndex);
   }
 
+  tsSdbMgmt.version = walVersion;
   return 0;
 }
 
@@ -210,7 +268,7 @@ static int32_t sdbInitWal() {
     return 0;
   }
 
-#if 0
+#if 1
   sdbRestoreFromIndex(sdbWalIndexReader);
   sdbInfo("vgId:1, sdb wal index load success");
   return 0;

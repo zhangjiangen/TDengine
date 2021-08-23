@@ -35,6 +35,7 @@ typedef struct walIndexItem {
 typedef struct walIndexFileInfo {
   char name[TSDB_FILENAME_LEN];
 
+  uint64_t   version;
   int64_t offset;
   int64_t total;
 
@@ -119,6 +120,11 @@ static int32_t buildIndex(void *wparam, void *hparam, int32_t qtype, void *tpara
   if (pHeadInfo->offset + pHeadInfo->len > pFileInfo->offset) {
     pFileInfo->offset = pHeadInfo->offset + pHeadInfo->len;
   }
+
+  if (pHead->version > pFileInfo->version) {
+    pFileInfo->version = pHead->version;
+  }
+
   return 0;
 }
 
@@ -142,7 +148,7 @@ void mnodeSdbBuildWalIndex(void* handle) {
     goto _err;
   }
   
-  int64_t headerSize = sizeof(int64_t) + sizeof(int64_t) + sizeof(int32_t) + strlen(pFileInfo->name);
+  int64_t headerSize = sizeof(int64_t) + sizeof(uint64_t) + sizeof(int64_t) + sizeof(int32_t) + strlen(pFileInfo->name);
   int64_t indexTotal = pFileInfo->total;
   int64_t tableHeaderTotal = SDB_TABLE_MAX*(sizeof(ESdbTable)+sizeof(int64_t));
   int64_t total = headerSize + indexTotal + tableHeaderTotal;
@@ -154,6 +160,7 @@ void mnodeSdbBuildWalIndex(void* handle) {
   // build header
   char* save = buffer;
   *((int64_t*)buffer) = indexTotal + tableHeaderTotal;  buffer += sizeof(int64_t);
+  *((uint64_t*)buffer) = pFileInfo->version;  buffer += sizeof(uint64_t);
   *((int64_t*)buffer) = pFileInfo->offset;  buffer += sizeof(int64_t);
   *((int32_t*)buffer) = strlen(pFileInfo->name);  buffer += sizeof(int32_t);
   memcpy(buffer, pFileInfo->name, strlen(pFileInfo->name)); buffer += strlen(pFileInfo->name);
@@ -238,6 +245,7 @@ int64_t sdbRestoreFromIndex(FWalIndexReader fpReader) {
   while (true) {
     // read header
     int64_t total = *((int64_t*)buffer); buffer += sizeof(int64_t);
+    uint64_t walVersion = *((uint64_t*)buffer);  buffer += sizeof(uint64_t);
     offset = *((int64_t*)buffer); buffer += sizeof(int64_t);
     int32_t nameLen = *((int32_t*)buffer); buffer += sizeof(int32_t);
     memset(name, 0, sizeof(name));
@@ -263,7 +271,7 @@ int64_t sdbRestoreFromIndex(FWalIndexReader fpReader) {
         buffer += sizeof(walIndex) + pIndex->keyLen;
         readBytes += sizeof(walIndex) + pIndex->keyLen;
 
-        fpReader(fd, name, tableId, pIndex);
+        fpReader(fd, name, tableId, walVersion, pIndex);
       }
       assert(readBytes == tableSize);
 

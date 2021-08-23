@@ -23,7 +23,7 @@ typedef struct walIndex {
   char key[];
 } walIndex;
 
-typedef int32_t FWalIndexReader(int64_t tfd, const char* name, int32_t tableId, walIndex*);
+typedef int32_t FWalIndexReader(int64_t tfd, const char* name, int32_t tableId, uint64_t version, walIndex*);
 
 int64_t sdbRestoreFromIndex(FWalIndexReader fpReader);
 
