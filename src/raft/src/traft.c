@@ -15,6 +15,15 @@
 
 #include "traft.h"
 
+typedef struct {
+  raft_node_id_t id;
+  raft_index_t   next;
+  raft_index_t   match;
+  bool           isLearner;
+} SRaftPeer;
+
+#define RAFT_PEER_IS_LEARNER(p) ((p)->isLearner)
+
 struct SRaft {
   raft_term_t    term;
   raft_node_id_t vote;
@@ -24,7 +33,16 @@ struct SRaft {
   SRaftLog *     log;
   raft_index_t   commitIdx;
   raft_index_t   appliedIdx;
+  int            nPeers;
+  SRaftPeer *    peers;  // TODO use a hash table or other container to implement this fiel
 };
+
+#define RAFT_TERM(r) ((r)->term)
+#define RAFT_VOTE(r) ((r)->vote)
+#define RAFT_LEADER(r) ((r)->leader)
+#define RAFT_ROLE(r) ((r)->role)
+#define RAFT_IS_LEARNER(r) ((r)->isLearner)
+#define RAFT_LOG(r) ((r)->log)
 
 // Function declarations
 static int  followerProcessMsg(SRaft *pRaft, SRaftMsg *pMsg);
@@ -42,6 +60,7 @@ static raft_process_msg_fn raftProcessMsgTable[RAFT_ROLE_MAX] = {
     leaderProcessMsg      // for leader
 };
 
+#if 0
 SRaft *traftNew(const SRaftCfg *pCfg) {
   SRaft *pRaft = NULL;
   // TODO
@@ -52,6 +71,7 @@ SRaft *traftFree(SRaft *pRaft) {
   // TODO
   return NULL;
 }
+#endif
 
 int raftProcessMsg(SRaft *pRaft, SRaftMsg *pMsg) {
   // TODO: preprocess the message
@@ -135,9 +155,6 @@ static int leaderProcessMsg(SRaft *pRaft, SRaftMsg *pMsg) {
     case RAFT_CLIENT_REQ:
       code = raftHandleClientReq(pRaft, pMsg);
       break;
-    case RAFT_APPEND_ENTRIES_REQ:
-      NOT_POSSIBLE();
-      break;
     case RAFT_APPEND_ENTRIES_RSP:
       code = raftHandleAppendEntriesRsp(pRaft, pMsg);
       break;
@@ -181,20 +198,24 @@ static int raftHandleClientReq(SRaft *pRaft, SRaftMsg *pMsg) {
   ASSERT(RAFT_ROLE(pRaft) == RAFT_ROLE_LEADER);
 
   // Set request term and indices
-  for (size_t i = 0; i < RAFT_MSG_NUM_OF_REQS(pMsg); i++) {
-    SRaftReq *pReq = RAFT_REQ_AT(pMsg, i);
-
-    pReq->term = RAFT_TERM(pRaft);
-    pReq->index = RAFT_NEXT_IDX(pRaft);
+  SAppendEntriesReq *pReq = RAFT_MSG_CONTENT(pMsg);
+  log_index_t lidx = raftLogLastIndex(pRaft->log);
+  for (int i = 0; i < pReq->nEntries; i++) {
+    SLogEntry *pEnt = pReq->entries + i;
+    pEnt->term = RAFT_TERM(pRaft);
+    pEnt->index = lidx + i + 1;
   }
 
   // Append entry to raft log
-  raftAppendEntries(pRaft, pMsg);
+  if (raftLogAppendEntries(RAFT_LOG(pRaft), pMsg->nEntries, pMsg->entries) < 0) {
+    // TODO: deal with error
+    return -1;
+  }
 
   // broadcast to other nodes
+  RAFT_MSG_TYPE(pMsg) = RAFT_APPEND_ENTRIES_REQ;
   raftBroadcastMsg(pRaft, pMsg);
 
-  // TODO
   return 0;
 }
 
@@ -203,13 +224,6 @@ static void raftBroadcastMsg(SRaft *pRaft, SRaftMsg *pMsg) {
     SRaftPeer *pPeer = taosArrayGet(pRaft->peers, i);
 
     raftSendMsgToPeer(RAFT_PEER_ID(pPeer), pMsg);
-  }
-}
-
-static void raftAppendEntries(SRaft *pRaft, SRaftMsg *pMsg) {
-  for (size_t i = 0; i < RAFT_MSG_NUM_OF_REQS(pMsg); i++) {
-    SRaftReq *pReq = RAFT_REQ_AT(pMsg, i);
-    // TODO: deal with the request
   }
 }
 
@@ -421,6 +435,32 @@ static void raftSendMsgToPeer(raft_node_id_t id, SRaftMsg *pMsg) {
 }
 
 static int raftHandleAppendEntriesRsp(SRaft *pRaft, SRaftMsg *pMsg) {
+  ASSERT(RAFT_ROLE(pRaft) == RAFT_ROLE_LEADER);
+
+  SAppendEntriesRsp *pRsp = (SAppendEntriesRsp *)RAFT_MSG_CONTENT(pMsg);
+
+  if (pRsp->success) {
+    // TODO
+  } else {
+    // TODO: not success, decrement nextIndex and retry
+  }
+
+  return 0;
+}
+
+static int raftHandleRequestVoteReq(SRaft *pRaft, SRaftMsg *pMsg) {
   // TODO
   return 0;
+}
+
+static SRaftPeer *raftGetPeer(SRaft *pRaft, raft_node_id_t id) {
+  for (int i = 0; i < pRaft->nPeers; i++) {
+    SRaftPeer *pPeer = pRaft->peers + i;
+
+    if (pPeer->id == id) {
+      return pPeer;
+    }
+  }
+
+  return NULL;
 }

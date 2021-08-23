@@ -17,12 +17,6 @@
 
 #include "traft.h"
 
-struct SLogEntry {
-  raft_term_t  term;
-  raft_index_t index;
-  void*        data;
-};
-
 // The log store is implemented using a ring array
 struct SRaftLog {
   // Capacity of the array
@@ -91,6 +85,10 @@ int raftLogAppendEntries(SRaftLog *pRaftLog, log_index_t nEntries, SLogEntry *en
   }
 
   return 0;
+}
+
+log_index_t raftLogLastIndex(SRaftLog *pRaftLog) {
+  // TODO
 }
 
 static void raftLogAppendEntryImpl(SRaftLog *pRaftLog, SLogEntry *pLogEntry) {

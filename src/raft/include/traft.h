@@ -21,7 +21,10 @@ extern "C" {
 #endif
 
 #include "traftDefs.h"
+
 #include "traftCfg.h"
+
+#include "traftMsg.h"
 
 // Global node ID definition
 extern raft_node_id_t raftNodeId;
@@ -30,6 +33,8 @@ extern raft_node_id_t raftNodeId;
 // SRaftLog Definition
 typedef struct SRaftLog SRaftLog;
 
+log_index_t raftLogLastIndex(SRaftLog *pRaftLog);
+
 // SRaft Definition
 typedef struct SRaft SRaft;
 
@@ -37,6 +42,13 @@ typedef struct SRaft SRaft;
 typedef struct SLogEntry SLogEntry;
 
 int raftProcessMsg(SRaft *pRaft, SRaftMsg *pMsg);
+
+// ============== May need to hide info below
+struct SLogEntry {
+  raft_term_t  term;
+  raft_index_t index;
+  void *       data;
+};
 
 #ifdef __cplusplus
 }
