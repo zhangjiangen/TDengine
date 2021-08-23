@@ -59,6 +59,7 @@ typedef enum walIndexContentType {
   WAL_INDEX_ITEM          = 2,
 }walIndexContentType;
 
+#pragma  pack(1)
 typedef struct walIndexHeaderMeta {
   walIndexContentType type;
   int64_t totalSize;
@@ -67,12 +68,14 @@ typedef struct walIndexHeaderMeta {
   int32_t walNameSize;
 } walIndexHeaderMeta;
 
+#pragma  pack(1)
 typedef struct walIndexHeader {
   walIndexHeaderMeta meta;
 
   char walName[];
 } walIndexHeader;
 
+#pragma  pack(1)
 typedef struct walIndexTableHeader {
   walIndexContentType type;
   ESdbTable tableId;
@@ -160,6 +163,7 @@ void mnodeSdbBuildWalIndex(void* handle) {
   nWalFileInfo = 0;
   tsWalFileInfo = calloc(1, sizeof(walIndexFileInfo));
   walIndexFileInfo *pFileInfo = tsWalFileInfo;
+  char* save = NULL;
 
   int i = 0;
   for (i = 0; i < SDB_TABLE_MAX; ++i) {
@@ -175,19 +179,18 @@ void mnodeSdbBuildWalIndex(void* handle) {
   if (code != 0) {
     goto _err;
   }
-  
+    
+  assert(sizeof(walIndexHeaderMeta) == sizeof(walIndexContentType) + sizeof(int64_t)*2 + sizeof(uint64_t) + sizeof(int32_t) );
   int64_t headerSize = sizeof(walIndexHeaderMeta) + strlen(pFileInfo->name);
   
   int64_t indexTotal = pFileInfo->total;
   int64_t tableHeaderTotal = SDB_TABLE_MAX*(sizeof(walIndexTableHeader));
   int64_t total = headerSize + indexTotal + tableHeaderTotal;
-  char *buffer = calloc(1, total);
+  char *buffer = calloc(1, total);  
   if (buffer == NULL) {    
     goto _err;
   }
-
-  // build header
-  char* save = buffer;
+  save = buffer;
 
   // save header
   walIndexHeaderMeta *pIndexHeader = (walIndexHeaderMeta*)buffer;

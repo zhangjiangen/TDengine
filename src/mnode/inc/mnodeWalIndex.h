@@ -16,6 +16,7 @@
 #ifndef TDENGINE_MNODE_WAL_INDEX_H
 #define TDENGINE_MNODE_WAL_INDEX_H
 
+#pragma  pack(1)
 typedef struct walIndex {
   int64_t offset;
   uint16_t size;
