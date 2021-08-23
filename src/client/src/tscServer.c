@@ -42,7 +42,58 @@ static bool tscEpSetIsEqual(SRpcEpSet *s1, SRpcEpSet *s2);
 static void tscUpdateVgroupInfo(SSqlObj *pSql, SRpcEpSet *pEpSet);
 static void tscUpdateMgmtEpSet(SSqlObj *pSql, SRpcEpSet *pEpSet);
 
-static void tscHandleInvalidFqdn(SSqlObj *pSql, SRpcEpSet *pEpSet) {
+static void doAsyncRetryCallback(SSchedMsg *pMsg) {
+  SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, (int64_t)pMsg->ahandle);
+  if (pSql == NULL || pSql->signature != pSql) {
+    tscDebug("%p SqlObj is freed, not add into queue async res", pMsg->ahandle);
+    return;
+  }
+  int32_t code = (int32_t )(pMsg->msg);
+  if (code == TSDB_CODE_APP_NOT_READY || code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+    int32_t duration = getWaitingTimeInterval(pSql->retry);
+    taosMsleep(duration);
+  }
+  pSql->retryReason = code; 
+  tfree(pMsg->msg);
+  
+}
+
+static void tscAsyncRetry(SSqlObj *pSql, int32_t code) {
+  SSchedMsg schedMsg = {0};
+  schedMsg.fp = doAsyncRetryCallback;
+  schedMsg.ahandle = (void *)pSql->self;
+  schedMsg.thandle = (void *)1; 
+  schedMsg.msg     = calloc(sizeof(code));
+  memcpy(schedMsg.msg, &code, sizeof(code));
+  taosScheduleTask(tscQhandle, &schedMsg);
+} 
+static bool tscHandleQueryException(SSqlObj *pSql, int32_t code) {
+  bool ret = true;
+  SSqlCmd *pCmd = &pSql->cmd;
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd); 
+  if (code == TSDB_CODE_TDB_INVALID_TABLE_ID || 
+      code == TSDB_CODE_RPC_NETWORK_UNAVAIL || 
+      code == TSDB_CODE_APP_NOT_READY || 
+      code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+    if ((TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY | TSDB_QUERY_TYPE_SUBQUERY | TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) && !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_PROJECTION_QUERY))
+        || (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_NEST_SUBQUERY)) 
+        || (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_SUBQUERY) &&  pQueryInfo->distinct)) {
+      //do nothing 
+    } else {
+      pSql->retry += 1; 
+      pSql->res.code = code;
+      tscWarn("0x%" PRIx64 " it shall renew table meta, code:%s, retry:%d", pSql->self, code, pSql->retry);
+      if (pSql->retry > pSql->maxRetry) {
+        tscError("0x%" PRIx64 " max retry %d reached, give up", pSql->self, pSql->maxRetry);
+      } else {
+              
+      }
+      ret = false;
+    }
+  }
+  return ret;
+  
+}
   // handle three situation 
   // 1. epset retry, only return last failure ep   
   // 2. no epset retry, like 'taos -h invalidFqdn', return invalidFqdn 
@@ -418,48 +469,56 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
   // set the flag to denote that sql string needs to be re-parsed and build submit block with table schema
   int32_t cmd = pCmd->command;
-  if (cmd == TSDB_SQL_INSERT && rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-    pSql->cmd.insertParam.schemaAttached = 1;
+  if (cmd == TSDB_SQL_INSERT) {
+    if (rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE) { pSql->cmd.insertParam.schemaAttached = 1; } 
+  } else if (cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) {
+    if (rpcMsg->code != TSDB_CODE_SUCESS) {
+      if (!tscHandleQueryException(pSql, rpcMsg->code)) { return;}
+    } 
   }
+   
+  //if (cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) {
+  //  if (rpcMsg->code != TSDB_CODE_SUCCESS) 
+  //    if (!tscHandleQueryException(pSql)) return; 
+  //    }
+  //}
+  //if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
+  //    (((rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID)) ||
+  //     rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || rpcMsg->code == TSDB_CODE_APP_NOT_READY)) {
 
-  // single table query error need to be handled here.
-  if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
-      (((rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID)) ||
-       rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || rpcMsg->code == TSDB_CODE_APP_NOT_READY)) {
+  //  // 1. super table subquery
+  //  // 2. nest queries are all not updated the tablemeta and retry parse the sql after cleanup local tablemeta/vgroup id buffer
+  //  if ((TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY | TSDB_QUERY_TYPE_SUBQUERY |
+  //                                             TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) &&
+  //                                             !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_PROJECTION_QUERY)) ||
+  //                                             (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_NEST_SUBQUERY)) || (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_SUBQUERY) &&  pQueryInfo->distinct)) {
+  //    // do nothing in case of super table subquery
+  //  }  else {
+  //    pSql->retry += 1;
+  //    tscWarn("0x%" PRIx64 " it shall renew table meta, code:%s, retry:%d", pSql->self, tstrerror(rpcMsg->code), pSql->retry);
 
-    // 1. super table subquery
-    // 2. nest queries are all not updated the tablemeta and retry parse the sql after cleanup local tablemeta/vgroup id buffer
-    if ((TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY | TSDB_QUERY_TYPE_SUBQUERY |
-                                               TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) &&
-                                               !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_PROJECTION_QUERY)) ||
-                                               (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_NEST_SUBQUERY)) || (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_SUBQUERY) &&  pQueryInfo->distinct)) {
-      // do nothing in case of super table subquery
-    }  else {
-      pSql->retry += 1;
-      tscWarn("0x%" PRIx64 " it shall renew table meta, code:%s, retry:%d", pSql->self, tstrerror(rpcMsg->code), pSql->retry);
+  //    pSql->res.code = rpcMsg->code;  // keep the previous error code
+  //    if (pSql->retry > pSql->maxRetry) {
+  //      tscError("0x%" PRIx64 " max retry %d reached, give up", pSql->self, pSql->maxRetry);
+  //    } else {
+  //      // wait for a little bit moment and then retry
+  //      // todo do not sleep in rpc callback thread, add this process into queue to process
+  //      if (rpcMsg->code == TSDB_CODE_APP_NOT_READY || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+  //        int32_t duration = getWaitingTimeInterval(pSql->retry);
+  //        taosMsleep(duration);
+  //      }
 
-      pSql->res.code = rpcMsg->code;  // keep the previous error code
-      if (pSql->retry > pSql->maxRetry) {
-        tscError("0x%" PRIx64 " max retry %d reached, give up", pSql->self, pSql->maxRetry);
-      } else {
-        // wait for a little bit moment and then retry
-        // todo do not sleep in rpc callback thread, add this process into queue to process
-        if (rpcMsg->code == TSDB_CODE_APP_NOT_READY || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
-          int32_t duration = getWaitingTimeInterval(pSql->retry);
-          taosMsleep(duration);
-        }
-
-        pSql->retryReason = rpcMsg->code;
-        rpcMsg->code = tscRenewTableMeta(pSql, 0);
-        // if there is an error occurring, proceed to the following error handling procedure.
-        if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-          taosReleaseRef(tscObjRef, handle);
-          rpcFreeCont(rpcMsg->pCont);
-          return;
-        }
-      }
-    }
-  }
+  //      pSql->retryReason = rpcMsg->code;
+  //      rpcMsg->code = tscRenewTableMeta(pSql, 0);
+  //      // if there is an error occurring, proceed to the following error handling procedure.
+  //      if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+  //        taosReleaseRef(tscObjRef, handle);
+  //        rpcFreeCont(rpcMsg->pCont);
+  //        return;
+  //      }
+  //    }
+  //  }
+  //}
 
   pRes->rspLen = 0;
 
@@ -517,6 +576,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
 
+  bool shouldFree = tscShouldBeFreed(pSql);
   if (rpcMsg->code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     if (rpcMsg->code != TSDB_CODE_SUCCESS) {
       pRes->code = rpcMsg->code;
@@ -527,7 +587,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     }
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
   }
-  bool shouldFree = tscShouldBeFreed(pSql);
   if (shouldFree) { // in case of table-meta/vgrouplist query, automatically free it
     tscDebug("0x%"PRIx64" sqlObj is automatically freed", pSql->self);
     taosRemoveRef(tscObjRef, handle);
@@ -3166,6 +3225,7 @@ void tscInitMsgsFp() {
   tscProcessMsgRsp[TSDB_SQL_MULTI_META] = tscProcessMultiTableMetaRsp;
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE_FUNC] = tscProcessRetrieveFuncRsp;
 
+  tscProcessMsgRsp[TSDB_SQL_SHOW] = tscProcessShowRsp;
   tscProcessMsgRsp[TSDB_SQL_SHOW] = tscProcessShowRsp;
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE] = tscProcessRetrieveRspFromNode;  // rsp handled by same function.
   tscProcessMsgRsp[TSDB_SQL_DESCRIBE_TABLE] = tscProcessDescribeTableRsp;
