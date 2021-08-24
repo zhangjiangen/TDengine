@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
     exit(-1);
   }
 
-  int ret = walRestore(pWal, NULL, writeToQueue);
+  int ret = walRestore(pWal, NULL, NULL, writeToQueue);
   if (ret <0) {
     printf("failed to restore wal\n");
     exit(-1);

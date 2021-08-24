@@ -360,7 +360,7 @@ int32_t vnodeOpen(int32_t vgId) {
     return terrno;
   }
 
-  walRestore(pVnode->wal, pVnode, vnodeProcessWrite);
+  walRestore(pVnode->wal, pVnode, NULL, vnodeProcessWrite);
   if (pVnode->version == 0) {
     pVnode->fversion = 0;
     pVnode->version = walGetVersion(pVnode->wal);

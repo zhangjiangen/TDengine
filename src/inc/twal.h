@@ -56,6 +56,7 @@ typedef struct {
 
 typedef void *  twalh;  // WAL HANDLE
 typedef int32_t FWalWrite(void *ahandle, void *pHead, int32_t qtype, void *pMsg, void* headInfo);
+typedef void FWalBeginRestore(const char* name);
 
 int32_t  walInit();
 void     walCleanUp();
@@ -70,7 +71,7 @@ void     walRemoveAllOldFiles(twalh);
 int32_t  walWrite(twalh, SWalHead *, SWalHeadInfo*);
 void     walHeadInfo(twalh, SWalHeadInfo);
 void     walFsync(twalh, bool forceFsync);
-int32_t  walRestore(twalh, void *pVnode, FWalWrite writeFp);
+int32_t  walRestore(twalh, void *pVnode, FWalBeginRestore beginFp, FWalWrite writeFp);
 int32_t  walRestoreAt(int64_t, const char* name, int64_t offset, int32_t size, FWalWrite writeFp);
 int32_t  walGetWalFile(twalh, char *fileName, int64_t *fileId);
 uint64_t walGetVersion(twalh);

@@ -203,7 +203,7 @@ void walFsync(void *handle, bool forceFsync) {
   }
 }
 
-int32_t walRestore(void *handle, void *pVnode, FWalWrite writeFp) {
+int32_t walRestore(void *handle, void *pVnode, FWalBeginRestore beginFp, FWalWrite writeFp) {
   if (handle == NULL) return -1;
 
   SWal *  pWal = handle;
@@ -218,6 +218,9 @@ int32_t walRestore(void *handle, void *pVnode, FWalWrite writeFp) {
     snprintf(walName, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);
 
     wInfo("vgId:%d, file:%s, will be restored", pWal->vgId, walName);
+    if (beginFp) {
+      beginFp(walName);
+    }
     code = walRestoreWalFile(pWal, pVnode, writeFp, walName, fileId);
     if (code != TSDB_CODE_SUCCESS) {
       wError("vgId:%d, file:%s, failed to restore since %s", pWal->vgId, walName, tstrerror(code));
