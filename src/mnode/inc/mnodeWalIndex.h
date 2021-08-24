@@ -26,7 +26,7 @@ typedef struct walIndex {
 
 typedef int32_t FWalIndexReader(int64_t tfd, const char* name, int32_t tableId, uint64_t version, walIndex*);
 
-int64_t sdbRestoreFromIndex(FWalIndexReader fpReader);
+int32_t sdbRestoreFromIndex(twalh, FWalIndexReader fpReader, FWalWrite writeFp);
 
 void mnodeSdbBuildWalIndex(void*);
 

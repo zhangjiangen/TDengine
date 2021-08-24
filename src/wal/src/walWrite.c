@@ -23,7 +23,7 @@
 #include "twal.h"
 #include "walInt.h"
 
-static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, char *name, int64_t fileId);
+static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, int64_t fromOffset, FWalWrite writeFp, const char *name);
 
 int32_t walRenew(void *handle) {
   if (handle == NULL) return 0;
@@ -221,7 +221,7 @@ int32_t walRestore(void *handle, void *pVnode, FWalBeginRestore beginFp, FWalWri
     if (beginFp) {
       beginFp(walName);
     }
-    code = walRestoreWalFile(pWal, pVnode, writeFp, walName, fileId);
+    code = walRestoreWalFile(pWal, pVnode, 0, writeFp, walName);
     if (code != TSDB_CODE_SUCCESS) {
       wError("vgId:%d, file:%s, failed to restore since %s", pWal->vgId, walName, tstrerror(code));
       continue;
@@ -478,7 +478,11 @@ static int walSMemRowCheck(SWalHead *pHead) {
   return 0;
 }
 
-static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, char *name, int64_t fileId) {
+int32_t walRestoreFrom(twalh handle, void *pVnode, const char* name, int64_t offset, FWalWrite writeFp) {
+  return walRestoreWalFile(handle, pVnode, offset, writeFp, name);
+}
+
+static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, int64_t fromOffset, FWalWrite writeFp, const char *name) {
   int32_t size = WAL_MAX_SIZE;
   void *  buffer = tmalloc(size);
   if (buffer == NULL) {
@@ -493,6 +497,15 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
     return TAOS_SYSTEM_ERROR(errno);
   } else {
     wDebug("vgId:%d, file:%s, open for restore", pWal->vgId, name);
+  }
+
+  if (fromOffset > 0) {
+    if (tfLseek(tfd, 0, SEEK_END) == fromOffset) {
+      tfClose(tfd);
+      tfree(buffer);
+      return TSDB_CODE_SUCCESS;
+    }
+    tfLseek(tfd, 0, fromOffset);
   }
 
   int32_t   code = TSDB_CODE_SUCCESS;
@@ -602,16 +615,16 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
     
     offset = offset + sizeof(SWalHead) + pHead->len;
 
-    wTrace("vgId:%d, restore wal, fileId:%" PRId64 " hver:%" PRIu64 " wver:%" PRIu64 " len:%d offset:%" PRId64,
-           pWal->vgId, fileId, pHead->version, pWal->version, pHead->len, offset);
+    wTrace("vgId:%d, restore wal, file:%s, hver:%" PRIu64 " wver:%" PRIu64 " len:%d offset:%" PRId64,
+           pWal->vgId, name, pHead->version, pWal->version, pHead->len, offset);
 
     pWal->version = pHead->version;
 
     headInfo.len = sizeof(SWalHead) + pHead->len;
     //wInfo("writeFp: %ld", offset);
     if (0 != walSMemRowCheck(pHead)) {
-      wError("vgId:%d, restore wal, fileId:%" PRId64 " hver:%" PRIu64 " wver:%" PRIu64 " len:%d offset:%" PRId64,
-             pWal->vgId, fileId, pHead->version, pWal->version, pHead->len, offset);
+      wError("vgId:%d, restore wal, file:%s, hver:%" PRIu64 " wver:%" PRIu64 " len:%d offset:%" PRId64,
+             pWal->vgId, name, pHead->version, pWal->version, pHead->len, offset);
       tfClose(tfd);
       tfree(buffer);
       return TAOS_SYSTEM_ERROR(errno);

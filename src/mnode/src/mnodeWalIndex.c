@@ -22,6 +22,7 @@
 #include "mnodeInt.h"
 #include "twal.h"
 #include "tglobal.h"
+#include "taoserror.h"
 #include "mnodeSdbTable.h"
 #include "mnodeWalIndex.h"
 
@@ -54,8 +55,6 @@ typedef struct walIndexFileInfo {
 static SHashObj* tsIndexItemTable[SDB_TABLE_MAX];
 static walIndexFileInfo* tsWalFileInfo;
 static walIndexFileInfo* tsCurrentWalFileInfo;
-
-char* tsWalIndexBuffer;
 
 // index data type
 
@@ -312,10 +311,10 @@ _err:
   sdbInfo("save index to file:%s success", name);
 }
 
-int64_t sdbRestoreFromIndex(FWalIndexReader fpReader) {
+int32_t sdbRestoreFromIndex(twalh handle, FWalIndexReader fpReader, FWalWrite writeFp) {
   char    name[TSDB_FILENAME_LEN] = {0};
   sprintf(name, "%s/wal/index", tsMnodeDir);
-  int64_t offset = -1;
+  int code = TSDB_CODE_SUCCESS;
 
   int64_t tfd = tfOpen(name, O_RDONLY);
   if (!tfValid(tfd)) {
@@ -325,27 +324,31 @@ int64_t sdbRestoreFromIndex(FWalIndexReader fpReader) {
 
   int64_t size = tfLseek(tfd, 0, SEEK_END);
   if (size < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
   char *buffer = calloc(1, size);
   if (buffer == NULL) {
+    code = TSDB_CODE_COM_OUT_OF_MEMORY;
     goto _err;
   }
   tfLseek(tfd, 0, SEEK_SET);
   if (tfRead(tfd, buffer, size) != size) {
     sdbError("file:%s, failed to read since %s", name, strerror(errno));
+    code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
-  tsWalIndexBuffer = buffer;
+  char* save = buffer;
   
-  while (true) {
+  while (size > 0) {
     // read header
     walIndexHeader *pHeader = (walIndexHeader*)buffer;
     assert(pHeader->meta.type == WAL_INDEX_HEADER);
     buffer += sizeof(walIndexHeaderMeta) + pHeader->meta.walNameSize;
     memset(name, 0, sizeof(name));
     memcpy(name, pHeader->walName, pHeader->meta.walNameSize);
+    size -= sizeof(walIndexHeaderMeta) + pHeader->meta.walNameSize;
 
     int64_t total = pHeader->meta.totalSize;
     uint64_t walVersion = pHeader->meta.version;
@@ -353,6 +356,7 @@ int64_t sdbRestoreFromIndex(FWalIndexReader fpReader) {
     int64_t fd = tfOpen(name, O_RDONLY);
     if (!tfValid(fd)) {
       sdbError("file:%s, failed to open for build index since %s", name, strerror(errno));
+      code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
 
@@ -380,11 +384,17 @@ int64_t sdbRestoreFromIndex(FWalIndexReader fpReader) {
       total -= readBytes;
     }
     assert(total == 0);
-    break;
+
+    code = walRestoreFrom(handle, NULL, name, pHeader->meta.offset, writeFp);
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
+
+    size -= pHeader->meta.totalSize;
   }
 
 _err:
   tfClose(tfd);
-  tfree(tsWalIndexBuffer);
-  return offset;
+  tfree(save);
+  return code;
 }
