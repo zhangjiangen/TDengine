@@ -271,8 +271,8 @@ static int32_t sdbInitWal() {
   }
 
   sdbInfo("vgId:1, open sdb wal for restore");
-  int32_t code = walRestore(tsSdbMgmt.wal, NULL, NULL, sdbProcessWrite);
-  //int32_t code = sdbRestoreFromIndex(tsSdbMgmt.wal, sdbWalIndexReader, sdbProcessWrite);
+  //int32_t code = walRestore(tsSdbMgmt.wal, NULL, NULL, sdbProcessWrite);
+  int32_t code = sdbRestoreFromIndex(tsSdbMgmt.wal, sdbWalIndexReader, sdbProcessWrite);
   if (code != TSDB_CODE_SUCCESS) {
     sdbError("vgId:1, failed to open wal for restore since %s", tstrerror(code));
     return -1;

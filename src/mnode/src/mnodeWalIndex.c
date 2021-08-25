@@ -435,22 +435,48 @@ _err:
   sdbInfo("save index to file:%s success", name);
 }
 
+static int32_t sdbRestoreFromWalFiles(SWalFileItem* pFileList, twalh handle, FWalWrite writeFp) {
+  SWalFileItem* current = pFileList;
+  int code = TSDB_CODE_SUCCESS;
+
+  while (current) {
+    // this wal file not in the wal index
+    current->hasProcess = true;
+    code = walRestoreWalFile(handle, NULL, 0, writeFp, current->walName);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    current = current->next;
+  }
+
+  return code;
+}
+
 int32_t sdbRestoreFromIndex(twalh handle, FWalIndexReader fpReader, FWalWrite writeFp) {
   char    name[TSDB_FILENAME_LEN] = {0};
   sprintf(name, "%s/wal/index", tsMnodeDir);
   int code = TSDB_CODE_SUCCESS;
+  SWalFileItem* pFileList = walRestoreFileList(handle);
+  SWalFileItem* pFileItem, *next, *current;
+
+  if (pFileList == NULL) {
+    goto _err;
+  }
 
   int64_t tfd = tfOpen(name, O_RDONLY);
   if (!tfValid(tfd)) {
-    sdbError("file:%s, failed to open index since %s", name, strerror(errno));
-    goto _err;
+    sdbInfo("file:%s, failed to open index since %s, restore from wal", name, strerror(errno));
+    // no index, restore from wal files
+    return sdbRestoreFromWalFiles(pFileList, handle, writeFp);
   }
 
   int64_t size = tfLseek(tfd, 0, SEEK_END);
   if (size < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
+    sdbInfo("file:%s, failed to open index since %s, restore from wal", name, strerror(errno));
+    // no index, restore from wal files
+    return sdbRestoreFromWalFiles(pFileList, handle, writeFp);
   }
+
   char *buffer = calloc(1, size);
   if (buffer == NULL) {
     code = TSDB_CODE_COM_OUT_OF_MEMORY;
@@ -464,7 +490,7 @@ int32_t sdbRestoreFromIndex(twalh handle, FWalIndexReader fpReader, FWalWrite wr
   }
 
   char* save = buffer;
-  
+  current = pFileList;
   while (size > 0) {
     // read header
     walIndexHeader *pHeader = (walIndexHeader*)buffer;
@@ -473,6 +499,21 @@ int32_t sdbRestoreFromIndex(twalh handle, FWalIndexReader fpReader, FWalWrite wr
     memset(name, 0, sizeof(name));
     memcpy(name, pHeader->walName, pHeader->meta.walNameSize);
     size -= sizeof(walIndexHeaderMeta) + pHeader->meta.walNameSize;
+
+    // mark has processed from wal file list
+    while (current && strcmp(current->walName, name) != 0) {
+      // this wal file not in the wal index
+      current->hasProcess = true;
+      code = walRestoreWalFile(handle, NULL, 0, writeFp, current->walName);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _err;
+      }
+      current = current->next;
+    }
+    if (!current) {
+      break;
+    }
+    assert(strcmp(current->walName, name));
 
     int64_t total = pHeader->meta.totalSize;
     uint64_t walVersion = pHeader->meta.version;
@@ -518,6 +559,14 @@ int32_t sdbRestoreFromIndex(twalh handle, FWalIndexReader fpReader, FWalWrite wr
   }
 
 _err:
+  pFileItem = pFileList;
+  while (pFileItem) {
+    next = pFileItem->next;
+    free(pFileItem->walName);
+    free(pFileItem);
+    pFileItem = next;
+  }
+
   tfClose(tfd);
   tfree(save);
   return code;

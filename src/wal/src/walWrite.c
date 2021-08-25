@@ -23,7 +23,7 @@
 #include "twal.h"
 #include "walInt.h"
 
-static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, int64_t fromOffset, FWalWrite writeFp, const char *name);
+int32_t walRestoreWalFile(twalh handle, void *pVnode, int64_t fromOffset, FWalWrite writeFp, const char *name);
 
 int32_t walRenew(void *handle) {
   if (handle == NULL) return 0;
@@ -201,6 +201,39 @@ void walFsync(void *handle, bool forceFsync) {
       wError("vgId:%d, fileId:%" PRId64 ", fsync failed since %s", pWal->vgId, pWal->fileId, strerror(errno));
     }
   }
+}
+
+SWalFileItem* walRestoreFileList(void *handle) {
+  if (handle == NULL) return NULL;
+  SWal *  pWal = handle;
+  int32_t code = 0;
+  int64_t fileId = -1;
+  SWalFileItem* head = NULL;
+  SWalFileItem* current = NULL;
+
+  char walName[WAL_FILE_LEN] = {'\0'};
+  while ((code = walGetNextFile(pWal, &fileId)) >= 0) {
+    if (fileId == pWal->fileId) continue;
+    snprintf(walName, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);
+
+    SWalFileItem* pItem = calloc(1, sizeof(SWalFileItem));
+    if (pItem == NULL) {
+      return NULL;
+    }
+    pItem->walName = calloc(1, strlen(walName) + 1);
+    if (pItem->walName == NULL) {
+      free(pItem);
+      return NULL;
+    }
+    pItem->hasProcess = false;
+    strcpy(pItem->walName, walName);
+    if (current) current->next = pItem;
+    if (head == NULL) head = pItem;
+
+    current = pItem;
+  }
+
+  return head;
 }
 
 int32_t walRestore(void *handle, void *pVnode, FWalBeginRestore beginFp, FWalWrite writeFp) {
@@ -525,7 +558,8 @@ int32_t walRestoreFrom(twalh handle, void *pVnode, const char* name, int64_t off
   return walRestoreWalFile(handle, pVnode, offset, writeFp, name);
 }
 
-static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, int64_t fromOffset, FWalWrite writeFp, const char *name) {
+int32_t walRestoreWalFile(twalh handle, void *pVnode, int64_t fromOffset, FWalWrite writeFp, const char *name) {
+  SWal* pWal = (twalh)handle;
   int32_t size = WAL_MAX_SIZE;
   void *  buffer = tmalloc(size);
   if (buffer == NULL) {

@@ -54,6 +54,12 @@ typedef struct {
   EWalKeep keep;         // keep the wal file when closed
 } SWalCfg;
 
+typedef struct SWalFileItem {
+  char* walName;
+  struct SWalFileItem* next;
+  bool hasProcess;
+} SWalFileItem;
+
 typedef void *  twalh;  // WAL HANDLE
 typedef int32_t FWalWrite(void *ahandle, void *pHead, int32_t qtype, void *pMsg, void* headInfo);
 typedef void FWalBeginRestore(const char* name);
@@ -78,6 +84,8 @@ int32_t  walRestoreFrom(twalh, void *pVnode, const char* name, int64_t offset, F
 int32_t  walGetWalFile(twalh, char *fileName, int64_t *fileId);
 uint64_t walGetVersion(twalh);
 void     walResetVersion(twalh, uint64_t newVer);
+SWalFileItem* walRestoreFileList(void *handle);
+int32_t walRestoreWalFile(twalh, void *pVnode, int64_t fromOffset, FWalWrite writeFp, const char *name);
 
 #ifdef __cplusplus
 }
