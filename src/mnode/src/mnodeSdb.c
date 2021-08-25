@@ -241,6 +241,8 @@ int32_t sdbWalIndexReader(int64_t tfd, const char* walName, int32_t tableId, uin
   SSdbTable *pTable = sdbGetTableFromId(tableId);
   assert(pTable != NULL);
 
+  sdbInfo("sdbWalIndexReader restore tableId %d, key %s", pTable->id, pIndex->key);
+
   if (pTable->tableType == SDB_TABLE_HASH_TABLE) {
     walRestoreAt(tfd, walName, pIndex->offset, pIndex->size, sdbRestoreByIndex);    
   } else {
@@ -725,6 +727,8 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
 
   SSdbTable *pTable = sdbGetTableFromId(tableId);
   assert(pTable != NULL);
+
+  sdbInfo("action:%d, tableId:%d, key:%s", action, tableId, (char*)pHead->cont);
 
   if (!mnodeIsRunning() && tsSdbMgmt.version % 100000 == 0) {
     char stepDesc[TSDB_STEP_DESC_LEN] = {0};

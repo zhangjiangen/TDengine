@@ -43,6 +43,7 @@
 #include "mnodeRead.h"
 #include "mnodePeer.h"
 #include "mnodeFunc.h"
+#include "mnodeWalIndex.h"
 
 #define ALTER_CTABLE_RETRY_TIMES  3
 #define CREATE_CTABLE_RETRY_TIMES 10
@@ -398,6 +399,16 @@ static int32_t mnodeChildTableActionRestored() {
   return 0;
 }
 
+void mnodeCTableDecodeParentKey(void* pArg, void* pIndex) {
+  SWalHead* pHead = (SWalHead*)pArg;
+  walIndexItem* pItem = (walIndexItem*)pIndex;
+
+  SCTableObj table;
+  memcpy((char *)&table + sizeof(char *), (char *)pHead->cont + strlen(pHead->cont) + 1, tsChildTableUpdateSize);
+
+  pItem->parentIndexKey.suid = table.suid;
+}
+
 // init the loaded data from disk
 static int mnodeAfterLoadCTable(void* userData,void* value, int32_t nBytes, void* pArg, void* pRet) {
   SWalHead* pHead = (SWalHead*)pArg;
@@ -620,7 +631,16 @@ static int32_t mnodeSuperTableActionEncode(SSdbRow *pRow) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeSuperTableActionDecode(SSdbRow *pRow) {
+void mnodeSTableDecodeParentKey(void* pArg, void* pIndex) {
+  SWalHead* pHead = (SWalHead*)pArg;
+  walIndexItem* pItem = (walIndexItem*)pIndex;
+
+  int32_t len = (int32_t)strlen(pHead->cont);
+  memcpy(pItem->parentIndexKey.tableId, pHead->cont, len);
+  pItem->parentIndexKey.tableId[len] = '\0';
+}
+
+int32_t mnodeSuperTableActionDecode(SSdbRow *pRow) {
   assert(pRow->rowData != NULL);
   SSTableObj *pStable = (SSTableObj *) calloc(1, sizeof(SSTableObj));
   if (pStable == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
@@ -651,6 +671,25 @@ static int32_t mnodeSuperTableActionDecode(SSdbRow *pRow) {
 
 static int32_t mnodeSuperTableActionRestored() {
   return 0;
+}
+
+bool mnodeDeleteSTableIndexByDb(void* pArg, void* pIndex) {
+  SDbObj* pObj = (SDbObj*)pArg;
+  walIndexItem* pItem = (walIndexItem*)pIndex;
+
+  char prefix[64] = {0};
+  tstrncpy(prefix, pObj->name, 64);
+  strcat(prefix, TS_PATH_DELIMITER);
+  int32_t prefixLen = (int32_t)strlen(prefix);
+
+  return (strncmp(prefix, pItem->parentIndexKey.tableId, prefixLen) == 0);
+}
+
+bool mnodeDeleteCTableIndexBySTable(void* pArg, void* pIndex) {
+  SSTableObj* pObj = (SSTableObj*)pArg;
+  walIndexItem* pItem = (walIndexItem*)pIndex;
+
+  return pObj->uid == pItem->parentIndexKey.suid;
 }
 
 static int32_t mnodeInitSuperTables() {

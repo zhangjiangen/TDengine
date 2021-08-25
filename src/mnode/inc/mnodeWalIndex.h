@@ -24,6 +24,23 @@ typedef struct walIndex {
   char key[];
 } walIndex;
 
+struct walIndexFileInfo;
+
+typedef struct walIndexItem {
+  struct walIndexItem* prev;
+  struct walIndexItem* next;
+
+  struct walIndexFileInfo *pFileInfo;
+
+  union {
+    char    dbName[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];  // SVgObj -> SDbObj
+    char    tableId[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN]; // SSTableObj -> SDbObj
+    uint64_t suid;                                        // SCTableObj -> SSTableObj
+  } parentIndexKey;
+
+  walIndex index;
+} walIndexItem;
+
 typedef int32_t FWalIndexReader(int64_t tfd, const char* name, int32_t tableId, uint64_t version, walIndex*);
 
 int32_t sdbRestoreFromIndex(twalh, FWalIndexReader fpReader, FWalWrite writeFp);

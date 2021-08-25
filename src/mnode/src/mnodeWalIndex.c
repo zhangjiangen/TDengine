@@ -26,16 +26,73 @@
 #include "mnodeSdbTable.h"
 #include "mnodeWalIndex.h"
 
-struct walIndexFileInfo;
+typedef void (*decodeParentKeyFp)(void* pHead, void* pIndex);
 
-typedef struct walIndexItem {
-  struct walIndexItem* prev;
-  struct walIndexItem* next;
+extern void mnodeVgroupDecodeParentKey(void* pArg, void* pIndex);
+extern void mnodeSTableDecodeParentKey(void* pArg, void* pIndex);
+extern void mnodeCTableDecodeParentKey(void* pArg, void* pIndex);
 
-  struct walIndexFileInfo *pFileInfo;
+static decodeParentKeyFp tsTableDecodeParentKeyFp[] = {
+  NULL, // SDB_TABLE_CLUSTER
+  NULL, // SDB_TABLE_DNODE
+  NULL, // SDB_TABLE_MNODE
+  NULL, // SDB_TABLE_ACCOUNT
+  NULL, // SDB_TABLE_USER
+  NULL, // SDB_TABLE_DB
+  mnodeVgroupDecodeParentKey, // SDB_TABLE_VGROUP
+  mnodeSTableDecodeParentKey, // SDB_TABLE_STABLE
+  mnodeCTableDecodeParentKey, // SDB_TABLE_CTABLE,
+  NULL, // SDB_TABLE_FUNC
+};
 
-  walIndex index;
-} walIndexItem;
+typedef int32_t (*fpDecode)(SSdbRow *pRow);
+extern int32_t mnodeDbActionDecode(SSdbRow *pRow);
+extern int32_t mnodeSuperTableActionDecode(SSdbRow *pRow);
+
+static fpDecode tsParentTableDecodeFp[] = {
+  NULL, // SDB_TABLE_CLUSTER
+  NULL, // SDB_TABLE_DNODE
+  NULL, // SDB_TABLE_MNODE
+  NULL, // SDB_TABLE_ACCOUNT
+  NULL, // SDB_TABLE_USER
+  mnodeDbActionDecode, // SDB_TABLE_DB
+  NULL, // SDB_TABLE_VGROUP
+  mnodeSuperTableActionDecode, // SDB_TABLE_STABLE
+  NULL, // SDB_TABLE_CTABLE,
+  NULL, // SDB_TABLE_FUNC
+};
+
+typedef bool (*deleteByParentFp)(void* pHead, void* pIndex);
+
+extern bool mnodeDeleteVgroupIndexByDb(void* pArg, void* pIndex);
+extern bool mnodeDeleteSTableIndexByDb(void* pArg, void* pIndex);
+extern bool mnodeDeleteCTableIndexBySTable(void* pArg, void* pIndex);
+
+static deleteByParentFp tsDeleteByParentFp[] = {
+  NULL, // SDB_TABLE_CLUSTER
+  NULL, // SDB_TABLE_DNODE
+  NULL, // SDB_TABLE_MNODE
+  NULL, // SDB_TABLE_ACCOUNT
+  NULL, // SDB_TABLE_USER
+  NULL, // SDB_TABLE_DB
+  mnodeDeleteVgroupIndexByDb, // SDB_TABLE_VGROUP
+  mnodeDeleteSTableIndexByDb, // SDB_TABLE_STABLE
+  mnodeDeleteCTableIndexBySTable, // SDB_TABLE_CTABLE,
+  NULL, // SDB_TABLE_FUNC
+};
+
+static int32_t tsParentTableId[] = {
+  -1, // SDB_TABLE_CLUSTER
+  -1, // SDB_TABLE_DNODE
+  -1, // SDB_TABLE_MNODE
+  -1, // SDB_TABLE_ACCOUNT
+  -1, // SDB_TABLE_USER
+  -1, // SDB_TABLE_DB
+  SDB_TABLE_DB, // SDB_TABLE_VGROUP
+  SDB_TABLE_DB, // SDB_TABLE_STABLE
+  SDB_TABLE_STABLE, // SDB_TABLE_CTABLE,
+  -1, // SDB_TABLE_FUNC
+};
 
 typedef struct walIndexFileInfo {
   char name[TSDB_FILENAME_LEN];
@@ -87,6 +144,64 @@ typedef struct walIndexTableHeader {
   int64_t tableSize;
 } walIndexTableHeader;
 
+static void deleteIndex(walIndexItem* pItem, SWalHead *pHead, int32_t tableId);
+
+static void deleteChildIndex(walIndexItem* pItem, SWalHead *pHead, int32_t parentTableId) {
+  if (!pHead || tsParentTableDecodeFp[parentTableId] == NULL) {
+    return;
+  }
+  SSdbRow row = (SSdbRow){.rowSize = pHead->len, .rowData = pHead->cont};
+
+  int32_t code = (*tsParentTableDecodeFp[parentTableId])(&row);
+  if (code != 0) {
+    return;
+  }
+
+  int childTableId = 0;
+  for (childTableId = 0; childTableId < SDB_TABLE_MAX; ++childTableId) {
+    if (parentTableId != tsParentTableId[childTableId]) {
+      continue;
+    }
+
+    walIndexFileInfo* pFileInfo = tsWalFileInfo;
+    while (pFileInfo != NULL) {
+      walIndexItem *p = pFileInfo->head[childTableId];
+      while (p) {
+        walIndexItem* next = p->next;
+        if (tsDeleteByParentFp[childTableId](row.pObj, p)) {
+          deleteIndex(p, NULL, childTableId);
+        }
+        p = next;
+      }
+
+      pFileInfo = pFileInfo->next;
+    }
+  }
+}
+
+static void deleteIndex(walIndexItem* pItem, SWalHead *pHead, int32_t tableId) {
+  walIndexFileInfo *pFileInfo = pItem->pFileInfo;
+  walIndexItem* prev = pItem->prev;
+  walIndexItem* next = pItem->next;
+
+  if (pFileInfo->tail[tableId] == pItem) {
+    pFileInfo->tail[tableId] = prev;
+  }
+  if (pFileInfo->head[tableId] == pItem) {
+    pFileInfo->head[tableId] = next;
+  }
+  if (prev) prev->next = next;
+  if (next) next->prev = prev;  
+
+  deleteChildIndex(pItem, pHead, tableId);
+
+  pFileInfo->total -= sizeof(walIndex) + pItem->index.keyLen;
+  pFileInfo->tableSize[tableId] -= sizeof(walIndex) + pItem->index.keyLen;
+  assert(pFileInfo->total >= 0);
+
+  free(pItem);
+}
+
 static int32_t buildIndex(void *wparam, void *hparam, int32_t qtype, void *tparam, void* head) {
   //SSdbRow *pRow = wparam;
   SWalHead *pHead = hparam;
@@ -117,25 +232,7 @@ static int32_t buildIndex(void *wparam, void *hparam, int32_t qtype, void *tpara
   // update or delete action will delete old index item
   if (action == SDB_ACTION_UPDATE || action == SDB_ACTION_DELETE) {
     walIndexItem** ppItem = (walIndexItem**)taosHashGet(pTable, key, keySize);
-    assert(ppItem != NULL);
-
-    walIndexFileInfo *pOldFileInfo = (*ppItem)->pFileInfo;
-    walIndexItem* prev = (*ppItem)->prev;
-    walIndexItem* next = (*ppItem)->next;
-
-    if (pOldFileInfo->tail[tableId] == *ppItem) {
-      pOldFileInfo->tail[tableId] = prev;
-    }
-    if (pOldFileInfo->head[tableId] == *ppItem) {
-      pOldFileInfo->head[tableId] = next;
-    }
-    if (prev) prev->next = next;
-    if (next) next->prev = prev;    
-
-    pOldFileInfo->total -= sizeof(walIndex) + (*ppItem)->index.keyLen;
-    pOldFileInfo->tableSize[tableId] -= sizeof(walIndex) + (*ppItem)->index.keyLen;
-    assert(pOldFileInfo->total >= 0);
-    free(*ppItem);
+    deleteIndex(*ppItem, pHead, tableId);
   }
 
   // insert or update action will save index item
@@ -154,6 +251,10 @@ static int32_t buildIndex(void *wparam, void *hparam, int32_t qtype, void *tpara
     taosHashPut(pTable, key, keySize, &pItem, sizeof(walIndexItem**));
     pFileInfo->total += sizeof(walIndex) + keySize;
     pFileInfo->tableSize[tableId] += sizeof(walIndex) + keySize;
+
+    if (tsTableDecodeParentKeyFp[tableId] != NULL) {
+      tsTableDecodeParentKeyFp[tableId](pHead, pItem);
+    }
   }
 
   if (pHeadInfo->offset + pHeadInfo->len > pFileInfo->offset) {

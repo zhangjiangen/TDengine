@@ -157,7 +157,7 @@ static int32_t mnodeDbActionEncode(SSdbRow *pRow) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDbActionDecode(SSdbRow *pRow) {
+int32_t mnodeDbActionDecode(SSdbRow *pRow) {
   SDbObj *pDb = (SDbObj *) calloc(1, sizeof(SDbObj));
   if (pDb == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
   

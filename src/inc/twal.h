@@ -73,6 +73,7 @@ void     walHeadInfo(twalh, SWalHeadInfo);
 void     walFsync(twalh, bool forceFsync);
 int32_t  walRestore(twalh, void *pVnode, FWalBeginRestore beginFp, FWalWrite writeFp);
 int32_t  walRestoreAt(int64_t, const char* name, int64_t offset, int32_t size, FWalWrite writeFp);
+SWalHead* walReadAt(int64_t, int64_t offset, int32_t size);
 int32_t  walRestoreFrom(twalh, void *pVnode, const char* name, int64_t offset, FWalWrite writeFp);
 int32_t  walGetWalFile(twalh, char *fileName, int64_t *fileId);
 uint64_t walGetVersion(twalh);

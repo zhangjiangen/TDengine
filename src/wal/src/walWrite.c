@@ -252,6 +252,46 @@ int32_t walRestore(void *handle, void *pVnode, FWalBeginRestore beginFp, FWalWri
   return TSDB_CODE_SUCCESS;
 }
 
+SWalHead* walReadAt(int64_t tfd, int64_t offset, int32_t size) {
+  tfLseek(tfd, offset, SEEK_SET);
+
+  void *  buffer = tmalloc(size);
+  if (buffer == NULL) {
+    return NULL;
+  }
+  assert(size >= sizeof(SWalHead));
+
+  SWalHead *pHead = buffer;
+
+  int32_t ret = (int32_t)tfRead(tfd, pHead, size);
+
+  if (ret < size) {
+    tfree(buffer);
+    wError("failed to read wal body, ret:%d len:%d", ret, pHead->len);
+    return NULL;
+  }
+
+  assert(size == sizeof(SWalHead) + pHead->len);
+
+#if defined(WAL_CHECKSUM_WHOLE)
+  if ((pHead->sver >= 1) && !walValidateChecksum(pHead)) {
+    wError("wal whole cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64,
+             pHead->version, pHead->len, offset);
+    tfree(buffer);
+    return NULL;
+  }
+#else
+  if (!taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
+    wError("wal head cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64,
+            pHead->version, pHead->len, offset);
+    tfree(buffer);
+    return NULL;
+  }
+#endif
+
+  return pHead;
+}
+
 int32_t walRestoreAt(int64_t tfd, const char* name, int64_t offset, int32_t size, FWalWrite writeFp) {
   assert(tfValid(tfd));
   tfLseek(tfd, offset, SEEK_SET);
@@ -267,6 +307,7 @@ int32_t walRestoreAt(int64_t tfd, const char* name, int64_t offset, int32_t size
   int32_t ret = (int32_t)tfRead(tfd, pHead, size);
 
   if (ret < size) {
+    tfree(buffer);
     wError("file:%s, failed to read wal body, ret:%d len:%d", name, ret, pHead->len);
     return -1;
   }
@@ -277,12 +318,14 @@ int32_t walRestoreAt(int64_t tfd, const char* name, int64_t offset, int32_t size
   if ((pHead->sver >= 1) && !walValidateChecksum(pHead)) {
     wError("file:%s, wal whole cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, name,
              pHead->version, pHead->len, offset);
+    tfree(buffer);
     return -1;
   }
 #else
   if (!taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
     wError("file:%s, wal head cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, name,
             pHead->version, pHead->len, offset);
+    tfree(buffer);
     return -1;
   }
 #endif

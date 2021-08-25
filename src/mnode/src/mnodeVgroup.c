@@ -36,6 +36,7 @@
 #include "mnodeTable.h"
 #include "mnodeVgroup.h"
 #include "mnodePeer.h"
+#include "mnodeWalIndex.h"
 
 typedef enum {
   TAOS_VG_STATUS_READY,
@@ -190,6 +191,23 @@ static int32_t mnodeVgroupActionEncode(SSdbRow *pRow) {
 
   pRow->rowSize = tsVgUpdateSize;
   return TSDB_CODE_SUCCESS;
+}
+
+bool mnodeDeleteVgroupIndexByDb(void* pArg, void* pIndex) {
+  SDbObj* pObj = (SDbObj*)pArg;
+  walIndexItem* pItem = (walIndexItem*)pIndex;
+
+  return strcmp(pObj->name, pItem->parentIndexKey.dbName) == 0;
+}
+
+void mnodeVgroupDecodeParentKey(void* pArg, void* pIndex) {
+  SWalHead* pHead = (SWalHead*)pArg;
+  walIndexItem* pItem = (walIndexItem*)pIndex;
+
+  SVgObj vgroup;
+  memcpy(&vgroup, pHead->cont, tsVgUpdateSize);
+
+  strcpy(pItem->parentIndexKey.dbName, vgroup.dbName);
 }
 
 static int32_t mnodeVgroupActionDecode(SSdbRow *pRow) {
