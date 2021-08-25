@@ -100,6 +100,7 @@ typedef struct walIndexFileInfo {
   uint64_t version;
   int64_t offset;
   int64_t total;
+  int64_t tfd;
 
   struct walIndexFileInfo* next;
 
@@ -146,10 +147,19 @@ typedef struct walIndexTableHeader {
 
 static void deleteIndex(walIndexItem* pItem, SWalHead *pHead, int32_t tableId);
 
-static void deleteChildIndex(walIndexItem* pItem, SWalHead *pHead, int32_t parentTableId) {
-  if (!pHead || tsParentTableDecodeFp[parentTableId] == NULL) {
+static void deleteChildIndex(walIndexItem* pParentItem, SWalHead *pHead, int32_t parentTableId) {
+  if (tsParentTableDecodeFp[parentTableId] == NULL) {
     return;
   }
+  bool newHead = false;
+  if (!pHead) {
+    pHead = walReadAt(pParentItem->pFileInfo->tfd, pParentItem->index.offset, pParentItem->index.size);
+    if (!pHead) {
+      return;
+    }
+    newHead = true;
+  }
+
   SSdbRow row = (SSdbRow){.rowSize = pHead->len, .rowData = pHead->cont};
 
   int32_t code = (*tsParentTableDecodeFp[parentTableId])(&row);
@@ -169,6 +179,7 @@ static void deleteChildIndex(walIndexItem* pItem, SWalHead *pHead, int32_t paren
       while (p) {
         walIndexItem* next = p->next;
         if (tsDeleteByParentFp[childTableId](row.pObj, p)) {
+          //sdbInfo("delete child %d %s", childTableId, p->index.key);
           deleteIndex(p, NULL, childTableId);
         }
         p = next;
@@ -177,12 +188,20 @@ static void deleteChildIndex(walIndexItem* pItem, SWalHead *pHead, int32_t paren
       pFileInfo = pFileInfo->next;
     }
   }
+
+  if (newHead) free(pHead);
+  free(row.pObj);
 }
 
 static void deleteIndex(walIndexItem* pItem, SWalHead *pHead, int32_t tableId) {
   walIndexFileInfo *pFileInfo = pItem->pFileInfo;
   walIndexItem* prev = pItem->prev;
   walIndexItem* next = pItem->next;
+
+/*
+  if (tableId == SDB_TABLE_DB || tableId == SDB_TABLE_STABLE)
+    sdbInfo("delete %d %s", tableId, pItem->index.key);
+*/
 
   if (pFileInfo->tail[tableId] == pItem) {
     pFileInfo->tail[tableId] = prev;
@@ -271,7 +290,11 @@ static int32_t buildIndex(void *wparam, void *hparam, int32_t qtype, void *tpara
 static walIndexFileInfo* createWalIndexFileInfo(const char* walName) {
   walIndexFileInfo* pIndexFileInfo = calloc(1, sizeof(walIndexFileInfo));
   strcpy(pIndexFileInfo->name, walName);
-
+  pIndexFileInfo->tfd = tfOpen(walName, O_RDWR);
+  if (!tfValid(pIndexFileInfo->tfd)) {
+    free(pIndexFileInfo);
+    return NULL;
+  }
   return pIndexFileInfo;
 }
 
