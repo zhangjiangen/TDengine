@@ -26,6 +26,8 @@
 #include "mnodeSdbTable.h"
 #include "mnodeWalIndex.h"
 
+extern uint64_t tsSdbIndexVersion;;
+
 typedef void (*decodeParentKeyFp)(void* pHead, void* pIndex);
 
 extern void mnodeVgroupDecodeParentKey(void* pArg, void* pIndex);
@@ -282,6 +284,7 @@ static int32_t buildIndex(void *wparam, void *hparam, int32_t qtype, void *tpara
 
   if (pHead->version > pFileInfo->version) {
     pFileInfo->version = pHead->version;
+    tsSdbIndexVersion = pHead->version;
   }
 
   return 0;
@@ -316,35 +319,151 @@ static void beginBuildWalIndex(const char* walName) {
   sdbInfo("file:%s, open for build index", walName);
 }
 
-void mnodeSdbBuildWalIndex(void* handle) {
-  tsWalFileInfo = NULL;
+static void addExistIndex(ESdbTable tableId, walIndex* pIndex) {
+  walIndexFileInfo *pFileInfo = tsCurrentWalFileInfo;
+  //ESdbKey keyType = sdbGetKeyTypeByTableId(tableId);
+  SHashObj* pTable = tsIndexItemTable[tableId];
 
-  int i = 0;
-  for (i = 0; i < SDB_TABLE_MAX; ++i) {
-    ESdbKey keyType = sdbGetKeyTypeByTableId(i);
-    _hash_fn_t hashFp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
-    if (keyType == SDB_KEY_STRING || keyType == SDB_KEY_VAR_STRING) {
-      hashFp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  int32_t keySize = pIndex->keyLen;
+  void* key = pIndex->key;
+
+  walIndexItem* pItem = calloc(1, sizeof(walIndexItem) + keySize);
+  *pItem = (walIndexItem) {
+    .index = (walIndex)(*pIndex),
+    .next = NULL,
+    .prev = NULL,
+    .pFileInfo = pFileInfo,
+  };
+  memcpy(pItem->index.key, key, keySize);  
+
+    if (pFileInfo->tail[tableId] == NULL) {      
+      pFileInfo->tail[tableId] = pItem;      
+    } else {
+      pItem->prev = tsWalFileInfo[0].tail[tableId];
+      pFileInfo->tail[tableId]->next = pItem;
+      pFileInfo->tail[tableId] = pItem;
     }
-    tsIndexItemTable[i] = taosHashInit(1024, hashFp, true, HASH_ENTRY_LOCK);
+    if (pFileInfo->head[tableId] == NULL) {
+      pFileInfo->head[tableId] = pItem;   
+    }
+
+    taosHashPut(pTable, key, keySize, &pItem, sizeof(walIndexItem**));
+    pFileInfo->total += sizeof(walIndex) + keySize;
+    pFileInfo->tableSize[tableId] += sizeof(walIndex) + keySize;
+
+#if 0
+    if (tsTableDecodeParentKeyFp[tableId] != NULL) {
+      tsTableDecodeParentKeyFp[tableId](pHead, pItem);
+    }
+#endif
+}
+
+// read index file and return buffer
+static walIndexHeader* readIndex(char** pSave) {
+  char    name[TSDB_FILENAME_LEN] = {0};
+  sprintf(name, "%s/wal/index", tsMnodeDir);  
+  int64_t tfd = tfOpen(name, O_RDONLY);
+  if (!tfValid(tfd)) {
+    sdbInfo("file:%s, failed to open index since %s, restore from wal", name, strerror(errno));
+    // no index, restore from wal files
+    return NULL;
   }
 
+  int64_t size = tfLseek(tfd, 0, SEEK_END);
+  if (size < 0) {
+    sdbInfo("file:%s, failed to open index since %s, restore from wal", name, strerror(errno));
+    // no index, restore from wal files
+    return NULL;
+  }
+
+  char *buffer = calloc(1, size);
+  if (buffer == NULL) {
+    return NULL;
+  }
+  int32_t code = TSDB_CODE_SUCCESS;
+  tfLseek(tfd, 0, SEEK_SET);
+  if (tfRead(tfd, buffer, size) != size) {
+    sdbError("file:%s, failed to read since %s", name, strerror(errno));
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  *pSave = buffer;
+  walIndexHeader *pIndexHeader = NULL;
+
+  while (size > 0) {
+    // read header
+    walIndexHeader *pHeader = (walIndexHeader*)buffer;
+    if (pIndexHeader == NULL) {
+      pIndexHeader = pHeader;
+    }
+    assert(pHeader->meta.type == WAL_INDEX_HEADER);
+    buffer += sizeof(walIndexHeaderMeta) + pHeader->meta.walNameSize;
+    memset(name, 0, sizeof(name));
+    memcpy(name, pHeader->walName, pHeader->meta.walNameSize);
+    size -= sizeof(walIndexHeaderMeta) + pHeader->meta.walNameSize;
+
+    int64_t total = pHeader->meta.totalSize;
+    uint64_t walVersion = pHeader->meta.version;
+
+    tsSdbIndexVersion = walVersion;
+
+    int64_t fd = tfOpen(name, O_RDONLY);
+    if (!tfValid(fd)) {
+      sdbError("file:%s, failed to open for build index since %s", name, strerror(errno));
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
+    // read table header
+    while (total > 0) {
+      walIndexTableHeader *pTableHeader = (walIndexTableHeader*)buffer;
+      assert(pTableHeader->type == WAL_INDEX_TABLE_HEADER);
+
+      ESdbTable tableId = pTableHeader->tableId;
+      int64_t tableSize = pTableHeader->tableSize;
+      buffer += sizeof(walIndexTableHeader);
+
+      total -= sizeof(walIndexTableHeader);
+
+      int64_t readBytes = 0;
+      while (readBytes < tableSize) {
+        walIndex* pIndex = (walIndex*)buffer;
+        buffer += sizeof(walIndex) + pIndex->keyLen;
+        readBytes += sizeof(walIndex) + pIndex->keyLen;
+
+        addExistIndex(tableId, pIndex);
+      }
+      assert(readBytes == tableSize);
+
+      total -= readBytes;
+    }
+    assert(total == 0);
+
+    size -= pHeader->meta.totalSize;
+  }
+
+_err:
+  if (code != TSDB_CODE_SUCCESS) {
+    tfree(*pSave);
+    pIndexHeader = NULL;
+  }
+  return pIndexHeader;
+}
+
+static void saveIndex() {
   char* save = NULL;
   char    name[TSDB_FILENAME_LEN] = {0};
   sprintf(name, "%s/wal/index", tsMnodeDir);
   sdbInfo("begin save index to file:%s success", name);
   remove(name);
+  int32_t code = TSDB_CODE_SUCCESS;
   int64_t tfd = tfOpenM(name, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
   if (!tfValid(tfd)) {
     sdbError("file:%s, failed to open for build index since %s", name, strerror(errno));
+    code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
-  }
-
-  int32_t code = walRestore(handle, NULL, beginBuildWalIndex, buildIndex);
-  if (code != 0) {
-    sdbError("walRestore fail, buildIndex return");
-    goto _err;
-  }
+  }  
 
   walIndexFileInfo* pFileInfo = tsWalFileInfo;
   while (pFileInfo) {
@@ -357,6 +476,7 @@ void mnodeSdbBuildWalIndex(void* handle) {
 
     char *buffer = calloc(1, total);
     if (buffer == NULL) {
+      code = -1;
       goto _err;
     }
     save = buffer;
@@ -374,6 +494,7 @@ void mnodeSdbBuildWalIndex(void* handle) {
     memcpy(buffer, pFileInfo->name, strlen(pFileInfo->name)); buffer += strlen(pFileInfo->name);
 
     // build table info
+    int i = 0;
     for (i = 0; i < SDB_TABLE_MAX; ++i) {
       // build table header
       walIndexTableHeader *pTableHeader = (walIndexTableHeader*)buffer;
@@ -404,11 +525,77 @@ void mnodeSdbBuildWalIndex(void* handle) {
 
     pFileInfo = pFileInfo->next;
   }
+  
+_err:
+  if (tfValid(tfd)) tfClose(tfd);
+  tfree(save);
 
-  tfClose(tfd);
+  sdbInfo("save index to file:%s %s", name, code == TSDB_CODE_SUCCESS ? "success" : "fail");
+}
+
+void mnodeSdbBuildWalIndex(void* handle) {
+  tsWalFileInfo = NULL;
+
+  // init table index array
+  int i = 0;
+  for (i = 0; i < SDB_TABLE_MAX; ++i) {
+    ESdbKey keyType = sdbGetKeyTypeByTableId(i);
+    _hash_fn_t hashFp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
+    if (keyType == SDB_KEY_STRING || keyType == SDB_KEY_VAR_STRING) {
+      hashFp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+    }
+    tsIndexItemTable[i] = taosHashInit(1024, hashFp, true, HASH_ENTRY_LOCK);
+  }
+
+  // get wal file list
+  SWalFileItem* pFileList = walRestoreFileList(handle);
+  SWalFileItem* pFileItem, *next, *current;
+  if (pFileList == NULL) {
+    goto _err;
+  }
+
+  // read index file if any
+  char* pSave = NULL;
+  readIndex(&pSave);  
+
+  // build wal index increment
+  walIndexFileInfo* pFileInfo = tsWalFileInfo;
+  pFileItem = pFileList;
+  while (pFileItem) {
+    current = pFileItem;
+    pFileItem = pFileItem->next;
+
+    // find index if any
+    int64_t offset = 0;
+    while (pFileInfo) {
+      if (strcmp(pFileInfo->name, current->walName) == 0) break;
+      pFileInfo = pFileInfo->next;
+    }
+    
+    if (pFileInfo) {
+      offset = pFileInfo->offset;
+    } else {
+      // create new file info
+      beginBuildWalIndex(current->walName);
+    }
+    // restore from index
+    int32_t code = walRestoreFrom(handle, NULL, current->walName, offset, buildIndex);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _err;
+    }    
+  }
+
+  // ok, let's build index
+  saveIndex();
 
 _err:
-  tfree(save);
+  pFileItem = pFileList;
+  while (pFileItem) {
+    next = pFileItem->next;
+    free(pFileItem->walName);
+    free(pFileItem);
+    pFileItem = next;
+  }
 
   pFileInfo = tsWalFileInfo;
   while (pFileInfo) {    
@@ -430,9 +617,7 @@ _err:
     taosHashCleanup(tsIndexItemTable[i]);
   }
 
-  tsWalFileInfo = NULL;
-
-  sdbInfo("save index to file:%s success", name);
+  tsWalFileInfo = NULL;  
 }
 
 static int32_t sdbRestoreFromWalFiles(SWalFileItem* pFileList, twalh handle, FWalWrite writeFp) {
@@ -513,7 +698,7 @@ int32_t sdbRestoreFromIndex(twalh handle, FWalIndexReader fpReader, FWalWrite wr
     if (!current) {
       break;
     }
-    assert(strcmp(current->walName, name));
+    assert(strcmp(current->walName, name) == 0);
 
     int64_t total = pHeader->meta.totalSize;
     uint64_t walVersion = pHeader->meta.version;

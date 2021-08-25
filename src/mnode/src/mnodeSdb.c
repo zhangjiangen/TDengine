@@ -99,6 +99,8 @@ typedef struct {
 } SSdbWorkerPool;
 
 int32_t tsSdbRid;
+uint64_t   tsSdbIndexVersion;
+bool tsBuildingWalIndex;
 
 extern void *     tsMnodeTmr;
 extern int32_t tsMnodeCTableCacheMBSize;
@@ -250,7 +252,24 @@ int32_t sdbWalIndexReader(int64_t tfd, const char* walName, int32_t tableId, uin
   }
 
   tsSdbMgmt.version = walVersion;
+  tsSdbIndexVersion = walVersion;
+
   return 0;
+}
+
+static void sdbCheckBuildWalIndex() {
+  // build index
+  bool needBuild = false;
+  if (tsSdbIndexVersion == 0 || tsSdbMgmt.version - tsSdbIndexVersion > 100) {
+    needBuild = true;
+  }
+  if (!needBuild || tsBuildingWalIndex) {
+    return;
+  }
+  
+  tsBuildingWalIndex = true;
+  // create background thread to build index
+  
 }
 
 static int32_t sdbInitWal() {
@@ -271,6 +290,8 @@ static int32_t sdbInitWal() {
   }
 
   sdbInfo("vgId:1, open sdb wal for restore");
+  tsSdbIndexVersion = 0;
+  tsBuildingWalIndex = false;
   //int32_t code = walRestore(tsSdbMgmt.wal, NULL, NULL, sdbProcessWrite);
   int32_t code = sdbRestoreFromIndex(tsSdbMgmt.wal, sdbWalIndexReader, sdbProcessWrite);
   if (code != TSDB_CODE_SUCCESS) {
@@ -278,7 +299,9 @@ static int32_t sdbInitWal() {
     return -1;
   }
 
-  sdbInfo("vgId:1, sdb wal load success");
+  sdbInfo("vgId:1, sdb wal load success, index:%" PRIu64 ", version:%" PRIu64 "", tsSdbIndexVersion, tsSdbMgmt.version);
+  sdbCheckBuildWalIndex();
+  
   return 0;
 }
 
