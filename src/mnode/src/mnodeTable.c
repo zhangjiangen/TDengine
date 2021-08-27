@@ -399,14 +399,19 @@ static int32_t mnodeChildTableActionRestored() {
   return 0;
 }
 
-void mnodeCTableDecodeParentKey(void* pArg, void* pIndex) {
+walIndex* mnodeCTableDecodeParentKey(uint8_t keyLen, void* pArg) {
   SWalHead* pHead = (SWalHead*)pArg;
-  walIndexItem* pItem = (walIndexItem*)pIndex;
-
+  
+  walIndex* pIndex = calloc(1, sizeof(walIndex) + keyLen + sizeof(uint64_t));
+  if (pIndex == NULL) {
+    return pIndex;
+  }
+  pIndex->parentKeyLen = sizeof(uint64_t);
   SCTableObj table;
   memcpy((char *)&table + sizeof(char *), (char *)pHead->cont + strlen(pHead->cont) + 1, tsChildTableUpdateSize);
 
-  pItem->parentIndexKey.suid = table.suid;
+  *(uint64_t*)(pIndex->data + keyLen) = table.suid;
+  return pIndex;
 }
 
 // init the loaded data from disk
@@ -631,13 +636,20 @@ static int32_t mnodeSuperTableActionEncode(SSdbRow *pRow) {
   return TSDB_CODE_SUCCESS;
 }
 
-void mnodeSTableDecodeParentKey(void* pArg, void* pIndex) {
+walIndex* mnodeSTableDecodeParentKey(uint8_t keyLen, void* pArg) {
   SWalHead* pHead = (SWalHead*)pArg;
-  walIndexItem* pItem = (walIndexItem*)pIndex;
 
   int32_t len = (int32_t)strlen(pHead->cont);
-  memcpy(pItem->parentIndexKey.tableId, pHead->cont, len);
-  pItem->parentIndexKey.tableId[len] = '\0';
+
+  walIndex* pIndex = calloc(1, sizeof(walIndex) + keyLen + len);
+  if (pIndex == NULL) {
+    return NULL;
+  }
+
+  pIndex->parentKeyLen = len;
+  memcpy(pIndex->data + keyLen, pHead->cont, len);
+
+  return pIndex;
 }
 
 int32_t mnodeSuperTableActionDecode(SSdbRow *pRow) {
@@ -675,21 +687,21 @@ static int32_t mnodeSuperTableActionRestored() {
 
 bool mnodeDeleteSTableIndexByDb(void* pArg, void* pIndex) {
   SDbObj* pObj = (SDbObj*)pArg;
-  walIndexItem* pItem = (walIndexItem*)pIndex;
+  walIndex* pItem = (walIndex*)pIndex;
 
   char prefix[64] = {0};
   tstrncpy(prefix, pObj->name, 64);
   strcat(prefix, TS_PATH_DELIMITER);
   int32_t prefixLen = (int32_t)strlen(prefix);
 
-  return (strncmp(prefix, pItem->parentIndexKey.tableId, prefixLen) == 0);
+  return (memcmp(prefix, pItem->data + pItem->keyLen, prefixLen) == 0);
 }
 
 bool mnodeDeleteCTableIndexBySTable(void* pArg, void* pIndex) {
   SSTableObj* pObj = (SSTableObj*)pArg;
-  walIndexItem* pItem = (walIndexItem*)pIndex;
+  walIndex* pItem = (walIndex*)pIndex;
 
-  return pObj->uid == pItem->parentIndexKey.suid;
+  return pObj->uid == *(uint64_t*)(pItem->data + pItem->keyLen);
 }
 
 static int32_t mnodeInitSuperTables() {

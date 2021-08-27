@@ -195,19 +195,27 @@ static int32_t mnodeVgroupActionEncode(SSdbRow *pRow) {
 
 bool mnodeDeleteVgroupIndexByDb(void* pArg, void* pIndex) {
   SDbObj* pObj = (SDbObj*)pArg;
-  walIndexItem* pItem = (walIndexItem*)pIndex;
+  walIndex* pItem = (walIndex*)pIndex;
 
-  return strcmp(pObj->name, pItem->parentIndexKey.dbName) == 0;
+  return memcmp(pObj->name, pItem->data + pItem->keyLen, pItem->parentKeyLen) == 0;
 }
 
-void mnodeVgroupDecodeParentKey(void* pArg, void* pIndex) {
+walIndex* mnodeVgroupDecodeParentKey(uint8_t keyLen, void* pArg) {
   SWalHead* pHead = (SWalHead*)pArg;
-  walIndexItem* pItem = (walIndexItem*)pIndex;
 
   SVgObj vgroup;
   memcpy(&vgroup, pHead->cont, tsVgUpdateSize);
+  uint8_t dbNameSize = strlen(vgroup.dbName);
 
-  strcpy(pItem->parentIndexKey.dbName, vgroup.dbName);
+  walIndex* pIndex = calloc(1, sizeof(walIndex) + keyLen + dbNameSize);
+  if (pIndex == NULL) {
+    return NULL;
+  }
+
+  pIndex->parentKeyLen = dbNameSize;
+  memcpy(pIndex->data + keyLen, vgroup.dbName, dbNameSize);
+
+  return pIndex;
 }
 
 static int32_t mnodeVgroupActionDecode(SSdbRow *pRow) {

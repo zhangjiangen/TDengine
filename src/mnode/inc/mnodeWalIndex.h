@@ -21,7 +21,10 @@ typedef struct walIndex {
   int64_t offset;
   uint16_t size;
   uint8_t keyLen;
-  char key[];
+  uint8_t parentKeyLen;
+
+  /* data = key + parentKey(if any) */
+  char data[];
 } walIndex;
 
 struct walIndexFileInfo;
@@ -32,13 +35,9 @@ typedef struct walIndexItem {
 
   struct walIndexFileInfo *pFileInfo;
 
-  union {
-    char    dbName[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];  // SVgObj -> SDbObj
-    char    tableId[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN]; // SSTableObj -> SDbObj
-    uint64_t suid;                                        // SCTableObj -> SSTableObj
-  } parentIndexKey;
+  bool needFreeIndex;
 
-  walIndex index;
+  walIndex* pIndex;
 } walIndexItem;
 
 typedef int32_t FWalIndexReader(int64_t tfd, const char* name, int32_t tableId, uint64_t version, walIndex*);

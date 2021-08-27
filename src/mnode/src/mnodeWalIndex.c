@@ -28,11 +28,11 @@
 
 extern uint64_t tsSdbIndexVersion;;
 
-typedef void (*decodeParentKeyFp)(void* pHead, void* pIndex);
+typedef walIndex* (*decodeParentKeyFp)(uint8_t keyLen, void* pHead);
 
-extern void mnodeVgroupDecodeParentKey(void* pArg, void* pIndex);
-extern void mnodeSTableDecodeParentKey(void* pArg, void* pIndex);
-extern void mnodeCTableDecodeParentKey(void* pArg, void* pIndex);
+extern walIndex* mnodeVgroupDecodeParentKey(uint8_t keyLen, void* pArg);
+extern walIndex* mnodeSTableDecodeParentKey(uint8_t keyLen, void* pArg);
+extern walIndex* mnodeCTableDecodeParentKey(uint8_t keyLen, void* pArg);
 
 static decodeParentKeyFp tsTableDecodeParentKeyFp[] = {
   NULL, // SDB_TABLE_CLUSTER
@@ -147,7 +147,7 @@ typedef struct walIndexTableHeader {
   int64_t tableSize;
 } walIndexTableHeader;
 
-static void deleteIndex(walIndexItem* pItem, SWalHead *pHead, int32_t tableId);
+static void deleteIndex(walIndexItem* pItem, SWalHead *pHead, int32_t tableId, bool needFree);
 
 static void deleteChildIndex(walIndexItem* pParentItem, SWalHead *pHead, int32_t parentTableId) {
   if (tsParentTableDecodeFp[parentTableId] == NULL) {
@@ -155,7 +155,7 @@ static void deleteChildIndex(walIndexItem* pParentItem, SWalHead *pHead, int32_t
   }
   bool newHead = false;
   if (!pHead) {
-    pHead = walReadAt(pParentItem->pFileInfo->tfd, pParentItem->index.offset, pParentItem->index.size);
+    pHead = walReadAt(pParentItem->pFileInfo->tfd, pParentItem->pIndex->offset, pParentItem->pIndex->size);
     if (!pHead) {
       return;
     }
@@ -180,9 +180,9 @@ static void deleteChildIndex(walIndexItem* pParentItem, SWalHead *pHead, int32_t
       walIndexItem *p = pFileInfo->head[childTableId];
       while (p) {
         walIndexItem* next = p->next;
-        if (tsDeleteByParentFp[childTableId](row.pObj, p)) {
+        if (tsDeleteByParentFp[childTableId](row.pObj, p->pIndex)) {
           //sdbInfo("delete child %d %s", childTableId, p->index.key);
-          deleteIndex(p, NULL, childTableId);
+          deleteIndex(p, NULL, childTableId, true);
         }
         p = next;
       }
@@ -195,7 +195,7 @@ static void deleteChildIndex(walIndexItem* pParentItem, SWalHead *pHead, int32_t
   free(row.pObj);
 }
 
-static void deleteIndex(walIndexItem* pItem, SWalHead *pHead, int32_t tableId) {
+static void deleteIndex(walIndexItem* pItem, SWalHead *pHead, int32_t tableId, bool needFree) {
   walIndexFileInfo *pFileInfo = pItem->pFileInfo;
   walIndexItem* prev = pItem->prev;
   walIndexItem* next = pItem->next;
@@ -214,13 +214,30 @@ static void deleteIndex(walIndexItem* pItem, SWalHead *pHead, int32_t tableId) {
   if (prev) prev->next = next;
   if (next) next->prev = prev;  
 
-  deleteChildIndex(pItem, pHead, tableId);
+  if (needFree) {
+    deleteChildIndex(pItem, pHead, tableId);
 
-  pFileInfo->total -= sizeof(walIndex) + pItem->index.keyLen;
-  pFileInfo->tableSize[tableId] -= sizeof(walIndex) + pItem->index.keyLen;
-  assert(pFileInfo->total >= 0);
+    pFileInfo->total -= sizeof(walIndex) + pItem->pIndex->keyLen + pItem->pIndex->parentKeyLen;
+    pFileInfo->tableSize[tableId] -= sizeof(walIndex) + pItem->pIndex->keyLen + pItem->pIndex->parentKeyLen;
+    assert(pFileInfo->total >= 0);
 
-  free(pItem);
+    free(pItem);
+  }  
+}
+
+static void linkToList(walIndexItem* pItem, int32_t tableId) {
+  walIndexFileInfo *pFileInfo = tsCurrentWalFileInfo;
+
+  if (pFileInfo->tail[tableId] == NULL) {      
+    pFileInfo->tail[tableId] = pItem;      
+  } else {
+    pItem->prev = tsWalFileInfo[0].tail[tableId];
+    pFileInfo->tail[tableId]->next = pItem;
+    pFileInfo->tail[tableId] = pItem;
+  }
+  if (pFileInfo->head[tableId] == NULL) {
+    pFileInfo->head[tableId] = pItem;   
+  }  
 }
 
 static int32_t buildIndex(void *wparam, void *hparam, int32_t qtype, void *tparam, void* head) {
@@ -237,45 +254,47 @@ static int32_t buildIndex(void *wparam, void *hparam, int32_t qtype, void *tpara
   int32_t keySize;
   void* key = sdbTableGetKeyAndSize(keyType, pHead->cont, &keySize, false);
 
-  walIndexItem* pItem = calloc(1, sizeof(walIndexItem) + keySize);
-  *pItem = (walIndexItem) {
-    .index = (walIndex) {
-      .keyLen = keySize,
-      .offset = pHeadInfo->offset,
-      .size   = pHeadInfo->len,
-    },
-    .next = NULL,
-    .prev = NULL,
-    .pFileInfo = pFileInfo,
-  };
-  memcpy(pItem->index.key, key, keySize);  
-
   // update or delete action will delete old index item
   if (action == SDB_ACTION_UPDATE || action == SDB_ACTION_DELETE) {
     walIndexItem** ppItem = (walIndexItem**)taosHashGet(pTable, key, keySize);
-    deleteIndex(*ppItem, pHead, tableId);
+    deleteIndex(*ppItem, pHead, tableId, action == SDB_ACTION_DELETE);
+    if (action == SDB_ACTION_UPDATE) {
+      (*ppItem)->pIndex->offset = pHeadInfo->offset;
+      (*ppItem)->pIndex->size   = pHeadInfo->len;
+      linkToList(*ppItem, tableId);
+    }
   }
 
   // insert or update action will save index item
-  if (action == SDB_ACTION_INSERT || action == SDB_ACTION_UPDATE) {
-    if (pFileInfo->tail[tableId] == NULL) {      
-      pFileInfo->tail[tableId] = pItem;      
+  if (action == SDB_ACTION_INSERT) {
+    walIndex *pIndex = NULL;
+    if (tsTableDecodeParentKeyFp[tableId] != NULL) {
+      pIndex = tsTableDecodeParentKeyFp[tableId](keySize, pHead);
     } else {
-      pItem->prev = tsWalFileInfo[0].tail[tableId];
-      pFileInfo->tail[tableId]->next = pItem;
-      pFileInfo->tail[tableId] = pItem;
+      pIndex = calloc(1, sizeof(walIndex) + keySize);
     }
-    if (pFileInfo->head[tableId] == NULL) {
-      pFileInfo->head[tableId] = pItem;   
+    if (pIndex == NULL) {
+      return -1;
     }
+    pIndex->keyLen = keySize;
+    pIndex->offset = pHeadInfo->offset;
+    pIndex->size   = pHeadInfo->len;
+    memcpy(pIndex->data, key, keySize);
+
+    walIndexItem* pItem = calloc(1, sizeof(walIndexItem));
+    *pItem = (walIndexItem) {
+      .needFreeIndex = true,
+      .pIndex = pIndex,
+      .next = NULL,
+      .prev = NULL,
+      .pFileInfo = pFileInfo,
+    };
+    
+    linkToList(pItem, tableId);
 
     taosHashPut(pTable, key, keySize, &pItem, sizeof(walIndexItem**));
-    pFileInfo->total += sizeof(walIndex) + keySize;
-    pFileInfo->tableSize[tableId] += sizeof(walIndex) + keySize;
-
-    if (tsTableDecodeParentKeyFp[tableId] != NULL) {
-      tsTableDecodeParentKeyFp[tableId](pHead, pItem);
-    }
+    pFileInfo->total += sizeof(walIndex) + keySize + pItem->pIndex->parentKeyLen;
+    pFileInfo->tableSize[tableId] += sizeof(walIndex) + keySize + pItem->pIndex->parentKeyLen;
   }
 
   if (pHeadInfo->offset + pHeadInfo->len > pFileInfo->offset) {
@@ -325,37 +344,22 @@ static void addExistIndex(ESdbTable tableId, walIndex* pIndex) {
   SHashObj* pTable = tsIndexItemTable[tableId];
 
   int32_t keySize = pIndex->keyLen;
-  void* key = pIndex->key;
+  void* key = pIndex->data;
 
-  walIndexItem* pItem = calloc(1, sizeof(walIndexItem) + keySize);
+  walIndexItem* pItem = calloc(1, sizeof(walIndexItem));
   *pItem = (walIndexItem) {
-    .index = (walIndex)(*pIndex),
+    .needFreeIndex = false,
+    .pIndex = pIndex,
     .next = NULL,
     .prev = NULL,
     .pFileInfo = pFileInfo,
   };
-  memcpy(pItem->index.key, key, keySize);  
 
-    if (pFileInfo->tail[tableId] == NULL) {      
-      pFileInfo->tail[tableId] = pItem;      
-    } else {
-      pItem->prev = tsWalFileInfo[0].tail[tableId];
-      pFileInfo->tail[tableId]->next = pItem;
-      pFileInfo->tail[tableId] = pItem;
-    }
-    if (pFileInfo->head[tableId] == NULL) {
-      pFileInfo->head[tableId] = pItem;   
-    }
+  linkToList(pItem, tableId);
 
-    taosHashPut(pTable, key, keySize, &pItem, sizeof(walIndexItem**));
-    pFileInfo->total += sizeof(walIndex) + keySize;
-    pFileInfo->tableSize[tableId] += sizeof(walIndex) + keySize;
-
-#if 0
-    if (tsTableDecodeParentKeyFp[tableId] != NULL) {
-      tsTableDecodeParentKeyFp[tableId](pHead, pItem);
-    }
-#endif
+  taosHashPut(pTable, key, keySize, &pItem, sizeof(walIndexItem**));
+  pFileInfo->total += sizeof(walIndex) + pIndex->keyLen + pIndex->parentKeyLen;
+  pFileInfo->tableSize[tableId] += sizeof(walIndex) + pIndex->keyLen + pIndex->parentKeyLen;
 }
 
 // read index file and return buffer
@@ -370,7 +374,7 @@ static walIndexHeader* readIndex(char** pSave) {
   }
 
   int64_t size = tfLseek(tfd, 0, SEEK_END);
-  if (size < 0) {
+  if (size <= 0) {
     sdbInfo("file:%s, failed to open index since %s, restore from wal", name, strerror(errno));
     // no index, restore from wal files
     return NULL;
@@ -401,6 +405,9 @@ static walIndexHeader* readIndex(char** pSave) {
     buffer += sizeof(walIndexHeaderMeta) + pHeader->meta.walNameSize;
     memset(name, 0, sizeof(name));
     memcpy(name, pHeader->walName, pHeader->meta.walNameSize);
+
+    beginBuildWalIndex(name);
+
     size -= sizeof(walIndexHeaderMeta) + pHeader->meta.walNameSize;
 
     int64_t total = pHeader->meta.totalSize;
@@ -429,8 +436,8 @@ static walIndexHeader* readIndex(char** pSave) {
       int64_t readBytes = 0;
       while (readBytes < tableSize) {
         walIndex* pIndex = (walIndex*)buffer;
-        buffer += sizeof(walIndex) + pIndex->keyLen;
-        readBytes += sizeof(walIndex) + pIndex->keyLen;
+        buffer += sizeof(walIndex) + pIndex->keyLen + pIndex->parentKeyLen;
+        readBytes += sizeof(walIndex) + pIndex->keyLen  + pIndex->parentKeyLen;
 
         addExistIndex(tableId, pIndex);
       }
@@ -510,8 +517,8 @@ static void saveIndex() {
       // build index item array
       walIndexItem* pItem = pFileInfo->head[i];
       while (pItem) {
-        memcpy(buffer, &pItem->index, sizeof(walIndex) + pItem->index.keyLen);
-        buffer += sizeof(walIndex) + pItem->index.keyLen;
+        memcpy(buffer, pItem->pIndex, sizeof(walIndex) + pItem->pIndex->keyLen + pItem->pIndex->parentKeyLen);
+        buffer += sizeof(walIndex) + pItem->pIndex->keyLen + pItem->pIndex->parentKeyLen;
         pItem = pItem->next;
       }
 
@@ -603,6 +610,7 @@ _err:
       walIndexItem* pItem = pFileInfo->head[i];
       while (pItem) {
         walIndexItem* pNext = pItem->next;
+        if (pItem->needFreeIndex) free(pItem->pIndex);
         free(pItem);
         pItem = pNext;
       }              
@@ -724,8 +732,8 @@ int32_t sdbRestoreFromIndex(twalh handle, FWalIndexReader fpReader, FWalWrite wr
       int64_t readBytes = 0;
       while (readBytes < tableSize) {
         walIndex* pIndex = (walIndex*)buffer;
-        buffer += sizeof(walIndex) + pIndex->keyLen;
-        readBytes += sizeof(walIndex) + pIndex->keyLen;
+        buffer += sizeof(walIndex) + pIndex->keyLen + pIndex->parentKeyLen;
+        readBytes += sizeof(walIndex) + pIndex->keyLen + pIndex->parentKeyLen;
 
         fpReader(fd, name, tableId, walVersion, pIndex);
       }

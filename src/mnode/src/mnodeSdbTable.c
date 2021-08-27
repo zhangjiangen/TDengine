@@ -311,7 +311,7 @@ static int  sdbCacheIterValue(mnodeSdbTable *pTable,void *pIter, void** pRet) {
     return -1;
   }
 
-  *pRet = cacheGet(pCache->pTable, (*ppRecord)->index.key, (*ppRecord)->index.keyLen, &nBytes);
+  *pRet = cacheGet(pCache->pTable, (*ppRecord)->index.data, (*ppRecord)->index.keyLen, &nBytes);
   return *pRet != NULL ? 0 : -1;
 }
 
@@ -403,7 +403,7 @@ static void sdbCacheReadIndex(mnodeSdbTable *pTable, const char* walName, void* 
   memcpy(&(pWal->index), pIndex, sizeof(walIndex) + pIndex->keyLen);
 
   sdbCacheLock(pCache);
-  taosHashPut(pCache->pWalTable, pIndex->key, pIndex->keyLen, &pWal, sizeof(walRecord**));
+  taosHashPut(pCache->pWalTable, pIndex->data, pIndex->keyLen, &pWal, sizeof(walRecord**));
   sdbCacheUnlock(pCache);
 }
 
@@ -438,7 +438,7 @@ static void sdbCacheSyncWal(mnodeSdbTable *pTable, bool restore, SWalHead* pHead
         },
         .idx    = idx,
     };
-    memcpy(pWal->index.key, key, keySize);
+    memcpy(pWal->index.data, key, keySize);
     taosHashPut(pCache->pWalTable, key, keySize, &pWal, sizeof(walRecord**));
   }
   
@@ -482,7 +482,7 @@ static int loadCacheDataFromWal(void* userData, const void* key, uint8_t nkey, c
   }
 
   if (pTable->options.afterLoadFp) {
-    pTable->options.afterLoadFp(pTable->options.userData, (*ppRecord)->index.key, (*ppRecord)->index.keyLen, pHead, p);
+    pTable->options.afterLoadFp(pTable->options.userData, (*ppRecord)->index.data, (*ppRecord)->index.keyLen, pHead, p);
   }
   
   *value = p;

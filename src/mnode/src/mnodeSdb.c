@@ -243,7 +243,7 @@ int32_t sdbWalIndexReader(int64_t tfd, const char* walName, int32_t tableId, uin
   SSdbTable *pTable = sdbGetTableFromId(tableId);
   assert(pTable != NULL);
 
-  sdbInfo("sdbWalIndexReader restore tableId %d, key %s", pTable->id, pIndex->key);
+  sdbInfo("sdbWalIndexReader restore tableId %d, key %s", pTable->id, pIndex->data);
 
   if (pTable->tableType == SDB_TABLE_HASH_TABLE) {
     walRestoreAt(tfd, walName, pIndex->offset, pIndex->size, sdbRestoreByIndex);    
