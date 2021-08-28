@@ -409,6 +409,22 @@ class TDTestCase:
         tdSql.checkRows(10)
         tdSql.checkEqual(int(res[9][0]), 10)
 
+    def queryMultiTbWithTag(self, tb_name):
+        # tags (1, 1, 1, 3, 1.1, 1.1, "binary", "nchar", true, 1)')
+        ## select count avg sum from (condition_A or condition_B and like and in) where condition_A or condition_B or condition_tag_C or condition_tag_D or like and in interval
+        tdSql.execute(
+            f'CREATE TABLE {tb_name}_sub2 using {tb_name} tags (2, 2, 2, 4, 2.2, 2.2, "binary2", "nchar2", true, 2)')
+        tdSql.execute(
+            f'CREATE TABLE {tb_name}_sub3 using {tb_name} tags (3, 3, 3, 3, 3.3, 3.3, "binary3", "nchar3", true, 3)')
+        tdSql.execute(
+            f'insert into {tb_name}_sub2 values ("2021-01-05 12:00:00", 2, 2, 2, 4, 2.2, 2.2, "binary2", "nchar2", true, 2)')
+        tdSql.execute(
+            f'insert into {tb_name}_sub3 values ("2021-01-03 12:00:00", 3, 3, 3, 3, 3.3, 3.3, "binary3", "nchar3", true, 3)')
+        query_sql = f'select count(*), avg(c6), sum(c3) from (select * from {tb_name} where c1 >1 or c2 = 2 or and c7 like "binar_" and c4 in (3, 5)) where c1 != 2 or c3 = 1 or c8 like "ncha_" and c9 in (true) interval(8d)'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(3)
+
+
     def checkTbColTypeOperator(self):
         '''
             Ordinary table full column type and operator
@@ -492,7 +508,13 @@ class TDTestCase:
         '''
         tb_name = self.initStb()
         self.queryMultiTb(tb_name)
-        
+    
+    def checkMultiTbWithTag(self):
+        '''
+            test Multi tb with tag
+        '''
+        tb_name = self.initStb()
+        self.queryMultiTbWithTag(tb_name)
         
         # tb_name1 = tdCom.getLongName(8, "letters")
         # tb_name2 = tdCom.getLongName(8, "letters")
@@ -522,18 +544,20 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
-        self.checkTbColTypeOperator()
-        self.checkStbColTypeOperator()
-        self.checkTbMultiExpression()
-        self.checkStbMultiExpression()
-        self.checkTbMultiIn()
-        self.checkStbMultiIn()
-        self.checkTbMultiLike()
-        self.checkStbMultiLike()
-        self.checkTbPreCal()
-        self.checkStbPreCal()
-        self.checkMultiTb()
-        self.checkMultiStb()
+        # self.checkTbColTypeOperator()
+        # self.checkStbColTypeOperator()
+        # self.checkTbMultiExpression()
+        # self.checkStbMultiExpression()
+        # self.checkTbMultiIn()
+        # self.checkStbMultiIn()
+        # self.checkTbMultiLike()
+        # self.checkStbMultiLike()
+        # self.checkTbPreCal()
+        # self.checkStbPreCal()
+        # self.checkMultiTb()
+        # self.checkMultiStb()
+
+        self.checkMultiTbWithTag()
 
 
     def stop(self):
