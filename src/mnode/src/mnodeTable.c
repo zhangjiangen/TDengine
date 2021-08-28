@@ -1836,6 +1836,8 @@ void mnodeDropAllSuperTables(SDbObj *pDropDb) {
     if (pTable == NULL) break;
 
     if (strncmp(prefix, pTable->info.tableId, prefixLen) == 0) {
+      // drop child table recursively
+      mnodeDropAllChildTablesInStable(pTable);
       SSdbRow row = {
         .type   = SDB_OPER_LOCAL,
         .pTable = tsSuperTableSdb,
@@ -2715,65 +2717,6 @@ static int32_t mnodeGetChildTableMeta(SMnodeMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-/*
-void mnodeDropAllChildTablesInVgroups(SVgObj *pVgroup) {
-  void *  pIter = NULL;
-  int32_t numOfTables = 0;
-  SCTableObj *pTable = NULL;
-
-  mInfo("vgId:%d, all child tables will be dropped from sdb", pVgroup->vgId);
-
-  while (1) {
-    pIter = mnodeGetNextChildTable(pIter, &pTable);
-    if (pTable == NULL) break;
-
-    if (pTable->vgId == pVgroup->vgId) {
-      SSdbRow row = {
-        .type   = SDB_OPER_LOCAL,
-        .pTable = tsChildTableSdb,
-        .pObj   = pTable,
-      };
-      sdbDeleteRow(&row);
-      numOfTables++;
-    }
-    mnodeDecTableRef(pTable);
-  }
-
-  mInfo("vgId:%d, all child tables is dropped from sdb", pVgroup->vgId);
-}
-*/
-
-void mnodeDropAllChildTables(SDbObj *pDropDb) {
-  void *  pIter = NULL;
-  int32_t numOfTables = 0;
-  SCTableObj *pTable = NULL;
-
-  char prefix[64] = {0};
-  tstrncpy(prefix, pDropDb->name, 64);
-  strcat(prefix, TS_PATH_DELIMITER);
-  int32_t prefixLen = (int32_t)strlen(prefix);
-
-  mInfo("db:%s, all child tables will be dropped from sdb", pDropDb->name);
-
-  while (1) {
-    pIter = mnodeGetNextChildTable(pIter, &pTable);
-    if (pTable == NULL) break;
-
-    if (strncmp(prefix, pTable->info.tableId, prefixLen) == 0) {
-      SSdbRow row = {
-        .type   = SDB_OPER_LOCAL,
-        .pTable = tsChildTableSdb,
-        .pObj   = pTable,
-      };
-      sdbDeleteRow(&row);
-      numOfTables++;
-    }
-    mnodeDecTableRef(pTable);
-  }
-
-  mInfo("db:%s, all child tables:%d is dropped from sdb", pDropDb->name, numOfTables);
-}
-
 static void mnodeDropAllChildTablesInStable(SSTableObj *pStable) {
   void *  pIter = NULL;
   int32_t numOfTables = 0;
@@ -2786,12 +2729,13 @@ static void mnodeDropAllChildTablesInStable(SSTableObj *pStable) {
     pIter = mnodeGetNextChildTable(pIter, &pTable);
     if (pTable == NULL) break;
 
-    if (pTable->superTable == pStable) {
+    if (pTable->suid == pStable->uid) {
       SSdbRow row = {
         .type   = SDB_OPER_LOCAL,
         .pTable = tsChildTableSdb,
         .pObj   = pTable,
       };
+      mDebug("ctable %s droped by stable", pTable->info.tableId);
       sdbDeleteRow(&row);
       numOfTables++;
     }

@@ -30,7 +30,6 @@ void    mnodeIncVgroupRef(SVgObj *pVgroup);
 void    mnodeDecVgroupRef(SVgObj *pVgroup);
 void    mnodeDropAllDbVgroups(SDbObj *pDropDb);
 void    mnodeSendDropAllDbVgroupsMsg(SDbObj *pDropDb);
-//void    mnodeDropAllDnodeVgroups(SDnodeObj *pDropDnode);
 //void  mnodeUpdateAllDbVgroups(SDbObj *pAlterDb);
 int32_t mnodeCompactVgroups();
 

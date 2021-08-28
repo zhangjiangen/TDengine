@@ -1283,35 +1283,6 @@ static int32_t mnodeProcessVnodeCfgMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-/*
-void mnodeDropAllDnodeVgroups(SDnodeObj *pDropDnode) {
-  void *  pIter = NULL;
-  SVgObj *pVgroup = NULL;
-  int32_t numOfVgroups = 0;
-
-  mInfo("dnode:%d, all vgroups will be dropped from sdb", pDropDnode->dnodeId);
-
-  while (1) {
-    pIter = mnodeGetNextVgroup(pIter, &pVgroup);
-    if (pVgroup == NULL) break;
-
-    if (pVgroup->vnodeGid[0].dnodeId == pDropDnode->dnodeId) {
-      mnodeDropAllChildTablesInVgroups(pVgroup);
-      SSdbRow row = {
-        .type   = SDB_OPER_LOCAL,
-        .pTable = tsVgroupSdb,
-        .pObj   = pVgroup,
-      };
-      sdbDeleteRow(&row);
-      numOfVgroups++;
-    }
-    mnodeDecVgroupRef(pVgroup);
-  }
-
-  mInfo("dnode:%d, all vgroups:%d is dropped from sdb", pDropDnode->dnodeId, numOfVgroups);
-}
-*/
-
 #if 0
 void mnodeUpdateAllDbVgroups(SDbObj *pAlterDb) {
   void *  pIter = NULL;

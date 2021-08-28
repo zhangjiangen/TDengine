@@ -125,7 +125,6 @@ static int32_t mnodeDbActionDelete(SSdbRow *pRow) {
   SDbObj *pDb = pRow->pObj;
   SAcctObj *pAcct = mnodeGetAcct(pDb->acct);
 
-  mnodeDropAllChildTables(pDb);
   mnodeDropAllSuperTables(pDb);
   mnodeDropAllDbVgroups(pDb);
 
