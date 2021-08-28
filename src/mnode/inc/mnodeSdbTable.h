@@ -56,7 +56,7 @@ void mnodeSdbUnlockData(mnodeSdbTable *pTable, void*);
 
 void* mnodeSdbTableCallocObj(mnodeSdbTable* pTable, size_t size);
 
-void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, bool putToCache, void *wparam, void *hparam, void* tparam);
+void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, void *hparam, void* tparam);
 
 void mnodeSdbTableReadIndex(mnodeSdbTable *pTable, const char*, void*);
 

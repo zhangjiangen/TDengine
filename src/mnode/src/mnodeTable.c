@@ -2280,6 +2280,8 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
   };
 
   int32_t code = sdbInsertRow(&desc);
+  // if ctable save in cache, the pTable will be free in cache,so here need to update pTable
+  pTable = desc.pObj;
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mnodeDestroyChildTable(pTable);
     pMsg->pTable = NULL;

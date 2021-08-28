@@ -46,7 +46,7 @@ static void hashTableFreeValue(mnodeSdbTable *pTable, void *p);
 
 // lru cache functions
 static mnodeSdbCacheTable* cacheInit(mnodeSdbTable* table, mnodeSdbTableOption options);
-static void sdbCacheSyncWal(mnodeSdbTable *pTable, bool restore, SWalHead*, SSdbRow*, SWalHeadInfo*);
+static void sdbCacheSyncWal(mnodeSdbTable *pTable, SWalHead*, SWalHeadInfo*);
 static int  sdbCacheGet(mnodeSdbTable *pTable, const void *key, size_t keyLen, void** pRet);
 static void sdbCacheUnlockData(void* p);
 static void sdbCachePut(mnodeSdbTable *pTable, SSdbRow* pRow);
@@ -70,7 +70,7 @@ typedef void (*sdb_table_clear_func_t)(mnodeSdbTable *pTable);
 typedef void* (*sdb_table_iter_func_t)(mnodeSdbTable *pTable, void *p);
 typedef int  (*sdb_table_iter_val_func_t)(mnodeSdbTable *pTable,void *p, void**);
 typedef void (*sdb_table_cancel_iter_func_t)(mnodeSdbTable *pTable, void *p);
-typedef void (*sdb_table_sync_wal_func_t)(mnodeSdbTable *pTable, bool, SWalHead*, SSdbRow*,SWalHeadInfo*);
+typedef void (*sdb_table_sync_wal_func_t)(mnodeSdbTable *pTable, SWalHead*, SWalHeadInfo*);
 typedef void (*sdb_table_free_val_func_t)(mnodeSdbTable *pTable, void *p);
 typedef void (*sdb_read_index_func_t)(mnodeSdbTable *pTable, const char* walName, void*);
 
@@ -148,11 +148,9 @@ void mnodeSdbTablePut(mnodeSdbTable *pTable, SSdbRow* pRow) {
   pTable->putFp(pTable, pRow);
 }
 
-void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, bool putToCache, void *wparam, void *hparam, void* tparam) {
-  SWalHead *pHead = wparam;
-  SSdbRow *pRow = hparam;
+void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, void *hparam, void* tparam) {
   if (pTable->syncFp) {
-    pTable->syncFp(pTable, putToCache, pHead, pRow, tparam);
+    pTable->syncFp(pTable, hparam, tparam);
   }
 }
 
@@ -419,11 +417,11 @@ static void sdbCacheReadIndex(mnodeSdbTable *pTable, const char* walName, void* 
   sdbCacheUnlock(pCache);
 }
 
-static void sdbCacheSyncWal(mnodeSdbTable *pTable, bool putToCache, SWalHead* pHead, SSdbRow* pRow, SWalHeadInfo* pHeadInfo) {
+static void sdbCacheSyncWal(mnodeSdbTable *pTable, SWalHead* pHead, SWalHeadInfo* pHeadInfo) {
   mnodeSdbCacheTable* pCache = pTable->iHandle;
   int64_t off = pHeadInfo->offset;
   int32_t keySize;
-  void* key = sdbTableGetKeyAndSize(pTable->options.keyType, pRow->pObj, &keySize, true);
+  void* key = sdbTableGetKeyAndSize(pTable->options.keyType, pHead->cont, &keySize, false);
   
   //sdbInfo("sdbCacheSyncWal: %" PRIu64 ", %d", pHeadInfo->offset, pHeadInfo->len);
 

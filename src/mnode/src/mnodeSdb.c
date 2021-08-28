@@ -128,11 +128,9 @@ static void    sdbCloseTableObj(void *handle);
 
 static int32_t sdbRestoreByIndex(void *wparam, void *hparam, int32_t qtype, void *tparam, void* pHeadInfo);
 
-static void sdbInsertCacheIndex(SWalHead *pHead, SSdbTable *pTable, SWalHeadInfo* pHeadInfo);
-
-static int32_t sdbPerformInsertAction(SWalHead *pHead, SSdbTable *pTable, SSdbRow* pRow);
+static int32_t sdbPerformInsertAction(SWalHead *pHead, SSdbTable *pTable);
 static int32_t sdbPerformDeleteAction(SWalHead *pHead, SSdbTable *pTable);
-static int32_t sdbPerformUpdateAction(SWalHead *pHead, SSdbTable *pTable, SSdbRow* pRow);
+static int32_t sdbPerformUpdateAction(SWalHead *pHead, SSdbTable *pTable);
 
 int32_t sdbGetId(void *pTable) {
   return ((SSdbTable *)pTable)->autoIndex;
@@ -214,7 +212,6 @@ static int32_t sdbRestoreByIndex(void *wparam, void *hparam, int32_t qtype, void
 
   SWalHeadInfo headInfo;
   int32_t code;
-  bool restore = pHeadInfo != NULL;
   if (pHeadInfo != NULL) {
     headInfo = *(SWalHeadInfo*)pHeadInfo;
     code = walWrite(tsSdbMgmt.wal, pHead, NULL);    
@@ -233,10 +230,9 @@ static int32_t sdbRestoreByIndex(void *wparam, void *hparam, int32_t qtype, void
            actStr[action], sdbGetKeyStr(pTable, pHead->cont), pHead->version);
 
   // from wal or forward msg, row not created, should add into hash
-  SSdbRow row;
-  code = sdbPerformInsertAction(pHead, pTable, &row);
+  code = sdbPerformInsertAction(pHead, pTable);
   if (code == 0 && pTable->tableType == SDB_TABLE_CACHE_TABLE) {
-    mnodeSdbTableSyncWal(pTable->iHandle, !restore, pHead, &row, &headInfo);
+    mnodeSdbTableSyncWal(pTable->iHandle, pHead, &headInfo);
   }
   return code;
 }
@@ -708,20 +704,10 @@ static int32_t sdbUpdateHash(SSdbTable *pTable, SSdbRow *pRow) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void sdbInsertCacheIndex(SWalHead *pHead, SSdbTable *pTable, SWalHeadInfo* pHeadInfo) {
-  SSdbRow row;
-
-  row = (SSdbRow){.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
+static int32_t sdbPerformInsertAction(SWalHead *pHead, SSdbTable *pTable) {
+  SSdbRow row = {.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
   (*pTable->fpDecode)(&row);
-
-  // only insert wal index
-  mnodeSdbTableSyncWal(pTable->iHandle, false, pHead, &row, pHeadInfo);
-}
-
-static int32_t sdbPerformInsertAction(SWalHead *pHead, SSdbTable *pTable, SSdbRow* pRow) {
-  *pRow = (SSdbRow){.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
-  (*pTable->fpDecode)(pRow);
-  return sdbInsertHash(pTable, pRow);
+  return sdbInsertHash(pTable, &row);
 }
 
 static int32_t sdbPerformDeleteAction(SWalHead *pHead, SSdbTable *pTable) {
@@ -735,16 +721,16 @@ static int32_t sdbPerformDeleteAction(SWalHead *pHead, SSdbTable *pTable) {
   return sdbDeleteHash(pTable, &row);
 }
 
-static int32_t sdbPerformUpdateAction(SWalHead *pHead, SSdbTable *pTable, SSdbRow* pRow) {
+static int32_t sdbPerformUpdateAction(SWalHead *pHead, SSdbTable *pTable) {
   void *pObj = sdbGetRowMeta(pTable, pHead->cont);
   if (pObj == NULL) {
     sdbDebug("vgId:1, sdb:%s, object:%s not exist in hash, ignore update action", pTable->name,
              sdbGetKeyStr(pTable, pHead->cont));
     return TSDB_CODE_SUCCESS;
   }
-  *pRow = (SSdbRow){.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
-  (*pTable->fpDecode)(pRow);
-  return sdbUpdateHash(pTable, pRow);
+  SSdbRow row = {.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
+  (*pTable->fpDecode)(&row);
+  return sdbUpdateHash(pTable, &row);
 }
 
 ESdbKey  sdbGetKeyTypeByTableId(ESdbTable tableId) {
@@ -803,7 +789,6 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
 
   SWalHeadInfo headInfo;
   int32_t code;
-  bool restore = pHeadInfo != NULL;
   if (pHeadInfo != NULL) {
     headInfo = *(SWalHeadInfo*)pHeadInfo;
     code = walWrite(tsSdbMgmt.wal, pHead, NULL);    
@@ -817,6 +802,12 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
   }
 
   pthread_mutex_unlock(&tsSdbMgmt.mutex);
+
+  if (pTable->tableType == SDB_TABLE_CACHE_TABLE) {
+    if (action == SDB_ACTION_INSERT || action == SDB_ACTION_UPDATE) {
+      mnodeSdbTableSyncWal(pTable->iHandle, pHead, &headInfo);
+    }
+  }
 
   // from app, row is created
   if (pRow != NULL && tsCompactMnodeWal != 1) {
@@ -835,11 +826,6 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
       sdbTrace("vgId:1, sdb:%s, no need to send fwd req, action:%s key:%s hver:%" PRIu64 ", msg:%p", pTable->name,
                actStr[action], sdbGetKeyStr(pTable, pHead->cont), pHead->version, pRow->pMsg);
     }
-    if (syncCode == 0 && pTable->tableType == SDB_TABLE_CACHE_TABLE) {
-      if (action == SDB_ACTION_INSERT || action == SDB_ACTION_UPDATE) {
-        sdbInsertCacheIndex(pHead, pTable, &headInfo);
-      }
-    }
     return syncCode;
   }
 
@@ -853,12 +839,7 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
 
   // from wal or forward msg, row not created, should add into hash
   if (action == SDB_ACTION_INSERT) {
-    SSdbRow row;
-    code = sdbPerformInsertAction(pHead, pTable, &row);
-    if (code == 0 && pTable->tableType == SDB_TABLE_CACHE_TABLE) {
-      mnodeSdbTableSyncWal(pTable->iHandle, !restore, pHead, &row, &headInfo);
-    }
-    return code;
+    return sdbPerformInsertAction(pHead, pTable);
   } else if (action == SDB_ACTION_DELETE) {
     if (qtype == TAOS_QTYPE_FWD) {
       // Drop database/stable may take a long time and cause a timeout, so we confirm first
@@ -866,12 +847,7 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
     }
     return sdbPerformDeleteAction(pHead, pTable);
   } else if (action == SDB_ACTION_UPDATE) {
-    SSdbRow row;
-    code = sdbPerformUpdateAction(pHead, pTable, &row);
-    if (code == 0 && pTable->tableType == SDB_TABLE_CACHE_TABLE) {
-      mnodeSdbTableSyncWal(pTable->iHandle, !restore, pHead, &row, &headInfo);
-    }
-    return code;
+    return sdbPerformUpdateAction(pHead, pTable);
   } else {
     return TSDB_CODE_MND_INVALID_MSG_TYPE;
   }
@@ -886,6 +862,8 @@ int32_t sdbInsertCompactRow(SSdbRow *pRow) {
 int32_t sdbInsertRow(SSdbRow *pRow) {
   SSdbTable *pTable = pRow->pTable;
   if (pTable == NULL) return TSDB_CODE_MND_SDB_INVALID_TABLE_TYPE;
+
+  bool needUpdateMsgTable = pRow->pMsg->pTable == pRow->pObj;
 
   if (sdbGetRowFromObj(pTable, pRow->pObj)) {
     sdbError("vgId:1, sdb:%s, failed to insert:%s since it exist", pTable->name, sdbGetRowStr(pTable, pRow->pObj));
@@ -914,6 +892,8 @@ int32_t sdbInsertRow(SSdbRow *pRow) {
   }
 
   if (pRow->fpReq) {
+    // if ctable save in cache, the pTable will be free in cache,so here need to update pTable
+    if (needUpdateMsgTable) pRow->pMsg->pTable = pRow->pObj;
     return (*pRow->fpReq)(pRow->pMsg);
   } else {
     return sdbWriteRowToQueue(pRow, SDB_ACTION_INSERT);
