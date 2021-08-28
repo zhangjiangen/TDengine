@@ -51,9 +51,12 @@ void mnodeSdbTableClear(mnodeSdbTable *pTable);
 int  mnodeSdbTableGet(mnodeSdbTable *pTable, const void *key, size_t keyLen, void** pRet);
 void mnodeSdbTablePut(mnodeSdbTable *pTable, struct SSdbRow* pRow);
 
+void mnodeSdbLockData(mnodeSdbTable *pTable, void*);
 void mnodeSdbUnlockData(mnodeSdbTable *pTable, void*);
 
-void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, bool, void*, void*, void*);
+void* mnodeSdbTableCallocObj(mnodeSdbTable* pTable, size_t size);
+
+void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, bool putToCache, void *wparam, void *hparam, void* tparam);
 
 void mnodeSdbTableReadIndex(mnodeSdbTable *pTable, const char*, void*);
 

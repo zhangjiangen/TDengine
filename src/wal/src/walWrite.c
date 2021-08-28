@@ -153,7 +153,7 @@ int32_t walWrite(void *handle, SWalHead *pHead, SWalHeadInfo* pHeadInfo) {
   SWal *  pWal = handle;
   int32_t code = 0;
 
-  // no wal
+  // no wal  
   if (!tfValid(pWal->tfd)) return 0;
   if (pWal->level == TAOS_WAL_NOLOG) return 0;
   if (pHead->version <= pWal->version) return 0;
@@ -236,6 +236,27 @@ SWalFileItem* walRestoreFileList(void *handle) {
   return head;
 }
 
+int32_t walOpenFile(void* handle, bool renew) {
+  SWal *  pWal = handle;
+
+  if (renew) {
+    wDebug("vgId:%d, wal file not exist, renew it", pWal->vgId);
+    return walRenew(pWal);
+  } else {
+    // open the existing WAL file in append mode
+    pWal->fileId = 0;
+    snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, pWal->fileId);
+    pWal->tfd = tfOpenM(pWal->name, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
+    if (!tfValid(pWal->tfd)) {
+      wError("vgId:%d, file:%s, failed to open since %s", pWal->vgId, pWal->name, strerror(errno));
+      return TAOS_SYSTEM_ERROR(errno);
+    }
+    wDebug("vgId:%d, file:%s, it is created and open while restore", pWal->vgId, pWal->name);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t walRestore(void *handle, void *pVnode, FWalBeginRestore beginFp, FWalWrite writeFp) {
   if (handle == NULL) return -1;
 
@@ -267,22 +288,7 @@ int32_t walRestore(void *handle, void *pVnode, FWalBeginRestore beginFp, FWalWri
 
   if (pWal->keep != TAOS_WAL_KEEP) return TSDB_CODE_SUCCESS;
 
-  if (count == 0) {
-    wDebug("vgId:%d, wal file not exist, renew it", pWal->vgId);
-    return walRenew(pWal);
-  } else {
-    // open the existing WAL file in append mode
-    pWal->fileId = 0;
-    snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, pWal->fileId);
-    pWal->tfd = tfOpenM(pWal->name, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
-    if (!tfValid(pWal->tfd)) {
-      wError("vgId:%d, file:%s, failed to open since %s", pWal->vgId, pWal->name, strerror(errno));
-      return TAOS_SYSTEM_ERROR(errno);
-    }
-    wDebug("vgId:%d, file:%s, it is created and open while restore", pWal->vgId, pWal->name);
-  }
-
-  return TSDB_CODE_SUCCESS;
+  return walOpenFile(pWal, count == 0);
 }
 
 SWalHead* walReadAt(int64_t tfd, int64_t offset, int32_t size) {

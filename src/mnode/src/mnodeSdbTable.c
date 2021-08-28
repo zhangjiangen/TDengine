@@ -148,11 +148,11 @@ void mnodeSdbTablePut(mnodeSdbTable *pTable, SSdbRow* pRow) {
   pTable->putFp(pTable, pRow);
 }
 
-void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, bool restore, void *wparam, void *hparam, void* tparam) {
+void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, bool putToCache, void *wparam, void *hparam, void* tparam) {
   SWalHead *pHead = wparam;
   SSdbRow *pRow = hparam;
   if (pTable->syncFp) {
-    pTable->syncFp(pTable, restore, pHead, pRow, tparam);
+    pTable->syncFp(pTable, putToCache, pHead, pRow, tparam);
   }
 }
 
@@ -407,12 +407,14 @@ static void sdbCacheReadIndex(mnodeSdbTable *pTable, const char* walName, void* 
   sdbCacheUnlock(pCache);
 }
 
-static void sdbCacheSyncWal(mnodeSdbTable *pTable, bool restore, SWalHead* pHead, SSdbRow* pRow, SWalHeadInfo* pHeadInfo) {
+static void sdbCacheSyncWal(mnodeSdbTable *pTable, bool putToCache, SWalHead* pHead, SSdbRow* pRow, SWalHeadInfo* pHeadInfo) {
   mnodeSdbCacheTable* pCache = pTable->iHandle;
   int64_t off = pHeadInfo->offset;
   int32_t keySize;
   void* key = sdbTableGetKeyAndSize(pTable->options.keyType, pRow->pObj, &keySize, true);
   
+  //sdbInfo("sdbCacheSyncWal: %" PRIu64 ", %d", pHeadInfo->offset, pHeadInfo->len);
+
   sdbCacheLock(pCache);
 
   int16_t idx = initCacheWalInfo(pTable, pHeadInfo->name);
@@ -445,13 +447,14 @@ static void sdbCacheSyncWal(mnodeSdbTable *pTable, bool restore, SWalHead* pHead
   sdbCacheUnlock(pCache);
 
   // in restore state,do not evict item,it will make starup slow
-  if (!restore) {
-    int ret = cachePut(pCache->pTable, key, keySize, pRow->pObj, pTable->options.cacheDataLen, restore, pTable->options.expireTime);
+  if (putToCache) {
+    int ret = cachePut(pCache->pTable, key, keySize, pRow->pObj, pTable->options.cacheDataLen, putToCache, pTable->options.expireTime);
     if (ret != CACHE_OK && pTable->options.freeFp) {
       pTable->options.freeFp(pRow->pObj);
     }
+  } else {
+    if (pTable->options.freeFp) pTable->options.freeFp(pRow->pObj);    
   }
-
   free(pRow->pObj);
 }
 

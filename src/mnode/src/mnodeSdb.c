@@ -128,6 +128,8 @@ static void    sdbCloseTableObj(void *handle);
 
 static int32_t sdbRestoreByIndex(void *wparam, void *hparam, int32_t qtype, void *tparam, void* pHeadInfo);
 
+static void sdbInsertCacheIndex(SWalHead *pHead, SSdbTable *pTable, SWalHeadInfo* pHeadInfo);
+
 static int32_t sdbPerformInsertAction(SWalHead *pHead, SSdbTable *pTable, SSdbRow* pRow);
 static int32_t sdbPerformDeleteAction(SWalHead *pHead, SSdbTable *pTable);
 static int32_t sdbPerformUpdateAction(SWalHead *pHead, SSdbTable *pTable, SSdbRow* pRow);
@@ -234,7 +236,7 @@ static int32_t sdbRestoreByIndex(void *wparam, void *hparam, int32_t qtype, void
   SSdbRow row;
   code = sdbPerformInsertAction(pHead, pTable, &row);
   if (code == 0 && pTable->tableType == SDB_TABLE_CACHE_TABLE) {
-    mnodeSdbTableSyncWal(pTable->iHandle, restore, pHead, &row, &headInfo);
+    mnodeSdbTableSyncWal(pTable->iHandle, !restore, pHead, &row, &headInfo);
   }
   return code;
 }
@@ -598,6 +600,7 @@ void sdbIncRef(void *tparam, void *pRow) {
   SSdbTable *pTable = tparam;
   int32_t *  pRefCount = (int32_t *)((char *)pRow + pTable->refCountPos);
   int32_t    refCount = atomic_add_fetch_32(pRefCount, 1);
+
   sdbTrace("vgId:1, sdb:%s, inc ref to row:%p:%s:%d", pTable->name, pRow, sdbGetRowStr(pTable, pRow), refCount);
 }
 
@@ -608,7 +611,6 @@ void sdbDecRef(void *tparam, void *pRow) {
   int32_t *  pRefCount = (int32_t *)((char *)pRow + pTable->refCountPos);
   int32_t    refCount = atomic_sub_fetch_32(pRefCount, 1);
   mnodeSdbUnlockData(pTable->iHandle, pRow);
-
   sdbTrace("vgId:1, sdb:%s, dec ref to row:%p:%s:%d", pTable->name, pRow, sdbGetRowStr(pTable, pRow), refCount);
 
   int32_t *updateEnd = (int32_t *)((char *)pRow + pTable->refCountPos - 4);
@@ -704,6 +706,16 @@ static int32_t sdbUpdateHash(SSdbTable *pTable, SSdbRow *pRow) {
 
   (*pTable->fpUpdate)(pRow);
   return TSDB_CODE_SUCCESS;
+}
+
+static void sdbInsertCacheIndex(SWalHead *pHead, SSdbTable *pTable, SWalHeadInfo* pHeadInfo) {
+  SSdbRow row;
+
+  row = (SSdbRow){.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
+  (*pTable->fpDecode)(&row);
+
+  // only insert wal index
+  mnodeSdbTableSyncWal(pTable->iHandle, false, pHead, &row, pHeadInfo);
 }
 
 static int32_t sdbPerformInsertAction(SWalHead *pHead, SSdbTable *pTable, SSdbRow* pRow) {
@@ -823,6 +835,11 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
       sdbTrace("vgId:1, sdb:%s, no need to send fwd req, action:%s key:%s hver:%" PRIu64 ", msg:%p", pTable->name,
                actStr[action], sdbGetKeyStr(pTable, pHead->cont), pHead->version, pRow->pMsg);
     }
+    if (syncCode == 0 && pTable->tableType == SDB_TABLE_CACHE_TABLE) {
+      if (action == SDB_ACTION_INSERT || action == SDB_ACTION_UPDATE) {
+        sdbInsertCacheIndex(pHead, pTable, &headInfo);
+      }
+    }
     return syncCode;
   }
 
@@ -839,7 +856,7 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
     SSdbRow row;
     code = sdbPerformInsertAction(pHead, pTable, &row);
     if (code == 0 && pTable->tableType == SDB_TABLE_CACHE_TABLE) {
-      mnodeSdbTableSyncWal(pTable->iHandle, restore, pHead, &row, &headInfo);
+      mnodeSdbTableSyncWal(pTable->iHandle, !restore, pHead, &row, &headInfo);
     }
     return code;
   } else if (action == SDB_ACTION_DELETE) {
@@ -852,7 +869,7 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
     SSdbRow row;
     code = sdbPerformUpdateAction(pHead, pTable, &row);
     if (code == 0 && pTable->tableType == SDB_TABLE_CACHE_TABLE) {
-      mnodeSdbTableSyncWal(pTable->iHandle, restore, pHead, &row, &headInfo);
+      mnodeSdbTableSyncWal(pTable->iHandle, !restore, pHead, &row, &headInfo);
     }
     return code;
   } else {

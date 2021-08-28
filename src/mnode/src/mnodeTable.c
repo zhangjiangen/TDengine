@@ -2188,6 +2188,7 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
   SCreateTableMsg   *pCreate = (SCreateTableMsg*)((char*)p1 + sizeof(SCMCreateTableMsg));
 
   SCTableObj *pTable = calloc(1, sizeof(SCTableObj));
+
   if (pTable == NULL) {
     mError("msg:%p, app:%p table:%s, failed to alloc memory", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName);
     return TSDB_CODE_MND_OUT_OF_MEMORY;

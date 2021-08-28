@@ -637,11 +637,20 @@ static int32_t sdbRestoreFromWalFiles(SWalFileItem* pFileList, twalh handle, FWa
     current->hasProcess = true;
     code = walRestoreWalFile(handle, NULL, 0, writeFp, current->walName);
     if (code != TSDB_CODE_SUCCESS) {
-      return code;
+     goto _err;
     }
     current = current->next;
   }
 
+_err:
+  if (code == TSDB_CODE_SUCCESS) code = walOpenFile(handle, pFileList == NULL);
+  current = pFileList;
+  while (current) {
+    SWalFileItem* next = current->next;
+    free(current->walName);
+    free(current);
+    current = next;    
+  }
   return code;
 }
 
@@ -671,6 +680,7 @@ int32_t sdbRestoreFromIndex(twalh handle, FWalIndexReader fpReader, FWalWrite wr
   }
 
   char *buffer = calloc(1, size);
+  char* save = buffer;
   if (buffer == NULL) {
     code = TSDB_CODE_COM_OUT_OF_MEMORY;
     goto _err;
@@ -681,8 +691,7 @@ int32_t sdbRestoreFromIndex(twalh handle, FWalIndexReader fpReader, FWalWrite wr
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-
-  char* save = buffer;
+  
   current = pFileList;
   while (size > 0) {
     // read header
@@ -752,6 +761,8 @@ int32_t sdbRestoreFromIndex(twalh handle, FWalIndexReader fpReader, FWalWrite wr
   }
 
 _err:
+  if (code == TSDB_CODE_SUCCESS) code = walOpenFile(handle, pFileList == NULL);
+
   pFileItem = pFileList;
   while (pFileItem) {
     next = pFileItem->next;
@@ -759,7 +770,7 @@ _err:
     free(pFileItem);
     pFileItem = next;
   }
-
+  
   tfClose(tfd);
   tfree(save);
   return code;
