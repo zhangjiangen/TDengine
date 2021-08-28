@@ -77,12 +77,16 @@ void  cacheDestroy(cache_t* pCache) {
   free(pCache);
 }
 
-int cachePut(cacheTable* pTable, const void* key, uint8_t nkey, const void* value, uint32_t nbytes, bool noEvict, uint64_t expire) {
+int cachePut(cacheTable* pTable, const void* key, uint8_t nkey, const void* value, uint32_t nbytes, 
+            void** pSave, bool noEvict, uint64_t expire) {
   cacheMutex* pMutex = getItemMutexByKey(pTable, key, nkey);
   cacheMutexLock(pMutex);
 
-  int ret = cachePutDataIntoCache(pTable,key,nkey,value,nbytes, pMutex, NULL, noEvict, expire);
-
+  cacheItem* pItem = NULL;
+  int ret = cachePutDataIntoCache(pTable,key,nkey,value,nbytes, pMutex, &pItem, noEvict, expire);
+  if (pSave) {
+    *pSave = item_data(pItem);
+  }
   cacheMutexUnlock(pMutex);
 
   return ret;
@@ -238,8 +242,8 @@ err:
   return -1;
 }
 
-static int cachePutDataIntoCache(cacheTable* pTable, const void* key, uint8_t nkey, const void* value,
-                                uint32_t nbytes, cacheMutex* pMutex, cacheItem** ppItem, bool noEvict, uint64_t expire) {
+static int cachePutDataIntoCache(cacheTable* pTable, const void* key, uint8_t nkey, const void* value, uint32_t nbytes,
+                                cacheMutex* pMutex, cacheItem** ppItem, bool noEvict, uint64_t expire) {
   cacheItem* pItem = cacheAllocItem(pTable, pMutex, nkey, nbytes, noEvict, expire);
   if (pItem == NULL) {
     return CACHE_OOM;

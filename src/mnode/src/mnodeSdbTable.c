@@ -254,7 +254,19 @@ static void sdbCacheUnlockData(void* p) {
 }
 
 static void sdbCachePut(mnodeSdbTable *pTable, SSdbRow* pRow) {
-  // put data in cache in sdbCacheSyncWal
+  int32_t keySize;
+  void* key = sdbTableGetKeyAndSize(pTable->options.keyType, pRow->pObj, &keySize, true);
+
+  // put the data into cache
+  mnodeSdbCacheTable* pCache = pTable->iHandle;
+  void* pObj = NULL;
+  int ret = cachePut(pCache->pTable, key, keySize, pRow->pObj, pTable->options.cacheDataLen, &pObj, true, pTable->options.expireTime);
+  if (ret != CACHE_OK && pTable->options.freeFp) {
+    pTable->options.freeFp(pRow->pObj);
+  }
+  // now update row->pObj and free old obj
+  free(pRow->pObj);
+  pRow->pObj = pObj;
 }
 
 static void sdbCacheFreeValue(mnodeSdbTable *pTable, void *pObj) {
@@ -445,17 +457,6 @@ static void sdbCacheSyncWal(mnodeSdbTable *pTable, bool putToCache, SWalHead* pH
   }
   
   sdbCacheUnlock(pCache);
-
-  // in restore state,do not evict item,it will make starup slow
-  if (putToCache) {
-    int ret = cachePut(pCache->pTable, key, keySize, pRow->pObj, pTable->options.cacheDataLen, putToCache, pTable->options.expireTime);
-    if (ret != CACHE_OK && pTable->options.freeFp) {
-      pTable->options.freeFp(pRow->pObj);
-    }
-  } else {
-    if (pTable->options.freeFp) pTable->options.freeFp(pRow->pObj);    
-  }
-  free(pRow->pObj);
 }
 
 static int loadCacheDataFromWal(void* userData, const void* key, uint8_t nkey, char** value, size_t *len, uint64_t *pExpire) {
