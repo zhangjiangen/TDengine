@@ -312,7 +312,7 @@ static void* sdbCacheIterate(mnodeSdbTable *pTable, void *p) {
   return taosHashIterate(pCache->pWalTable, p);
 }
 
-static int  sdbCacheIterValue(mnodeSdbTable *pTable,void *pIter, void** pRet) {
+static int sdbCacheIterValue(mnodeSdbTable *pTable,void *pIter, void** pRet) {
   int nBytes;
   mnodeSdbCacheTable* pCache = pTable->iHandle;
   walRecord** ppRecord = (walRecord**)pIter;

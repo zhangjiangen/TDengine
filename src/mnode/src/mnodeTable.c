@@ -2280,7 +2280,7 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
   };
 
   int32_t code = sdbInsertRow(&desc);
-  // if ctable save in cache, the pTable will be free in cache,so here need to update pTable
+  // if ctable save in cache, the pTable will be free when data copy to cache,so here need to update pTable
   pTable = desc.pObj;
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mnodeDestroyChildTable(pTable);
@@ -2715,6 +2715,7 @@ static int32_t mnodeGetChildTableMeta(SMnodeMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
+/*
 void mnodeDropAllChildTablesInVgroups(SVgObj *pVgroup) {
   void *  pIter = NULL;
   int32_t numOfTables = 0;
@@ -2740,6 +2741,7 @@ void mnodeDropAllChildTablesInVgroups(SVgObj *pVgroup) {
 
   mInfo("vgId:%d, all child tables is dropped from sdb", pVgroup->vgId);
 }
+*/
 
 void mnodeDropAllChildTables(SDbObj *pDropDb) {
   void *  pIter = NULL;

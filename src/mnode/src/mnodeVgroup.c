@@ -1283,6 +1283,7 @@ static int32_t mnodeProcessVnodeCfgMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
+/*
 void mnodeDropAllDnodeVgroups(SDnodeObj *pDropDnode) {
   void *  pIter = NULL;
   SVgObj *pVgroup = NULL;
@@ -1309,6 +1310,7 @@ void mnodeDropAllDnodeVgroups(SDnodeObj *pDropDnode) {
 
   mInfo("dnode:%d, all vgroups:%d is dropped from sdb", pDropDnode->dnodeId, numOfVgroups);
 }
+*/
 
 #if 0
 void mnodeUpdateAllDbVgroups(SDbObj *pAlterDb) {

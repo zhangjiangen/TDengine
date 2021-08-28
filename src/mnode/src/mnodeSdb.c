@@ -881,6 +881,9 @@ int32_t sdbInsertRow(SSdbRow *pRow) {
   }
 
   int32_t code = sdbInsertHash(pTable, pRow);
+  // if ctable save in cache, the pTable will be free when data copy to cache,so here need to update pTable
+  if (needUpdateMsgTable) pRow->pMsg->pTable = pRow->pObj;
+
   if (code != TSDB_CODE_SUCCESS) {
     sdbError("vgId:1, sdb:%s, failed to insert:%s into hash", pTable->name, sdbGetRowStr(pTable, pRow->pObj));
     return code;
@@ -892,8 +895,6 @@ int32_t sdbInsertRow(SSdbRow *pRow) {
   }
 
   if (pRow->fpReq) {
-    // if ctable save in cache, the pTable will be free in cache,so here need to update pTable
-    if (needUpdateMsgTable) pRow->pMsg->pTable = pRow->pObj;
     return (*pRow->fpReq)(pRow->pMsg);
   } else {
     return sdbWriteRowToQueue(pRow, SDB_ACTION_INSERT);

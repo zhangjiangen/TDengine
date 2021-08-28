@@ -35,7 +35,7 @@ void    mnodeCancelGetNextChildTable(void *pIter);
 void    mnodeCancelGetNextSuperTable(void *pIter);
 void    mnodeDropAllChildTables(SDbObj *pDropDb);
 void    mnodeDropAllSuperTables(SDbObj *pDropDb);
-void    mnodeDropAllChildTablesInVgroups(SVgObj *pVgroup);
+//void    mnodeDropAllChildTablesInVgroups(SVgObj *pVgroup);
 int32_t mnodeCompactTables();
 
 #ifdef __cplusplus
