@@ -386,6 +386,9 @@ python3 ./test.py -f query/querySession.py
 python3 test.py -f  alter/alter_create_exception.py
 python3 ./test.py -f insert/flushwhiledrop.py
 python3 ./test.py -f insert/schemalessInsert.py
+python3 ./test.py -f query/queryWildcardLength.py
+python3 ./test.py -f query/queryDiffColsOr.py
+
 
 #======================p4-end===============
 
