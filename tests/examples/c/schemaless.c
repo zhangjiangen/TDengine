@@ -8,6 +8,7 @@
 #include <time.h>
 #include <unistd.h>
 
+int numTimes = 100;
 int numThreads = 8;
 int numSuperTables = 8;
 int numChildTables = 4; // per thread, per super table
@@ -138,33 +139,65 @@ int main(int argc, char* argv[]) {
   }
 
   printf("begin multi-thread insertion...\n");
-  int64_t begin = taosGetTimestampUs();
-  pthread_t* tids = calloc(numThreads, sizeof(pthread_t));
-  SThreadInsertArgs* argsThread = calloc(numThreads, sizeof(SThreadInsertArgs));
-  for (int i=0; i < numThreads; ++i) {
-    argsThread[i].lines = linesThread[i];
-    argsThread[i].taos = taos;
-    argsThread[i].numLines = numSuperTables * numChildTables * numRowsPerChildTable;
-    pthread_create(tids+i, NULL, insertLines, argsThread+i);
+  for (int z = 0; z < numTimes; ++z) {
+	  int64_t begin = taosGetTimestampUs();
+	  pthread_t* tids = calloc(numThreads, sizeof(pthread_t));
+	  SThreadInsertArgs* argsThread = calloc(numThreads, sizeof(SThreadInsertArgs));
+	  for (int i=0; i < numThreads; ++i) {
+	    argsThread[i].lines = linesThread[i];
+	    argsThread[i].taos = taos;
+	    argsThread[i].numLines = numSuperTables * numChildTables * numRowsPerChildTable;
+	    pthread_create(tids+i, NULL, insertLines, argsThread+i);
+	  }
+
+	  for (int i = 0; i < numThreads; ++i) {
+	    pthread_join(tids[i], NULL);
+	  }
+	  int64_t end = taosGetTimestampUs();
+
+	  int totalLines = numThreads*numSuperTables*numChildTables*numRowsPerChildTable;
+	  printf("TOTAL LINES: %d\n", totalLines);
+	  printf("THREADS: %d\n", numThreads);
+	  int64_t sumTime = 0;
+	  for (int i=0; i<numThreads; ++i) {
+	    sumTime += argsThread[i].costTime;
+	  }
+	  printf("TIME: %d(ms)\n", (int)(end-begin)/1000);
+	  double throughput = (double)(totalLines)/(double)(end-begin) * 1000000;
+	  printf("THROUGHPUT:%d/s\n", (int)throughput);
+	  free(argsThread);
+	  free(tids);
+
+	  result = taos_query(taos, "drop database if exists db;");
+	  taos_free_result(result);
+	  usleep(100000);
+	  result = taos_query(taos, "create database db precision 'ms';");
+	  taos_free_result(result);
+	  usleep(100000);
+
+	  (void)taos_select_db(taos, "db");
+	  {
+	    char** linesStb = calloc(numSuperTables, sizeof(char*));
+	    for (int i = 0; i < numSuperTables; i++) {
+	      char* lineStb = calloc(512, 1);
+	      snprintf(lineStb, 512, lineFormat, i,
+		       numThreads * numSuperTables * numChildTables,
+		       ts + numThreads * numSuperTables * numChildTables * numRowsPerChildTable);
+	      linesStb[i] = lineStb;
+	    }
+	    SThreadInsertArgs args = {0};
+	    args.taos = taos;
+	    args.lines = linesStb;
+	    args.numLines = numSuperTables;
+	    insertLines(&args);
+	    for (int i = 0; i < numSuperTables; ++i) {
+	      free(linesStb[i]);
+	    }
+	    free(linesStb);
+	  }
+
   }
 
-  for (int i = 0; i < numThreads; ++i) {
-    pthread_join(tids[i], NULL);
-  }
-  int64_t end = taosGetTimestampUs();
-
-  int totalLines = numThreads*numSuperTables*numChildTables*numRowsPerChildTable;
-  printf("TOTAL LINES: %d\n", totalLines);
-  printf("THREADS: %d\n", numThreads);
-  int64_t sumTime = 0;
-  for (int i=0; i<numThreads; ++i) {
-    sumTime += argsThread[i].costTime;
-  }
-  printf("TIME: %d(ms)\n", (int)(end-begin)/1000);
-  double throughput = (double)(totalLines)/(double)(end-begin) * 1000000;
-  printf("THROUGHPUT:%d/s\n", (int)throughput);
-  free(argsThread);
-  free(tids);
   for (int i = 0; i < numThreads; ++i) {
     free(linesThread[i]);
   }
