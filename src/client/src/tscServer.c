@@ -628,7 +628,6 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql, int32_t clauseIndex) {
   int32_t tsBufSize = (pQueryInfo->tsBuf != NULL) ? pQueryInfo->tsBuf->fileSize : 0;
   int32_t sqlLen = (int32_t) strlen(pSql->sqlstr) + 1;
 
-
   int32_t tableSerialize = 0;
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   if (pTableMetaInfo->pVgroupTables != NULL) {
@@ -731,8 +730,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   int32_t size = tscEstimateQueryMsgSize(pSql, pCmd->clauseIndex);
+  assert(size > 0);
 
-  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
+  if (TSDB_CODE_SUCCESS != tscAllocPayloadFast(pCmd, (size_t) size)) {
     tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_INVALID_SQL;  // todo add test for this
   }
