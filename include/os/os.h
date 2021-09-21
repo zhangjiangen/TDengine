@@ -20,9 +20,35 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
+
+#define POINTER_SHIFT(p, b) ((void *)((char *)(p) + (b)))
+#define POINTER_DISTANCE(p1, p2) ((char *)(p1) - (char *)(p2))
+
+// ASSERT
+#ifndef NDEBUG
+#define ASSERT(x) assert(x)
+#else
+#define ASSERT(x)
+#endif
+
+#define NOT_POSSIBLE() ASSERT(0)
+
+// Endian
+static const int32_t test_endian_int = 1;
+#define IS_LITTLE_ENDIAN() (*(uint8_t *)(&test_endian_int) != 0)
+
+// FORCE_INLINE
+#if defined(__GNUC__)
+#define FORCE_INLINE inline __attribute__((always_inline))
+#else
+#define FORCE_INLINE
+#endif
 
 #ifdef __cplusplus
 }

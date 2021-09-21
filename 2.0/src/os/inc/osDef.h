@@ -123,14 +123,6 @@ extern "C" {
   #endif
 #endif
 
-#define POINTER_SHIFT(p, b) ((void *)((char *)(p) + (b)))
-#define POINTER_DISTANCE(p1, p2) ((char *)(p1) - (char *)(p2)) 
-
-#ifndef NDEBUG
-#define ASSERT(x) assert(x)
-#else
-#define ASSERT(x)
-#endif
 
 #ifndef UNUSED
 #define UNUSED(x) ((void)(x))
@@ -156,12 +148,6 @@ extern "C" {
 #undefine tListLen
 #endif
 #define tListLen(x) (sizeof(x) / sizeof((x)[0]))
-
-#if defined(__GNUC__)
-#define FORCE_INLINE inline __attribute__((always_inline))
-#else
-#define FORCE_INLINE
-#endif
 
 #define DEFAULT_UNICODE_ENCODEC "UCS-4LE"
 

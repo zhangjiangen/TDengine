@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
+#include "os.h"
 
 int main(int argc, char const *argv[]) {
   printf("Hello world!\n");
