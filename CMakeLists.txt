@@ -1,54 +1,39 @@
-IF (CMAKE_VERSION VERSION_LESS 3.0)
-  PROJECT(TDengine CXX)
-  SET(PROJECT_VERSION_MAJOR "${LIB_MAJOR_VERSION}")
-  SET(PROJECT_VERSION_MINOR "${LIB_MINOR_VERSION}")
-  SET(PROJECT_VERSION_PATCH "${LIB_PATCH_VERSION}")
-  SET(PROJECT_VERSION "${LIB_VERSION_STRING}")
-ELSE ()
-  CMAKE_POLICY(SET CMP0048 NEW)
-  PROJECT(TDengine VERSION "${LIB_VERSION_STRING}" LANGUAGES CXX)
-ENDIF ()
+cmake_minimum_required(VERSION 3.16)
 
-IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-  CMAKE_MINIMUM_REQUIRED(VERSION 2.8...3.20)
-ELSE ()
-  CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-ENDIF ()
+project(
+    TDengine
+    VERSION 3.0
+    DESCRIPTION "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
+)
 
-SET(TD_ACCOUNT FALSE)
-SET(TD_ADMIN FALSE)
-SET(TD_GRANT FALSE)
-SET(TD_MQTT FALSE)
-SET(TD_TSDB_PLUGINS FALSE)
-SET(TD_STORAGE FALSE)
-SET(TD_TOPIC FALSE)
-SET(TD_MODULE FALSE)
+# ============================================================================
+# DEPENDENCIES
+# ============================================================================
+set(CMAKE_SUPPORT_DIR "${CMAKE_SOURCE_DIR}/cmake")
+option(BUILD_TEST "If build unit tests using googletest" ON)
 
-SET(TD_COVER FALSE)
-SET(TD_MEM_CHECK FALSE)
+function(cat IN_FILE OUT_FILE)
+    file(READ ${IN_FILE} CONTENTS)
+    file(APPEND ${OUT_FILE} "${CONTENTS}")
+endfunction(cat IN_FILE OUT_FILE)
 
-SET(TD_PAGMODE_LITE FALSE)
-SET(TD_SOMODE_STATIC FALSE)
-SET(TD_POWER FALSE)
-SET(TD_GODLL FALSE)
+## gtest
+set(DEPS_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
+configure_file("${CMAKE_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${DEPS_TMP_FILE})
+if(${BUILD_TEST})
+    cat("${CMAKE_SUPPORT_DIR}/gtest_CMakeLists.txt.in" ${DEPS_TMP_FILE})
+endif(${BUILD_TEST})
 
-SET(TD_COMMUNITY_DIR ${PROJECT_SOURCE_DIR})
-MESSAGE(STATUS "Community directory: " ${TD_COMMUNITY_DIR})
+configure_file(${DEPS_TMP_FILE} "${CMAKE_SOURCE_DIR}/deps/deps-download/CMakeLists.txt")
+execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/deps/deps-download")
+execute_process(COMMAND "${CMAKE_COMMAND}" --build .
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/deps/deps-download")
 
-INCLUDE(cmake/input.inc)
-INCLUDE(cmake/platform.inc)
+# deps
+add_subdirectory(deps)
 
-IF (TD_WINDOWS OR TD_DARWIN) 
-  SET(TD_SOMODE_STATIC TRUE)
-ENDIF ()
+# src
+add_subdirectory(src)
 
-INCLUDE(cmake/define.inc)
-INCLUDE(cmake/env.inc)
-INCLUDE(cmake/version.inc)
-INCLUDE(cmake/install.inc)
-
-ADD_SUBDIRECTORY(deps)
-ADD_SUBDIRECTORY(src)
-ADD_SUBDIRECTORY(tests)
-
-INCLUDE(CPack)
+# tests (TODO)
