@@ -40,7 +40,6 @@ class TDTestCase:
         tdSql.execute(f'use {name}')
 
     def timeTrans(self, ts_value):
-        print("ts_value---", ts_value)
         if type(ts_value) is int:
             if ts_value != 0:
                 ts = ts_value/1000000
@@ -177,12 +176,12 @@ class TDTestCase:
                 col_value_list.append(bool_value)
                 td_col_type_list.append(stb_col_dict["type"].upper())
                 col_name_list.append("value")
-                td_col_value_list.append(stb_col_dict["value"])
+                td_col_value_list.append(str(stb_col_dict["value"]))
             else:
                 col_value_list.append(stb_col_dict["value"])
                 td_col_type_list.append(stb_col_dict["type"].upper())
                 col_name_list.append("value")
-                td_col_value_list.append(stb_col_dict["value"])
+                td_col_value_list.append(str(stb_col_dict["value"]))
         else:
             col_name_list.append("value")
             col_value_list.append(str(stb_col_dict))
@@ -258,7 +257,7 @@ class TDTestCase:
                 sql_json = {"metric": f"{stb_name}", "timestamp": ts_value, "value": col_value, "tags": tag_value}
         if id_change_tag is not None:
             tag_value.pop('t8')
-            tag_value["t8"] = {"value": "nchar", "type": "ncharTagValue"}
+            tag_value["t8"] = {"value": "ncharTagValue", "type": "nchar"}
             sql_json = {"metric": f"{stb_name}", "timestamp": ts_value, "value": col_value, "tags": tag_value}
         if id_double_tag is not None:
             tag_value["ID"] = f'"{tb_name}_2"'
@@ -287,79 +286,30 @@ class TDTestCase:
         if multi_field_tag is not None:
             sql_json = {"metric": f"{stb_name}", "timestamp": ts_value, "value": col_value, "tags": tag_value, "tags": tag_value}
         return sql_json, stb_name
-
-
-
-    def genFullTypeSql(self, stb_name="", tb_name="", value="", t0="", t1="127i8", t2="32767i16", t3="2147483647i32",
-                        t4="9223372036854775807i64", t5="11.12345f32", t6="22.123456789f64", t7="\"binaryTagValue\"",
-                        t8="L\"ncharTagValue\"", ts="1626006833639000000ns",
-                        id_noexist_tag=None, id_change_tag=None, id_upper_tag=None, id_double_tag=None,
-                        t_add_tag=None, t_mul_tag=None, t_multi_tag=None, c_blank_tag=None, t_blank_tag=None, 
-                        chinese_tag=None, multi_field_tag=None):
-        if stb_name == "":
-            stb_name = tdCom.getLongName(len=6, mode="letters")
-        if tb_name == "":
-            tb_name = f'{stb_name}_{random.randint(0, 65535)}_{random.randint(0, 65535)}'
-        if t0 == "":
-            t0 = random.choice([True, False])
-        if value == "":
-            value = random.choice([True, False])
-        if id_upper_tag is not None:
-            id = "ID"
-        else:
-            id = "id"
-        sql_seq = f'{stb_name} {ts} {value} {id}=\"{tb_name}\",t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8}'
-        if id_noexist_tag is not None:
-            sql_seq = f'{stb_name} {ts} {value} t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8}'
-            if t_add_tag is not None:
-                sql_seq = f'{stb_name} {ts} {value} t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8},t9={t8}'
-        if id_change_tag is not None:
-            sql_seq = f'{stb_name} {ts} {value} t0={t0},{id}=\"{tb_name}\",t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8}'
-        if id_double_tag is not None:
-            sql_seq = f'{stb_name} {ts} {value} {id}=\"{tb_name}_1\",t0={t0},t1={t1},{id}=\"{tb_name}_2\",t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8}'
-        if t_add_tag is not None:
-            sql_seq = f'{stb_name} {ts} {value} {id}=\"{tb_name}\",t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8},t11={t1},t10={t8}'
-        if t_mul_tag is not None:
-            sql_seq = f'{stb_name} {ts} {value} {id}=\"{tb_name}\",t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6}'
-            if id_noexist_tag is not None:
-                sql_seq = f'{stb_name} {ts} {value} t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6}'
-        if t_multi_tag is not None:
-            sql_seq = f'{stb_name} {ts} {value},{value} {id}=\"{tb_name}\",t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6}'
-        if c_blank_tag is not None:
-            sql_seq = f'{stb_name} {ts} {id}=\"{tb_name}\",t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8}'
-        if t_blank_tag is not None:
-            sql_seq = f'{stb_name} {ts} {value} {id}=\"{tb_name}\"'
-        if chinese_tag is not None:
-            sql_seq = f'{stb_name} {ts} L"涛思数据" t0={t0},t1=L"涛思数据"'
-        if multi_field_tag is not None:
-            sql_seq = f'{stb_name} {ts} {value} {id}=\"{tb_name}\",t0={t0} t1={t1}'
-        return sql_seq, stb_name
     
-    def genMulTagColStr(self, genType, count=1):
+    def genMulTagColDict(self, genType, count=1):
         """
             genType must be tag/col
         """
-        tag_str = ""
-        col_str = ""
+        tag_dict = dict()
+        col_dict = dict()
         if genType == "tag":
             for i in range(0, count):
-                if i < (count-1):
-                    tag_str += f't{i}=f,'
-                else:
-                    tag_str += f't{i}=f'
-            return tag_str
+                tag_dict[f't{i}'] = {'value': True, 'type': 'bool'}
+            return tag_dict
         if genType == "col":
-            col_str = "t"
-            return col_str
+            col_dict = {'value': True, 'type': 'bool'}
+            return col_dict
 
-    def genLongSql(self, tag_count):
+    def genLongJson(self, tag_count):
         stb_name = tdCom.getLongName(7, mode="letters")
         tb_name = f'{stb_name}_1'
-        tag_str = self.genMulTagColStr("tag", tag_count)
-        col_str = self.genMulTagColStr("col")
-        ts = "1626006833640000000ns"
-        long_sql = stb_name + ' ' + ts + ' ' + col_str + ' ' + f'id=\"{tb_name}\"' + ',' + tag_str
-        return long_sql, stb_name
+        tag_dict = self.genMulTagColDict("tag", tag_count)
+        col_dict = self.genMulTagColDict("col")
+        tag_dict["id"] = tb_name
+        ts_dict = {'value': 1626006833639000000, 'type': 'ns'}
+        long_json = {"metric": f"{stb_name}", "timestamp": ts_dict, "value": col_dict, "tags": tag_dict}
+        return long_json, stb_name
 
     def getNoIdTbName(self, stb_name):
         query_sql = f"select tbname from {stb_name}"
@@ -475,7 +425,6 @@ class TDTestCase:
                         raise Exception("should not reach here")
                     except JsonPayloadError as err:
                         tdSql.checkNotEqual(err.errno, 0)
-
     
     def idSeqCheckCase(self):
         """
@@ -515,15 +464,15 @@ class TDTestCase:
         """
             max tag count is 128
         """
-        for input_json in [self.genLongSql(128)[0]]:
+        for input_json in [self.genLongJson(128)[0]]:
             tdCom.cleanTb()
-            self._conn.insert_json_payload([input_json])
-        for input_json in [self.genLongSql(129)[0]]:
+            self._conn.insert_json_payload(json.dumps(input_json))
+        for input_json in [self.genLongJson(129)[0]]:
             tdCom.cleanTb()
             try:
-                self._conn.insert_json_payload([input_json])
-            except JsonPayloadError:
-                pass
+                self._conn.insert_json_payload(json.dumps(input_json))
+            except JsonPayloadError as err:
+                tdSql.checkNotEqual(err.errno, 0)
             
     def idIllegalNameCheckCase(self):
         """
@@ -533,55 +482,55 @@ class TDTestCase:
         tdCom.cleanTb()
         rstr = list("`~!@#$¥%^&*()-+={}|[]、「」【】\:;《》<>?")
         for i in rstr:
-            input_json = self.genFullTypeJson(tb_name=f"\"aaa{i}bbb\"")[0]
+            input_json = self.genFullTypeJson(tb_name=f'aa{i}bb')[0]
             try:
-                self._conn.insert_json_payload([input_json])
-            except JsonPayloadError:
-                pass
+                self._conn.insert_json_payload(json.dumps(input_json))
+            except JsonPayloadError as err:
+                tdSql.checkNotEqual(err.errno, 0)
 
     def idStartWithNumCheckCase(self):
         """
             id is start with num
         """
         tdCom.cleanTb()
-        input_json = self.genFullTypeJson(tb_name=f"\"1aaabbb\"")[0]
+        input_json = self.genFullTypeJson(tb_name="1aaabbb")[0]
         try:
-            self._conn.insert_json_payload([input_json])
-        except JsonPayloadError:
-            pass
+            self._conn.insert_json_payload(json.dumps(input_json))
+        except JsonPayloadError as err:
+            tdSql.checkNotEqual(err.errno, 0)
 
     def nowTsCheckCase(self):
         """
             check now unsupported
         """
         tdCom.cleanTb()
-        input_json = self.genFullTypeJson(ts="now")[0]
+        input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="now", t_type="ns"))[0]
         try:
-            self._conn.insert_json_payload([input_json])
-        except JsonPayloadError:
-            pass
+            self._conn.insert_json_payload(json.dumps(input_json))
+        except JsonPayloadError as err:
+            tdSql.checkNotEqual(err.errno, 0)
 
     def dateFormatTsCheckCase(self):
         """
             check date format ts unsupported
         """
         tdCom.cleanTb()
-        input_json = self.genFullTypeJson(ts="2021-07-21\ 19:01:46.920")[0]
+        input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="2021-07-21\ 19:01:46.920", t_type="ns"))[0]
         try:
-            self._conn.insert_json_payload([input_json])
-        except JsonPayloadError:
-            pass
+            self._conn.insert_json_payload(json.dumps(input_json))
+        except JsonPayloadError as err:
+                tdSql.checkNotEqual(err.errno, 0)
     
     def illegalTsCheckCase(self):
         """
             check ts format like 16260068336390us19
         """
         tdCom.cleanTb()
-        input_json = self.genFullTypeJson(ts="16260068336390us19")[0]
+        input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="16260068336390us19", t_type="us"))[0]
         try:
-            self._conn.insert_json_payload([input_json])
-        except JsonPayloadError:
-            pass
+            self._conn.insert_json_payload(json.dumps(input_json))
+        except JsonPayloadError as err:
+            tdSql.checkNotEqual(err.errno, 0)
 
     def tagValueLengthCheckCase(self):
         """
@@ -589,97 +538,97 @@ class TDTestCase:
         """
         tdCom.cleanTb()
         # i8
-        for t1 in ["-127i8", "127i8"]:
-            input_json, stb_name = self.genFullTypeJson(t1=t1)
+        for t1 in [-127, 127]:
+            input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t1_value=t1))
             self.resCmp(input_json, stb_name)
-        for t1 in ["-128i8", "128i8"]:
-            input_json = self.genFullTypeJson(t1=t1)[0]
+        for t1 in [-128, 128]:
+            input_json = self.genFullTypeJson(tag_value=self.genTagValue(t1_value=t1))[0]
             try:
-                self._conn.insert_json_payload([input_json])
-            except JsonPayloadError:
-                pass
+                self._conn.insert_json_payload(json.dumps(input_json))
+            except JsonPayloadError as err:
+                tdSql.checkNotEqual(err.errno, 0)
 
         #i16
-        for t2 in ["-32767i16", "32767i16"]:
-            input_json, stb_name = self.genFullTypeJson(t2=t2)
+        for t2 in [-32767, 32767]:
+            input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t2_value=t2))
             self.resCmp(input_json, stb_name)
-        for t2 in ["-32768i16", "32768i16"]:
-            input_json = self.genFullTypeJson(t2=t2)[0]
+        for t2 in [-32768, 32768]:
+            input_json = self.genFullTypeJson(tag_value=self.genTagValue(t2_value=t2))[0]
             try:
-                self._conn.insert_json_payload([input_json])
-            except JsonPayloadError:
-                pass
+                self._conn.insert_json_payload(json.dumps(input_json))
+            except JsonPayloadError as err:
+                tdSql.checkNotEqual(err.errno, 0)
 
         #i32
-        for t3 in ["-2147483647i32", "2147483647i32"]:
-            input_json, stb_name = self.genFullTypeJson(t3=t3)
+        for t3 in [-2147483647, 2147483647]:
+            input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t3_value=t3))
             self.resCmp(input_json, stb_name)
-        for t3 in ["-2147483648i32", "2147483648i32"]:
-            input_json = self.genFullTypeJson(t3=t3)[0]
+        for t3 in [-2147483648, 2147483648]:
+            input_json = self.genFullTypeJson(tag_value=self.genTagValue(t3_value=t3))[0]
             try:
-                self._conn.insert_json_payload([input_json])
-            except JsonPayloadError:
-                pass
+                self._conn.insert_json_payload(json.dumps(input_json))
+            except JsonPayloadError as err:
+                tdSql.checkNotEqual(err.errno, 0)
 
-        #i64
-        for t4 in ["-9223372036854775807i64", "9223372036854775807i64"]:
-            input_json, stb_name = self.genFullTypeJson(t4=t4)
-            self.resCmp(input_json, stb_name)
-        for t4 in ["-9223372036854775808i64", "9223372036854775808i64"]:
-            input_json = self.genFullTypeJson(t4=t4)[0]
+        # #i64 #! json bug
+        # for t4 in [-9223372036854775807, 9223372036854775807]:
+        #     input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t4_value=t4))
+        #     print(input_json)
+        #     self.resCmp(input_json, stb_name)
+            
+        for t4 in [-9223372036854775808, 9223372036854775808]:
+            input_json = self.genFullTypeJson(tag_value=self.genTagValue(t4_value=t4))[0]
             try:
-                self._conn.insert_json_payload([input_json])
-            except JsonPayloadError:
-                pass
+                self._conn.insert_json_payload(json.dumps(input_json))
+            except JsonPayloadError as err:
+                tdSql.checkNotEqual(err.errno, 0)
 
         # f32
-        for t5 in [f"{-3.4028234663852885981170418348451692544*(10**38)}f32", f"{3.4028234663852885981170418348451692544*(10**38)}f32"]:
-            input_json, stb_name = self.genFullTypeJson(t5=t5)
+        for t5 in [-3.4028234663852885981170418348451692544*(10**38), 3.4028234663852885981170418348451692544*(10**38)]:
+            input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t5_value=t5))
             self.resCmp(input_json, stb_name)
-        # * limit set to 4028234664*(10**38)
-        for t5 in [f"{-3.4028234664*(10**38)}f32", f"{3.4028234664*(10**38)}f32"]:
-            input_json = self.genFullTypeJson(t5=t5)[0]
+        # * limit set to 3.4028234664*(10**38)
+        for t5 in [-3.4028234664*(10**38), 3.4028234664*(10**38)]:
+            input_json = self.genFullTypeJson(tag_value=self.genTagValue(t5_value=t5))[0]
             try:
-                self._conn.insert_json_payload([input_json])
+                self._conn.insert_json_payload(json.dumps(input_json))
                 raise Exception("should not reach here")
             except JsonPayloadError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-
         # f64
-        for t6 in [f'{-1.79769*(10**308)}f64', f'{-1.79769*(10**308)}f64']:
-            input_json, stb_name = self.genFullTypeJson(t6=t6)
+        for t6 in [-1.79769*(10**308), -1.79769*(10**308)]:
+            input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t6_value=t6))
             self.resCmp(input_json, stb_name)
-        # * limit set to 1.797693134862316*(10**308)
-        for t6 in [f'{-1.797693134862316*(10**308)}f64', f'{-1.797693134862316*(10**308)}f64']:
-            input_json = self.genFullTypeJson(t6=t6)[0]
+        for t6 in [float(-1.797693134862316*(10**308)), -1.797693134862316*(10**308)]:
+            input_json = self.genFullTypeJson(tag_value=self.genTagValue(t6_value=t6))[0]
             try:
-                self._conn.insert_json_payload([input_json])
+                self._conn.insert_json_payload(json.dumps(input_json))
                 raise Exception("should not reach here")
             except JsonPayloadError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # binary 
         stb_name = tdCom.getLongName(7, "letters")
-        input_json = f'{stb_name} 1626006833639000000ns t t0=t,t1="{tdCom.getLongName(16374, "letters")}"'
-        self._conn.insert_json_payload([input_json])
+        input_json = {"metric": f"{stb_name}", "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': tdCom.getLongName(16374, "letters"), 'type': 'binary'}}}
+        self._conn.insert_json_payload(json.dumps(input_json))
         
-        input_json = f'{stb_name} 1626006833639000000ns t t0=t,t1="{tdCom.getLongName(16375, "letters")}"'
+        input_json = {"metric": f"{stb_name}", "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': tdCom.getLongName(16375, "letters"), 'type': 'binary'}}}
         try:
-            self._conn.insert_json_payload([input_json])
+            self._conn.insert_json_payload(json.dumps(input_json))
             raise Exception("should not reach here")
         except JsonPayloadError as err:
-            pass
+            tdSql.checkNotEqual(err.errno, 0)
 
-        # nchar
-        # * legal nchar could not be larger than 16374/4
+        # # nchar
+        # # * legal nchar could not be larger than 16374/4
         stb_name = tdCom.getLongName(7, "letters")
-        input_json = f'{stb_name} 1626006833639000000ns t t0=t,t1=L"{tdCom.getLongName(4093, "letters")}"'
-        self._conn.insert_json_payload([input_json])
+        input_json = {"metric": f"{stb_name}", "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': tdCom.getLongName(4093, "letters"), 'type': 'nchar'}}}
+        self._conn.insert_json_payload(json.dumps(input_json))
 
-        input_json = f'{stb_name} 1626006833639000000ns t t0=t,t1=L"{tdCom.getLongName(4094, "letters")}"'
+        input_json = {"metric": f"{stb_name}", "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': tdCom.getLongName(4094, "letters"), 'type': 'nchar'}}}
         try:
-            self._conn.insert_json_payload([input_json])
+            self._conn.insert_json_payload(json.dumps(input_json))
             raise Exception("should not reach here")
         except JsonPayloadError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -690,99 +639,101 @@ class TDTestCase:
         """
         tdCom.cleanTb()
         # i8
-        for value in ["-127i8", "127i8"]:
-            input_json, stb_name = self.genFullTypeJson(value=value)
+        for value in [-127, 127]:
+            input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="tinyint"))
             self.resCmp(input_json, stb_name)
         tdCom.cleanTb()
-        for value in ["-128i8", "128i8"]:
-            input_json = self.genFullTypeJson(value=value)[0]
+        for value in [-128, 128]:
+            input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="tinyint"))[0]
             try:
-                self._conn.insert_json_payload([input_json])
+                self._conn.insert_json_payload(json.dumps(input_json))
                 raise Exception("should not reach here")
             except JsonPayloadError as err:
                 tdSql.checkNotEqual(err.errno, 0)
         # i16
         tdCom.cleanTb()
-        for value in ["-32767i16"]:
-            input_json, stb_name = self.genFullTypeJson(value=value)
+        for value in [-32767]:
+            input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="smallint"))
             self.resCmp(input_json, stb_name)
         tdCom.cleanTb()
-        for value in ["-32768i16", "32768i16"]:
-            input_json = self.genFullTypeJson(value=value)[0]
+        for value in [-32768, 32768]:
+            input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="smallint"))[0]
             try:
-                self._conn.insert_json_payload([input_json])
+                self._conn.insert_json_payload(json.dumps(input_json))
                 raise Exception("should not reach here")
             except JsonPayloadError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # i32
         tdCom.cleanTb()
-        for value in ["-2147483647i32"]:
-            input_json, stb_name = self.genFullTypeJson(value=value)
+        for value in [-2147483647]:
+            input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="int"))
             self.resCmp(input_json, stb_name)
         tdCom.cleanTb()
-        for value in ["-2147483648i32", "2147483648i32"]:
-            input_json = self.genFullTypeJson(value=value)[0]
+        for value in [-2147483648, 2147483648]:
+            input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="int"))[0]
             try:
-                self._conn.insert_json_payload([input_json])
+                self._conn.insert_json_payload(json.dumps(input_json))
                 raise Exception("should not reach here")
             except JsonPayloadError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-        # i64
-        tdCom.cleanTb()
-        for value in ["-9223372036854775807i64"]:
-            input_json, stb_name = self.genFullTypeJson(value=value)
-            self.resCmp(input_json, stb_name)
-        tdCom.cleanTb()
-        for value in ["-9223372036854775808i64", "9223372036854775808i64"]:
-            input_json = self.genFullTypeJson(value=value)[0]
-            try:
-                self._conn.insert_json_payload([input_json])
-                raise Exception("should not reach here")
-            except JsonPayloadError as err:
-                tdSql.checkNotEqual(err.errno, 0)
+        # i64 #! json bug
+        # tdCom.cleanTb()
+        # for value in [-9223372036854775807]:
+        #     input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="bigint"))
+        #     print("input_json---", input_json)
+        #     self.resCmp(input_json, stb_name)
+        # tdCom.cleanTb()
+        # for value in [-9223372036854775808, 9223372036854775808]:
+        #     input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="bigint"))[0]
+        #     try:
+        #         self._conn.insert_json_payload(json.dumps(input_json))
+        #         raise Exception("should not reach here")
+        #     except JsonPayloadError as err:
+        #         tdSql.checkNotEqual(err.errno, 0)
 
         # f32       
         tdCom.cleanTb()
-        for value in [f"{-3.4028234663852885981170418348451692544*(10**38)}f32", f"{3.4028234663852885981170418348451692544*(10**38)}f32"]:
-            input_json, stb_name = self.genFullTypeJson(value=value)
+        for value in [-3.4028234663852885981170418348451692544*(10**38), 3.4028234663852885981170418348451692544*(10**38)]:
+            input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="float"))
+            print(input_json)
             self.resCmp(input_json, stb_name)
         # * limit set to 4028234664*(10**38)
         tdCom.cleanTb()
-        for value in [f"{-3.4028234664*(10**38)}f32", f"{3.4028234664*(10**38)}f32"]:
-            input_json = self.genFullTypeJson(value=value)[0]
+        for value in [-3.4028234664*(10**38), 3.4028234664*(10**38)]:
+            input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="float"))[0]
             try:
-                self._conn.insert_json_payload([input_json])
+                self._conn.insert_json_payload(json.dumps(input_json))
                 raise Exception("should not reach here")
             except JsonPayloadError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # f64
         tdCom.cleanTb()
-        for value in [f'{-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)}f64', f'{-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)}f64']:
-            input_json, stb_name = self.genFullTypeJson(value=value)
+        for value in [-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308), -1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)]:
+            input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="double"))
             self.resCmp(input_json, stb_name)
         # * limit set to 1.797693134862316*(10**308)
         tdCom.cleanTb()
-        for value in [f'{-1.797693134862316*(10**308)}f64', f'{-1.797693134862316*(10**308)}f64']:
-            input_json = self.genFullTypeJson(value=value)[0]
+        for value in [-1.797693134862316*(10**308), -1.797693134862316*(10**308)]:
+            input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="double"))[0]
             try:
-                self._conn.insert_json_payload([input_json])
+                self._conn.insert_json_payload(json.dumps(input_json))
                 raise Exception("should not reach here")
             except JsonPayloadError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-        # # binary 
+        # binary 
         tdCom.cleanTb()
         stb_name = tdCom.getLongName(7, "letters")
-        input_json = f'{stb_name} 1626006833639000000ns "{tdCom.getLongName(16374, "letters")}" t0=t'
-        self._conn.insert_json_payload([input_json])
+        input_json = {"metric": f"{stb_name}", "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(16374, "letters"), 'type': 'binary'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
+        self._conn.insert_json_payload(json.dumps(input_json))
         
         tdCom.cleanTb()
-        input_json = f'{stb_name} 1626006833639000000ns "{tdCom.getLongName(16375, "letters")}" t0=t'
+        input_json = {"metric": f"{stb_name}", "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(16375, "letters"), 'type': 'binary'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
         try:
-            self._conn.insert_json_payload([input_json])
+            self._conn.insert_json_payload(json.dumps(input_json))
             raise Exception("should not reach here")
         except JsonPayloadError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -791,13 +742,13 @@ class TDTestCase:
         # * legal nchar could not be larger than 16374/4
         tdCom.cleanTb()
         stb_name = tdCom.getLongName(7, "letters")
-        input_json = f'{stb_name} 1626006833639000000ns L"{tdCom.getLongName(4093, "letters")}" t0=t'
-        self._conn.insert_json_payload([input_json])
+        input_json = {"metric": f"{stb_name}", "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(4093, "letters"), 'type': 'nchar'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
+        self._conn.insert_json_payload(json.dumps(input_json))
 
         tdCom.cleanTb()
-        input_json = f'{stb_name} 1626006833639000000ns L"{tdCom.getLongName(4094, "letters")}" t0=t'
+        input_json = {"metric": f"{stb_name}", "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(4094, "letters"), 'type': 'nchar'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
         try:
-            self._conn.insert_json_payload([input_json])
+            self._conn.insert_json_payload(json.dumps(input_json))
             raise Exception("should not reach here")
         except JsonPayloadError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -810,91 +761,57 @@ class TDTestCase:
         tdCom.cleanTb()
         # bool
         for i in ["TrUe", "tRue", "trUe", "truE", "FalsE", "fAlse", "faLse", "falSe", "falsE"]:
-            input_sql1 = self.genFullTypeJson(t0=i)[0]
             try:
-                self._conn.insert_json_payload([input_sql1])
-                raise Exception("should not reach here")
-            except JsonPayloadError as err:
-                tdSql.checkNotEqual(err.errno, 0)
-            input_sql2 = self.genFullTypeJson(value=i)[0]
-            try:
-                self._conn.insert_json_payload([input_sql2])
-                raise Exception("should not reach here")
+                input_json1 = self.genFullTypeJson(tag_value=self.genTagValue(t0_value=i))[0]
+                self._conn.insert_json_payload(json.dumps(input_json1))
+                input_json2 = self.genFullTypeJson(col_value=self.genTsColValue(value=i, t_type="bool"))[0]
+                self._conn.insert_json_payload(json.dumps(input_json2))
             except JsonPayloadError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # i8 i16 i32 i64 f32 f64
         for input_json in [
-                self.genFullTypeJson(t1="1s2i8")[0], 
-                self.genFullTypeJson(t2="1s2i16")[0],
-                self.genFullTypeJson(t3="1s2i32")[0],
-                self.genFullTypeJson(t4="1s2i64")[0],
-                self.genFullTypeJson(t5="11.1s45f32")[0],
-                self.genFullTypeJson(t6="11.1s45f64")[0], 
+                self.genFullTypeJson(tag_value=self.genTagValue(t1_value="1s2"))[0], 
+                self.genFullTypeJson(tag_value=self.genTagValue(t2_value="1s2"))[0], 
+                self.genFullTypeJson(tag_value=self.genTagValue(t3_value="1s2"))[0], 
+                self.genFullTypeJson(tag_value=self.genTagValue(t4_value="1s2"))[0], 
+                self.genFullTypeJson(tag_value=self.genTagValue(t5_value="11.1s45"))[0], 
+                self.genFullTypeJson(tag_value=self.genTagValue(t6_value="11.1s45"))[0], 
             ]:
             try:
-                self._conn.insert_json_payload([input_json])
-                raise Exception("should not reach here")
+                self._conn.insert_json_payload(json.dumps(input_json))
             except JsonPayloadError as err:
                 tdSql.checkNotEqual(err.errno, 0)
+                
 
         # check binary and nchar blank
-        input_sql1 = f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns "abc aaa" t0=t'
-        input_sql2 = f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns L"abc aaa" t0=t'
-        input_sql3 = f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns t t0="abc aaa"'
-        input_sql4 = f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns t t0=L"abc aaa"'
+        input_sql1 = self.genFullTypeJson(col_value=self.genTsColValue(value="abc aaa", t_type="binary"))[0]
+        input_sql2 = self.genFullTypeJson(col_value=self.genTsColValue(value="abc aaa", t_type="nchar"))[0]
+        input_sql3 = self.genFullTypeJson(tag_value=self.genTagValue(t7_value="abc aaa"))[0]
+        input_sql4 = self.genFullTypeJson(tag_value=self.genTagValue(t8_value="abc aaa"))[0]
         for input_json in [input_sql1, input_sql2, input_sql3, input_sql4]:
             try:
-                self._conn.insert_json_payload([input_json])
+                self._conn.insert_json_payload(json.dumps(input_json))
             except JsonPayloadError as err:
                 pass
 
         # check accepted binary and nchar symbols 
         # # * ~!@#$¥%^&*()-+={}|[]、「」:;
         for symbol in list('~!@#$¥%^&*()-+={}|[]、「」:;'):
-            input_sql1 = f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns "abc{symbol}aaa" t0=t'
-            input_sql2 = f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns t t0=t,t1="abc{symbol}aaa"'
-            self._conn.insert_json_payload([input_sql1])
-            self._conn.insert_json_payload([input_sql2])
-        
-    def blankCheckCase(self):
-        '''
-            check blank case
-        '''
-        tdCom.cleanTb()
-        input_sql_list = [f'{tdCom.getLongName(7, "letters")} {tdCom.getLongName(7, "letters")} 1626006833639000000ns "abcaaa" t0=t',
-                        f'{tdCom.getLongName(7, "letters")} 16260068336 39000000ns L"bcdaaa" t1=f',
-                        f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns t t0="abc  aaa"',
-                        f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns t t0=L"abc  aaa"',
-                        f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns "abc  aaa" t0=L"abcaaa"',
-                        f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns L"abc  aaa" t0=L"abcaaa"',
-                        f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns L"abaaa"  t0=L"abcaaa1"',
-                        f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns  L"abaaa" t0=L"abcaaa2"',
-                        f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns L"abaaa" t0=t t1="abc t2="taa""',
-                        f'{tdCom.getLongName(7, "letters")}  1626006833639000000ns L"abaaa" t0=L"abcaaa3"']
-        for input_json in input_sql_list:
-            try:
-                self._conn.insert_json_payload([input_json])
-                raise Exception("should not reach here")
-            except JsonPayloadError as err:
-                tdSql.checkNotEqual(err.errno, 0)
+            input_json1 = self.genFullTypeJson(col_value=self.genTsColValue(value=f"abc{symbol}aaa", t_type="binary"))[0]
+            input_json2 = self.genFullTypeJson(tag_value=self.genTagValue(t8_value=f"abc{symbol}aaa"))[0]
+            self._conn.insert_json_payload(json.dumps(input_json1))
+            self._conn.insert_json_payload(json.dumps(input_json2))
 
     def duplicateIdTagColInsertCheckCase(self):
         """
             check duplicate Id Tag Col
         """
         tdCom.cleanTb()
-        input_sql_id = self.genFullTypeJson(id_double_tag=True)[0]
+        input_json = self.genFullTypeJson(id_double_tag=True)[0]
+        print(input_json)
         try:
-            self._conn.insert_json_payload([input_sql_id])
-            raise Exception("should not reach here")
-        except JsonPayloadError as err:
-            tdSql.checkNotEqual(err.errno, 0)
-
-        input_json = self.genFullTypeJson()[0]
-        input_sql_tag = input_json.replace("t5", "t6")
-        try:
-            self._conn.insert_json_payload([input_sql_tag])
+            self._conn.insert_json_payload(json.dumps(input_json))
             raise Exception("should not reach here")
         except JsonPayloadError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -921,7 +838,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_json, stb_name = self.genFullTypeJson()
         self.resCmp(input_json, stb_name)
-        self._conn.insert_json_payload([input_json])
+        self._conn.insert_json_payload(json.dumps(input_json))
         self.resCmp(input_json, stb_name)
 
     def tagColBinaryNcharLengthCheckCase(self):
@@ -992,7 +909,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkEqual(tb_name1, tb_name2)
         input_json, stb_name = self.genFullTypeJson(stb_name=stb_name, t0="f", value="f", id_noexist_tag=True, t_add_tag=True)
-        self._conn.insert_json_payload([input_json])
+        self._conn.insert_json_payload(json.dumps(input_json))
         tb_name3 = self.getNoIdTbName(stb_name)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
@@ -1008,20 +925,20 @@ class TDTestCase:
         tb_name = f'{stb_name}_1'
 
         input_json = f'{stb_name} 1626006833639000000ns f id="{tb_name}",t0=t'
-        self._conn.insert_json_payload([input_json])
+        self._conn.insert_json_payload(json.dumps(input_json))
 
         # * every binary and nchar must be length+2, so here is two tag, max length could not larger than 16384-2*2
         input_json = f'{stb_name} 1626006833639000000ns f t0=t,t1="{tdCom.getLongName(16374, "letters")}",t2="{tdCom.getLongName(5, "letters")}"'
-        self._conn.insert_json_payload([input_json])
+        self._conn.insert_json_payload(json.dumps(input_json))
         
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
         input_json = f'{stb_name} 1626006833639000000ns f t0=t,t1="{tdCom.getLongName(16374, "letters")}",t2="{tdCom.getLongName(6, "letters")}"'
         try:
-            self._conn.insert_json_payload([input_json])
+            self._conn.insert_json_payload(json.dumps(input_json))
             raise Exception("should not reach here")
-        except JsonPayloadError:
-            pass
+        except JsonPayloadError as err:
+            tdSql.checkNotEqual(err.errno, 0)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
 
@@ -1034,16 +951,16 @@ class TDTestCase:
         stb_name = tdCom.getLongName(7, "letters")
         tb_name = f'{stb_name}_1'
         input_json = f'{stb_name} 1626006833639000000ns f id="{tb_name}",t0=t'
-        self._conn.insert_json_payload([input_json])
+        self._conn.insert_json_payload(json.dumps(input_json))
 
         # * legal nchar could not be larger than 16374/4
         input_json = f'{stb_name} 1626006833639000000ns f t0=t,t1=L"{tdCom.getLongName(4093, "letters")}",t2=L"{tdCom.getLongName(1, "letters")}"'
-        self._conn.insert_json_payload([input_json])
+        self._conn.insert_json_payload(json.dumps(input_json))
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
         input_json = f'{stb_name} 1626006833639000000ns f t0=t,t1=L"{tdCom.getLongName(4093, "letters")}",t2=L"{tdCom.getLongName(2, "letters")}"'
         try:
-            self._conn.insert_json_payload([input_json])
+            self._conn.insert_json_payload(json.dumps(input_json))
             raise Exception("should not reach here")
         except JsonPayloadError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -1112,7 +1029,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_json = self.genFullTypeJson(t_multi_tag=True)[0]
         try:
-            self._conn.insert_json_payload([input_json])
+            self._conn.insert_json_payload(json.dumps(input_json))
             raise Exception("should not reach here")
         except JsonPayloadError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -1124,7 +1041,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_json = self.genFullTypeJson(c_blank_tag=True)[0]
         try:
-            self._conn.insert_json_payload([input_json])
+            self._conn.insert_json_payload(json.dumps(input_json))
             raise Exception("should not reach here")
         except JsonPayloadError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -1136,7 +1053,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_json = self.genFullTypeJson(t_blank_tag=True)[0]
         try:
-            self._conn.insert_json_payload([input_json])
+            self._conn.insert_json_payload(json.dumps(input_json))
             raise Exception("should not reach here")
         except JsonPayloadError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -1156,7 +1073,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_json = self.genFullTypeJson(multi_field_tag=True)[0]
         try:
-            self._conn.insert_json_payload([input_json])
+            self._conn.insert_json_payload(json.dumps(input_json))
             raise Exception("should not reach here")
         except JsonPayloadError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -1172,9 +1089,9 @@ class TDTestCase:
                         f'{stb_name} 1626006833639000000NS "hkgjiwdj" t0=f t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="vozamcts" t8=L"ncharTagValue"']
         for input_json in input_sql_list:
             try:
-                self._conn.insert_json_payload([input_json])
+                self._conn.insert_json_payload(json.dumps(input_json))
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except JsonPayloadError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
     def genSqlList(self, count=5, stb_name="", tb_name=""):
@@ -1428,7 +1345,7 @@ class TDTestCase:
         # input_sql2 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 1626006933640000000ns"
         try:
             input_json = f'test_nchar 0 L"涛思数据" t0=f,t1=L"涛思数据",t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64'
-            self._conn.insert_json_payload([input_json])
+            self._conn.insert_json_payload(json.dumps(input_json))
             # input_json, stb_name = self.genFullTypeJson()
             # self.resCmp(input_json, stb_name)        
         except JsonPayloadError as err:
@@ -1448,21 +1365,24 @@ class TDTestCase:
             tag_json = self.genTagValue()
             print(tag_json)
             # input_json = f'test_nchar 0 L"涛思数据" t0=f,t1=L"涛思数据",t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64'
-            # self._conn.insert_json_payload([input_json])
+            # self._conn.insert_json_payload(json.dumps(input_json))
             # input_json, stb_name = self.genFullTypeJson()
             # self.resCmp(input_json, stb_name)        
         except JsonPayloadError as err:
             print(err.errno)
 
     def runAll(self):
-        self.initCheckCase()
-        self.boolTypeCheckCase()
-        self.symbolsCheckCase()
-        self.tsCheckCase()
+        # self.initCheckCase()
+        # self.boolTypeCheckCase()
+        # self.symbolsCheckCase()
+        # self.tsCheckCase()
         # self.idSeqCheckCase()
         # self.idUpperCheckCase()
         # self.noIdCheckCase()
         # self.maxColTagCheckCase()
+
+
+
         # self.idIllegalNameCheckCase()
         # self.idStartWithNumCheckCase()
         # self.nowTsCheckCase()
@@ -1471,8 +1391,7 @@ class TDTestCase:
         # self.tagValueLengthCheckCase()
         # self.colValueLengthCheckCase()
         # self.tagColIllegalValueCheckCase()
-        # self.blankCheckCase()
-        # self.duplicateIdTagColInsertCheckCase()
+        self.duplicateIdTagColInsertCheckCase()
         # self.noIdStbExistCheckCase()
         # self.duplicateInsertExistCheckCase()
         # self.tagColBinaryNcharLengthCheckCase()
