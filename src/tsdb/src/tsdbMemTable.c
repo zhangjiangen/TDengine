@@ -825,7 +825,19 @@ static int tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pT
   int       sversion = schemaVersion(pSchema);
 
   if (pBlock->sversion == sversion) {
-    return 0;
+    if (pTable->tableId.tid == 4607) {
+      if (pBlock->sversion == 0) {
+        // int32_t nRows = htons(pBlock->numOfRows);
+        // int32_t dataLen = htonl(pBlock->dataLen);
+        // for (int i = 0; i < nRows; ++i) {
+        // }
+        pBlock->sversion += 1;
+      } else {
+        return 0;
+      }
+    } else {
+      return 0;
+    }
   } else {
     if (TABLE_TYPE(pTable) == TSDB_STREAM_TABLE) {  // stream table is not allowed to change schema
       terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
