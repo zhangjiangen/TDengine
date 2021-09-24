@@ -233,7 +233,7 @@ class TDTestCase:
     def genFullTypeJson(self, ts_value="", col_value="", tag_value="", stb_name="", tb_name="", 
                         id_noexist_tag=None, id_change_tag=None, id_upper_tag=None, id_double_tag=None,
                         t_add_tag=None, t_mul_tag=None, c_multi_tag=None, c_blank_tag=None, t_blank_tag=None, 
-                        chinese_tag=None, multi_field_tag=None):
+                        chinese_tag=None, multi_field_tag=None, point_trans_tag=None):
         if stb_name == "":
             stb_name = tdCom.getLongName(len=6, mode="letters")
         if tb_name == "":
@@ -250,42 +250,44 @@ class TDTestCase:
             id = "id"
         if id_noexist_tag is None:
             tag_value[id] = tb_name
-        sql_json = {"metric": f"{stb_name}", "timestamp": ts_value, "value": col_value, "tags": tag_value}
+        sql_json = {"metric": stb_name, "timestamp": ts_value, "value": col_value, "tags": tag_value}
         if id_noexist_tag is not None:
             if t_add_tag is not None:
                 tag_value["t9"] = {"value": "ncharTagValue", "type": "nchar"}
-                sql_json = {"metric": f"{stb_name}", "timestamp": ts_value, "value": col_value, "tags": tag_value}
+                sql_json = {"metric": stb_name, "timestamp": ts_value, "value": col_value, "tags": tag_value}
         if id_change_tag is not None:
             tag_value.pop('t8')
             tag_value["t8"] = {"value": "ncharTagValue", "type": "nchar"}
-            sql_json = {"metric": f"{stb_name}", "timestamp": ts_value, "value": col_value, "tags": tag_value}
+            sql_json = {"metric": stb_name, "timestamp": ts_value, "value": col_value, "tags": tag_value}
         if id_double_tag is not None:
             tag_value["ID"] = f'"{tb_name}_2"'
-            sql_json = {"metric": f"{stb_name}", "timestamp": ts_value, "value": col_value, "tags": tag_value}
+            sql_json = {"metric": stb_name, "timestamp": ts_value, "value": col_value, "tags": tag_value}
         if t_add_tag is not None:
             tag_value["t10"] = {"value": "ncharTagValue", "type": "nchar"}
             tag_value["t11"] = {"value": True, "type": "bool"}
-            sql_json = {"metric": f"{stb_name}", "timestamp": ts_value, "value": col_value, "tags": tag_value}
+            sql_json = {"metric": stb_name, "timestamp": ts_value, "value": col_value, "tags": tag_value}
         if t_mul_tag is not None:
             tag_value.pop('t8')
-            sql_json = {"metric": f"{stb_name}", "timestamp": ts_value, "value": col_value, "tags": tag_value}
+            sql_json = {"metric": stb_name, "timestamp": ts_value, "value": col_value, "tags": tag_value}
             if id_noexist_tag is not None:
                 tag_value.pop('t8')
-                sql_json = {"metric": f"{stb_name}", "timestamp": ts_value, "value": col_value, "tags": tag_value}
+                sql_json = {"metric": stb_name, "timestamp": ts_value, "value": col_value, "tags": tag_value}
         if c_multi_tag is not None:
             col_value = [{"value": True, "type": "bool"}, {"value": False, "type": "bool"}]
-            sql_json = {"metric": f"{stb_name}", "timestamp": ts_value, "value": col_value, "tags": tag_value}
-        
+            sql_json = {"metric": stb_name, "timestamp": ts_value, "value": col_value, "tags": tag_value}
         if t_blank_tag is not None:
-            tag_value = {"id": f'"{tdCom.getLongName(len=6, mode="letters")}"'}
-            sql_json = {"metric": f"{stb_name}", "timestamp": ts_value, "value": col_value, "tags": tag_value}
+            tag_value = {"id": tdCom.getLongName(len=6, mode="letters")}
+            sql_json = {"metric": stb_name, "timestamp": ts_value, "value": col_value, "tags": tag_value}
         if chinese_tag is not None:
-            tag_value = {"id": "涛思数据", "t0": "涛思数据"}
-            sql_json = {"metric": f"{stb_name}", "timestamp": ts_value, "value": col_value, "tags": tag_value}
+            tag_value = {"id": "abc", "t0": {"value": "涛思数据", "type": "nchar"}}
+            col_value = {"value": "涛思数据", "type": "nchar"}
+            sql_json = {"metric": stb_name, "timestamp": ts_value, "value": col_value, "tags": tag_value}
         if c_blank_tag is not None:
             sql_json.pop("value")
         if multi_field_tag is not None:
-            sql_json = {"metric": f"{stb_name}", "timestamp": ts_value, "value": col_value, "tags": tag_value, "tags": tag_value}
+            sql_json = {"metric": stb_name, "timestamp": ts_value, "value": col_value, "tags": tag_value, "tags2": tag_value}
+        if point_trans_tag is not None:
+            sql_json = {"metric": "point.trans.test", "timestamp": ts_value, "value": col_value, "tags": tag_value}
         return sql_json, stb_name
     
     def genMulTagColDict(self, genType, count=1):
@@ -1125,21 +1127,43 @@ class TDTestCase:
         except JsonPayloadError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
-    def errorTypeCheckCase(self):
+    def spellCheckCase(self):
         stb_name = tdCom.getLongName(8, "letters")
-        input_sql_list = [f'{stb_name} 0 "hkgjiwdj" t0=f t1=127I8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="vozamcts" t8=L"ncharTagValue"', \
-                        f'{stb_name} 0 "hkgjiwdj" t0=f t1=127i8 t2=32767I16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="vozamcts" t8=L"ncharTagValue"', \
-                        f'{stb_name} 0 "hkgjiwdj" t0=f t1=127i8 t2=32767i16 t3=2147483647I32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="vozamcts" t8=L"ncharTagValue"', \
-                        f'{stb_name} 0 "hkgjiwdj" t0=f t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807I64 t5=11.12345f32 t6=22.123456789f64 t7="vozamcts" t8=L"ncharTagValue"', \
-                        f'{stb_name} 0 "hkgjiwdj" t0=f t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345F32 t6=22.123456789f64 t7="vozamcts" t8=L"ncharTagValue"', \
-                        f'{stb_name} 0 "hkgjiwdj" t0=f t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789F64 t7="vozamcts" t8=L"ncharTagValue"', \
-                        f'{stb_name} 1626006833639000000NS "hkgjiwdj" t0=f t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="vozamcts" t8=L"ncharTagValue"']
-        for input_json in input_sql_list:
-            try:
-                self._conn.insert_json_payload(json.dumps(input_json))
-                raise Exception("should not reach here")
-            except JsonPayloadError as err:
-                tdSql.checkNotEqual(err.errno, 0)
+        input_json_list = [{"metric": f'{stb_name}_1', "timestamp": {"value": 1626006833639000000, "type": "Ns"}, "value": {"value": 1, "type": "Bigint"}, "tags": {"t1": {"value": 127, "type": "tinYint"}}},
+                        {"metric": f'{stb_name}_2', "timestamp": {"value": 1626006833639000001, "type": "nS"}, "value": {"value": 32767, "type": "smallInt"}, "tags": {"t1": {"value": 32767, "type": "smallYint"}}},
+                        {"metric": f'{stb_name}_3', "timestamp": {"value": 1626006833639000002, "type": "NS"}, "value": {"value": 2147483647, "type": "iNt"}, "tags": {"t1": {"value": 2147483647, "type": "iNt"}}},
+                        {"metric": f'{stb_name}_4', "timestamp": {"value": 1626006833639000003, "type": "Us"}, "value": {"value": 9223372036854775807, "type": "bigInt"}, "tags": {"t1": {"value": 9223372036854775807, "type": "bigInt"}}},
+                        {"metric": f'{stb_name}_5', "timestamp": {"value": 1626006833639000004, "type": "uS"}, "value": {"value": 11.12345, "type": "flOat"}, "tags": {"t1": {"value": 11.12345, "type": "flOat"}}},
+                        {"metric": f'{stb_name}_6', "timestamp": {"value": 1626006833639000005, "type": "US"}, "value": {"value": 22.123456789, "type": "douBle"}, "tags": {"t1": {"value": 22.123456789, "type": "douBle"}}},
+                        {"metric": f'{stb_name}_7', "timestamp": {"value": 1626006833639000006, "type": "Ms"}, "value": {"value": "vozamcts", "type": "binaRy"}, "tags": {"t1": {"value": "vozamcts", "type": "binaRy"}}},
+                        {"metric": f'{stb_name}_8', "timestamp": {"value": 1626006833639000007, "type": "mS"}, "value": {"value": "vozamcts", "type": "nchAr"}, "tags": {"t1": {"value": "vozamcts", "type": "nchAr"}}},
+                        {"metric": f'{stb_name}_9', "timestamp": {"value": 1626006833639000008, "type": "MS"}, "value": {"value": "vozamcts", "type": "nchAr"}, "tags": {"t1": {"value": "vozamcts", "type": "nchAr"}}},
+                        {"metric": f'{stb_name}_10', "timestamp": {"value": 1626006834, "type": "S"}, "value": {"value": "vozamcts", "type": "nchAr"}, "tags": {"t1": {"value": "vozamcts", "type": "nchAr"}}}]
+       
+        for input_sql in input_json_list:
+            stb_name = input_sql["metric"]
+            self.resCmp(input_sql, stb_name)
+
+    def pointTransCheckCase(self):
+        """
+            metric value "." trans to "_"
+        """
+        tdCom.cleanTb()
+        input_json = self.genFullTypeJson(point_trans_tag=True)[0]
+        stb_name = input_json["metric"].replace(".", "_")
+        print(input_json)
+        self.resCmp(input_json, stb_name)
+
+    def defaultTypeCheckCase(self):
+        stb_name = tdCom.getLongName(8, "letters")
+        input_sql_list = [f'{stb_name}_1 1626006833639000000Ns 9223372036854775807 t0=f t1=127 t2=32767i16 t3=2147483647i32 t4=9223372036854775807 t5=11.12345f32 t6=22.123456789f64 t7="vozamcts" t8=L"ncharTagValue"', \
+                        f'{stb_name}_2 1626006834S 22.123456789 t0=f t1=127i8 t2=32767I16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789 t7="vozamcts" t8=L"ncharTagValue"', \
+                        f'{stb_name}_3 1626006834S 10e5 t0=f t1=127i8 t2=32767I16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=10e5 t7="vozamcts" t8=L"ncharTagValue"', \
+                        f'{stb_name}_4 1626006834S 10.0e5 t0=f t1=127i8 t2=32767I16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=10.0e5 t7="vozamcts" t8=L"ncharTagValue"', \
+                        f'{stb_name}_5 1626006834S -10.0e5 t0=f t1=127i8 t2=32767I16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=-10.0e5 t7="vozamcts" t8=L"ncharTagValue"']
+        for input_sql in input_sql_list:
+            stb_name = input_sql.split(" ")[0]
+            self.resCmp(input_sql, stb_name)
 
     def genSqlList(self, count=5, stb_name="", tb_name=""):
         """
@@ -1451,12 +1475,13 @@ class TDTestCase:
         # self.multiInsertCheckCase(1000)
         # self.batchErrorInsertCheckCase()
         # self.multiColsInsertCheckCase()
-        # TODO begin here
         # self.blankColInsertCheckCase()
         # self.blankTagInsertCheckCase()
         # self.chineseCheckCase()
         # self.multiFieldCheckCase()
-        # self.errorTypeCheckCase()
+        #! bug
+        # self.spellCheckCase()
+        self.pointTransCheckCase()
         # # # MultiThreads
         # self.stbInsertMultiThreadCheckCase()
         # self.sStbStbDdataInsertMultiThreadCheckCase()
