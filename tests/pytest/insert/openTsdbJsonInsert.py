@@ -269,9 +269,6 @@ class TDTestCase:
         if t_mul_tag is not None:
             tag_value.pop('t8')
             sql_json = {"metric": stb_name, "timestamp": ts_value, "value": col_value, "tags": tag_value}
-            if id_noexist_tag is not None:
-                tag_value.pop('t8')
-                sql_json = {"metric": stb_name, "timestamp": ts_value, "value": col_value, "tags": tag_value}
         if c_multi_tag is not None:
             col_value = [{"value": True, "type": "bool"}, {"value": False, "type": "bool"}]
             sql_json = {"metric": stb_name, "timestamp": ts_value, "value": col_value, "tags": tag_value}
@@ -1130,17 +1127,18 @@ class TDTestCase:
     def spellCheckCase(self):
         stb_name = tdCom.getLongName(8, "letters")
         input_json_list = [{"metric": f'{stb_name}_1', "timestamp": {"value": 1626006833639000000, "type": "Ns"}, "value": {"value": 1, "type": "Bigint"}, "tags": {"t1": {"value": 127, "type": "tinYint"}}},
-                        {"metric": f'{stb_name}_2', "timestamp": {"value": 1626006833639000001, "type": "nS"}, "value": {"value": 32767, "type": "smallInt"}, "tags": {"t1": {"value": 32767, "type": "smallYint"}}},
+                        {"metric": f'{stb_name}_2', "timestamp": {"value": 1626006833639000001, "type": "nS"}, "value": {"value": 32767, "type": "smallInt"}, "tags": {"t1": {"value": 32767, "type": "smallInt"}}},
                         {"metric": f'{stb_name}_3', "timestamp": {"value": 1626006833639000002, "type": "NS"}, "value": {"value": 2147483647, "type": "iNt"}, "tags": {"t1": {"value": 2147483647, "type": "iNt"}}},
-                        {"metric": f'{stb_name}_4', "timestamp": {"value": 1626006833639000003, "type": "Us"}, "value": {"value": 9223372036854775807, "type": "bigInt"}, "tags": {"t1": {"value": 9223372036854775807, "type": "bigInt"}}},
-                        {"metric": f'{stb_name}_5', "timestamp": {"value": 1626006833639000004, "type": "uS"}, "value": {"value": 11.12345, "type": "flOat"}, "tags": {"t1": {"value": 11.12345, "type": "flOat"}}},
-                        {"metric": f'{stb_name}_6', "timestamp": {"value": 1626006833639000005, "type": "US"}, "value": {"value": 22.123456789, "type": "douBle"}, "tags": {"t1": {"value": 22.123456789, "type": "douBle"}}},
-                        {"metric": f'{stb_name}_7', "timestamp": {"value": 1626006833639000006, "type": "Ms"}, "value": {"value": "vozamcts", "type": "binaRy"}, "tags": {"t1": {"value": "vozamcts", "type": "binaRy"}}},
-                        {"metric": f'{stb_name}_8', "timestamp": {"value": 1626006833639000007, "type": "mS"}, "value": {"value": "vozamcts", "type": "nchAr"}, "tags": {"t1": {"value": "vozamcts", "type": "nchAr"}}},
-                        {"metric": f'{stb_name}_9', "timestamp": {"value": 1626006833639000008, "type": "MS"}, "value": {"value": "vozamcts", "type": "nchAr"}, "tags": {"t1": {"value": "vozamcts", "type": "nchAr"}}},
+                        {"metric": f'{stb_name}_4', "timestamp": {"value": 1626006833639019, "type": "Us"}, "value": {"value": 9223372036854775807, "type": "bigInt"}, "tags": {"t1": {"value": 9223372036854775807, "type": "bigInt"}}},
+                        {"metric": f'{stb_name}_5', "timestamp": {"value": 1626006833639018, "type": "uS"}, "value": {"value": 11.12345027923584, "type": "flOat"}, "tags": {"t1": {"value": 11.12345027923584, "type": "flOat"}}},
+                        {"metric": f'{stb_name}_6', "timestamp": {"value": 1626006833639017, "type": "US"}, "value": {"value": 22.123456789, "type": "douBle"}, "tags": {"t1": {"value": 22.123456789, "type": "douBle"}}},
+                        {"metric": f'{stb_name}_7', "timestamp": {"value": 1626006833640, "type": "Ms"}, "value": {"value": "vozamcts", "type": "binaRy"}, "tags": {"t1": {"value": "vozamcts", "type": "binaRy"}}},
+                        {"metric": f'{stb_name}_8', "timestamp": {"value": 1626006833641, "type": "mS"}, "value": {"value": "vozamcts", "type": "nchAr"}, "tags": {"t1": {"value": "vozamcts", "type": "nchAr"}}},
+                        {"metric": f'{stb_name}_9', "timestamp": {"value": 1626006833642, "type": "MS"}, "value": {"value": "vozamcts", "type": "nchAr"}, "tags": {"t1": {"value": "vozamcts", "type": "nchAr"}}},
                         {"metric": f'{stb_name}_10', "timestamp": {"value": 1626006834, "type": "S"}, "value": {"value": "vozamcts", "type": "nchAr"}, "tags": {"t1": {"value": "vozamcts", "type": "nchAr"}}}]
        
         for input_sql in input_json_list:
+            print(input_sql)
             stb_name = input_sql["metric"]
             self.resCmp(input_sql, stb_name)
 
@@ -1191,19 +1189,19 @@ class TDTestCase:
         s_stb_d_tb_d_ts_m_tag_list = list()
         s_stb_d_tb_d_ts_a_tag_list = list()
         for i in range(count):
-            d_stb_d_tb_list.append(self.genFullTypeJson(t0="f", value="f"))
-            s_stb_s_tb_list.append(self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', value=f'"{tdCom.getLongName(8, "letters")}"'))
-            s_stb_s_tb_a_tag_list.append(self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', value=f'"{tdCom.getLongName(8, "letters")}"', t_add_tag=True))
-            s_stb_s_tb_m_tag_list.append(self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', value=f'"{tdCom.getLongName(8, "letters")}"', t_mul_tag=True))
-            s_stb_d_tb_list.append(self.genFullTypeJson(stb_name=stb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', value=f'"{tdCom.getLongName(8, "letters")}"', id_noexist_tag=True))
-            s_stb_d_tb_m_tag_list.append(self.genFullTypeJson(stb_name=stb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', value=f'"{tdCom.getLongName(8, "letters")}"', id_noexist_tag=True, t_mul_tag=True))
-            s_stb_d_tb_a_tag_list.append(self.genFullTypeJson(stb_name=stb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', value=f'"{tdCom.getLongName(8, "letters")}"', id_noexist_tag=True, t_add_tag=True))
-            s_stb_s_tb_d_ts_list.append(self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', value=f'"{tdCom.getLongName(8, "letters")}"', ts=0))
-            s_stb_s_tb_d_ts_m_tag_list.append(self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', value=f'"{tdCom.getLongName(8, "letters")}"', ts=0, t_mul_tag=True))
-            s_stb_s_tb_d_ts_a_tag_list.append(self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', value=f'"{tdCom.getLongName(8, "letters")}"', ts=0, t_add_tag=True))
-            s_stb_d_tb_d_ts_list.append(self.genFullTypeJson(stb_name=stb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', value=f'"{tdCom.getLongName(8, "letters")}"', id_noexist_tag=True, ts=0))
-            s_stb_d_tb_d_ts_m_tag_list.append(self.genFullTypeJson(stb_name=stb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', value=f'"{tdCom.getLongName(8, "letters")}"', id_noexist_tag=True, ts=0, t_mul_tag=True))
-            s_stb_d_tb_d_ts_a_tag_list.append(self.genFullTypeJson(stb_name=stb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', value=f'"{tdCom.getLongName(8, "letters")}"', id_noexist_tag=True, ts=0, t_add_tag=True))
+            d_stb_d_tb_list.append(self.genFullTypeJson(col_value=self.genTsColValue(value=True, t_type="bool"), tag_value=self.genTagValue(t0_value=True)))
+            s_stb_s_tb_list.append(self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, col_value=self.genTsColValue(value={tdCom.getLongName(8, "letters")}, t_type="binary"), tag_value=self.genTagValue(t7_value=tdCom.getLongName(8, "letters"))))
+            s_stb_s_tb_a_tag_list.append(self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, col_value=self.genTsColValue(value={tdCom.getLongName(8, "letters")}, t_type="binary"), tag_value=self.genTagValue(t7_value=tdCom.getLongName(8, "letters")), t_add_tag=True))
+            s_stb_s_tb_m_tag_list.append(self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, col_value=self.genTsColValue(value={tdCom.getLongName(8, "letters")}, t_type="binary"), tag_value=self.genTagValue(t7_value=tdCom.getLongName(8, "letters")), t_mul_tag=True))
+            s_stb_d_tb_list.append(self.genFullTypeJson(stb_name=stb_name, col_value=self.genTsColValue(value={tdCom.getLongName(8, "letters")}, t_type="binary"), tag_value=self.genTagValue(t7_value=tdCom.getLongName(8, "letters")), id_noexist_tag=True))
+            s_stb_d_tb_m_tag_list.append(self.genFullTypeJson(stb_name=stb_name, col_value=self.genTsColValue(value={tdCom.getLongName(8, "letters")}, t_type="binary"), tag_value=self.genTagValue(t7_value=tdCom.getLongName(8, "letters")), id_noexist_tag=True, t_mul_tag=True))
+            s_stb_d_tb_a_tag_list.append(self.genFullTypeJson(stb_name=stb_name, col_value=self.genTsColValue(value={tdCom.getLongName(8, "letters")}, t_type="binary"), tag_value=self.genTagValue(t7_value=tdCom.getLongName(8, "letters")), id_noexist_tag=True, t_add_tag=True))
+            s_stb_s_tb_d_ts_list.append(self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, col_value=self.genTsColValue(value={tdCom.getLongName(8, "letters")}, t_type="binary"), tag_value=self.genTagValue(t7_value=tdCom.getLongName(8, "letters")), ts_value = self.genTsColValue(1626006833639000000, "ns")))
+            s_stb_s_tb_d_ts_m_tag_list.append(self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, col_value=self.genTsColValue(value={tdCom.getLongName(8, "letters")}, t_type="binary"), tag_value=self.genTagValue(t7_value=tdCom.getLongName(8, "letters")), ts_value = self.genTsColValue(1626006833639000000, "ns"), t_mul_tag=True))
+            s_stb_s_tb_d_ts_a_tag_list.append(self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, col_value=self.genTsColValue(value={tdCom.getLongName(8, "letters")}, t_type="binary"), tag_value=self.genTagValue(t7_value=tdCom.getLongName(8, "letters")), ts_value = self.genTsColValue(1626006833639000000, "ns"), t_add_tag=True))
+            s_stb_d_tb_d_ts_list.append(self.genFullTypeJson(stb_name=stb_name, col_value=self.genTsColValue(value={tdCom.getLongName(8, "letters")}, t_type="binary"), tag_value=self.genTagValue(t7_value=tdCom.getLongName(8, "letters")), id_noexist_tag=True, ts_value = self.genTsColValue(1626006833639000000, "ns")))
+            s_stb_d_tb_d_ts_m_tag_list.append(self.genFullTypeJson(stb_name=stb_name, col_value=self.genTsColValue(value={tdCom.getLongName(8, "letters")}, t_type="binary"), tag_value=self.genTagValue(t7_value=tdCom.getLongName(8, "letters")), id_noexist_tag=True, ts_value = self.genTsColValue(0, "ns"), t_mul_tag=True))
+            s_stb_d_tb_d_ts_a_tag_list.append(self.genFullTypeJson(stb_name=stb_name, col_value=self.genTsColValue(value={tdCom.getLongName(8, "letters")}, t_type="binary"), tag_value=self.genTagValue(t7_value=tdCom.getLongName(8, "letters")), id_noexist_tag=True, ts_value = self.genTsColValue(0, "ns"), t_add_tag=True))
 
         return d_stb_d_tb_list, s_stb_s_tb_list, s_stb_s_tb_a_tag_list, s_stb_s_tb_m_tag_list, \
             s_stb_d_tb_list, s_stb_d_tb_m_tag_list, s_stb_d_tb_a_tag_list, s_stb_s_tb_d_ts_list, \
@@ -1214,7 +1212,7 @@ class TDTestCase:
     def genMultiThreadSeq(self, sql_list):
         tlist = list()
         for insert_sql in sql_list:
-            t = threading.Thread(target=self._conn.insert_json_payload,args=([insert_sql[0]],))
+            t = threading.Thread(target=self._conn.insert_json_payload,args=(json.dumps(insert_sql[0]),))
             tlist.append(t)
         return tlist
 
@@ -1240,16 +1238,18 @@ class TDTestCase:
         """
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(7, "letters")
-        input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, value="\"binaryTagValue\"")
+        input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
+        print(input_json)
+
         self.resCmp(input_json, stb_name)
-        s_stb_s_tb_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[1]
-        self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_list))
-        tdSql.query(f"show tables;")
-        tdSql.checkRows(1)
-        expected_tb_name = self.getNoIdTbName(stb_name)[0]
-        tdSql.checkEqual(tb_name, expected_tb_name)
-        tdSql.query(f"select * from {stb_name};")
-        tdSql.checkRows(1)
+        # s_stb_s_tb_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[1]
+        # self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_list))
+        # tdSql.query(f"show tables;")
+        # tdSql.checkRows(1)
+        # expected_tb_name = self.getNoIdTbName(stb_name)[0]
+        # tdSql.checkEqual(tb_name, expected_tb_name)
+        # tdSql.query(f"select * from {stb_name};")
+        # tdSql.checkRows(1)
 
     def sStbStbDdataAtInsertMultiThreadCheckCase(self):
         """
@@ -1257,7 +1257,7 @@ class TDTestCase:
         """
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(7, "letters")
-        input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, value="\"binaryTagValue\"")
+        input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
         s_stb_s_tb_a_tag_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[2]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_a_tag_list))
@@ -1274,7 +1274,7 @@ class TDTestCase:
         """
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(7, "letters")
-        input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, value="\"binaryTagValue\"")
+        input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
         s_stb_s_tb_m_tag_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[3]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_m_tag_list))
@@ -1290,7 +1290,7 @@ class TDTestCase:
             thread input same stb, different tb, different data
         """
         tdCom.cleanTb()
-        input_json, stb_name = self.genFullTypeJson(value="\"binaryTagValue\"")
+        input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
         s_stb_d_tb_list = self.genSqlList(stb_name=stb_name)[4]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_d_tb_list))
@@ -1302,7 +1302,7 @@ class TDTestCase:
             thread input same stb, different tb, different data, add col, mul tag
         """
         tdCom.cleanTb()
-        input_json, stb_name = self.genFullTypeJson(value="\"binaryTagValue\"")
+        input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
         s_stb_d_tb_m_tag_list = [(f'{stb_name} 1626006833639000000ns "omfdhyom" t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64', 'yzwswz'), \
                                         (f'{stb_name} 1626006833639000000ns "vqowydbc" t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64', 'yzwswz'), \
@@ -1318,7 +1318,7 @@ class TDTestCase:
             thread input same stb, different tb, different data, add tag, mul col
         """
         tdCom.cleanTb()
-        input_json, stb_name = self.genFullTypeJson(value="\"binaryTagValue\"")
+        input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
         s_stb_d_tb_a_tag_list = self.genSqlList(stb_name=stb_name)[6]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_d_tb_a_tag_list))
@@ -1331,7 +1331,7 @@ class TDTestCase:
         """
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(7, "letters")
-        input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, value="\"binaryTagValue\"")
+        input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
         s_stb_s_tb_d_ts_list = [(f'{stb_name} 0 "hkgjiwdj" id="{tb_name}",t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="vozamcts",t8=L"ncharTagValue"', 'dwpthv'), \
                                 (f'{stb_name} 0 "rljjrrul" id="{tb_name}",t0=False,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="bmcanhbs",t8=L"ncharTagValue"', 'dwpthv'), \
@@ -1350,7 +1350,7 @@ class TDTestCase:
         """
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(7, "letters")
-        input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, value="\"binaryTagValue\"")
+        input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
         s_stb_s_tb_d_ts_m_tag_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[8]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_d_ts_m_tag_list))
@@ -1367,7 +1367,7 @@ class TDTestCase:
         """
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(7, "letters")
-        input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, value="\"binaryTagValue\"")
+        input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
         s_stb_s_tb_d_ts_a_tag_list = [(f'{stb_name} 0 "clummqfy" id="{tb_name}",t0=False,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="hpxzrdiw",t8=L"ncharTagValue",t11=127i8,t10=L"ncharTagValue"', 'bokaxl'), \
                                             (f'{stb_name} 0 "yqeztggb" id="{tb_name}",t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="gdtblmrc",t8=L"ncharTagValue",t11=127i8,t10=L"ncharTagValue"', 'bokaxl'), \
@@ -1388,7 +1388,7 @@ class TDTestCase:
             thread input same stb, different tb, data, ts
         """
         tdCom.cleanTb()
-        input_json, stb_name = self.genFullTypeJson(value="\"binaryTagValue\"")
+        input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
         s_stb_d_tb_d_ts_list = self.genSqlList(stb_name=stb_name)[10]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_d_tb_d_ts_list))
@@ -1400,7 +1400,7 @@ class TDTestCase:
             thread input same stb, different tb, data, ts, add col, mul tag
         """
         tdCom.cleanTb()
-        input_json, stb_name = self.genFullTypeJson(value="\"binaryTagValue\"")
+        input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
         s_stb_d_tb_d_ts_m_tag_list = [(f'{stb_name} 0 "mnpmtzul" t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64', 'pcppkg'), \
                                             (f'{stb_name} 0 "zbvwckcd" t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64', 'pcppkg'), \
@@ -1479,12 +1479,11 @@ class TDTestCase:
         # self.blankTagInsertCheckCase()
         # self.chineseCheckCase()
         # self.multiFieldCheckCase()
-        #! bug
         # self.spellCheckCase()
-        self.pointTransCheckCase()
+        # self.pointTransCheckCase()
         # # # MultiThreads
         # self.stbInsertMultiThreadCheckCase()
-        # self.sStbStbDdataInsertMultiThreadCheckCase()
+        self.sStbStbDdataInsertMultiThreadCheckCase()
         # self.sStbStbDdataAtInsertMultiThreadCheckCase()
         # self.sStbStbDdataMtInsertMultiThreadCheckCase()
         # self.sStbDtbDdataInsertMultiThreadCheckCase()
