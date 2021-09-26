@@ -529,23 +529,23 @@ class TDTestCase:
         input_json, stb_name = self.genFullTypeJson(id_change_tag=True, value_type=value_type)
         self.resCmp(input_json, stb_name)
     
-    def idUpperCheckCase(self):
+    def idUpperCheckCase(self, value_type="obj"):
         """
             check id param
             eg: id and ID
         """
         tdCom.cleanTb()
-        input_json, stb_name = self.genFullTypeJson(id_upper_tag=True)
+        input_json, stb_name = self.genFullTypeJson(id_upper_tag=True, value_type=value_type)
         self.resCmp(input_json, stb_name)
-        input_json, stb_name = self.genFullTypeJson(id_change_tag=True, id_upper_tag=True)
+        input_json, stb_name = self.genFullTypeJson(id_change_tag=True, id_upper_tag=True, value_type=value_type)
         self.resCmp(input_json, stb_name)
 
-    def noIdCheckCase(self):
+    def noIdCheckCase(self, value_type="obj"):
         """
             id not exist
         """
         tdCom.cleanTb()
-        input_json, stb_name = self.genFullTypeJson(id_noexist_tag=True)
+        input_json, stb_name = self.genFullTypeJson(id_noexist_tag=True, value_type=value_type)
         self.resCmp(input_json, stb_name)
         query_sql = f"select tbname from {stb_name}"
         res_row_list = self.resHandle(query_sql, True)[0]
@@ -554,21 +554,21 @@ class TDTestCase:
         else:
             tdSql.checkColNameList(res_row_list, "please check noIdCheckCase")
 
-    def maxColTagCheckCase(self):
+    def maxColTagCheckCase(self, value_type="obj"):
         """
             max tag count is 128
         """
-        for input_json in [self.genLongJson(128)[0]]:
+        for input_json in [self.genLongJson(128, value_type)[0]]:
             tdCom.cleanTb()
             self._conn.insert_lines([json.dumps(input_json)], 2)
-        for input_json in [self.genLongJson(129)[0]]:
+        for input_json in [self.genLongJson(129, value_type)[0]]:
             tdCom.cleanTb()
             try:
                 self._conn.insert_lines([json.dumps(input_json)], 2)
             except LinesError as err:
                 tdSql.checkNotEqual(err.errno, 0)
             
-    def idIllegalNameCheckCase(self):
+    def idIllegalNameCheckCase(self, value_type="obj"):
         """
             test illegal id name
             mix "`~!@#$¥%^&*()-+={}|[]、「」【】\:;《》<>?"
@@ -576,51 +576,51 @@ class TDTestCase:
         tdCom.cleanTb()
         rstr = list("`~!@#$¥%^&*()-+={}|[]、「」【】\:;《》<>?")
         for i in rstr:
-            input_json = self.genFullTypeJson(tb_name=f'aa{i}bb')[0]
+            input_json = self.genFullTypeJson(tb_name=f'aa{i}bb', value_type=value_type)[0]
             try:
                 self._conn.insert_lines([json.dumps(input_json)], 2)
             except LinesError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-    def idStartWithNumCheckCase(self):
+    def idStartWithNumCheckCase(self, value_type="obj"):
         """
             id is start with num
         """
         tdCom.cleanTb()
-        input_json = self.genFullTypeJson(tb_name="1aaabbb")[0]
+        input_json = self.genFullTypeJson(tb_name="1aaabbb", value_type=value_type)[0]
         try:
             self._conn.insert_lines([json.dumps(input_json)], 2)
         except LinesError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
-    def nowTsCheckCase(self):
+    def nowTsCheckCase(self, value_type="obj"):
         """
             check now unsupported
         """
         tdCom.cleanTb()
-        input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="now", t_type="ns"))[0]
+        input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="now", t_type="ns", value_type=value_type))[0]
         try:
             self._conn.insert_lines([json.dumps(input_json)], 2)
         except LinesError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
-    def dateFormatTsCheckCase(self):
+    def dateFormatTsCheckCase(self, value_type="obj"):
         """
             check date format ts unsupported
         """
         tdCom.cleanTb()
-        input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="2021-07-21\ 19:01:46.920", t_type="ns"))[0]
+        input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="2021-07-21\ 19:01:46.920", t_type="ns", value_type=value_type))[0]
         try:
             self._conn.insert_lines([json.dumps(input_json)], 2)
         except LinesError as err:
                 tdSql.checkNotEqual(err.errno, 0)
     
-    def illegalTsCheckCase(self):
+    def illegalTsCheckCase(self, value_type="obj"):
         """
             check ts format like 16260068336390us19
         """
         tdCom.cleanTb()
-        input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="16260068336390us19", t_type="us"))[0]
+        input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="16260068336390us19", t_type="us", value_type=value_type))[0]
         try:
             self._conn.insert_lines([json.dumps(input_json)], 2)
         except LinesError as err:
@@ -1520,14 +1520,14 @@ class TDTestCase:
             self.symbolsCheckCase(value_type)
             self.tsCheckCase(value_type)
             self.idSeqCheckCase(value_type)
-        # self.idUpperCheckCase()
-        # self.noIdCheckCase()
-        # self.maxColTagCheckCase()
-        # self.idIllegalNameCheckCase()
-        # self.idStartWithNumCheckCase()
-        # self.nowTsCheckCase()
-        # self.dateFormatTsCheckCase()
-        # self.illegalTsCheckCase()
+            self.idUpperCheckCase(value_type)
+            self.noIdCheckCase(value_type)
+            self.maxColTagCheckCase(value_type)
+            self.idIllegalNameCheckCase(value_type)
+            self.idStartWithNumCheckCase(value_type)
+            self.nowTsCheckCase(value_type)
+            self.dateFormatTsCheckCase(value_type)
+            self.illegalTsCheckCase(value_type)
         # self.tagValueLengthCheckCase()
         # self.colValueLengthCheckCase()
         # self.tagColIllegalValueCheckCase()
