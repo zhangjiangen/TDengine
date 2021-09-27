@@ -397,7 +397,7 @@ class TDTestCase:
         col_dict = self.genMulTagColDict("col", 1, value_type)
         tag_dict["id"] = tb_name
         ts_dict = {'value': 1626006833639000000, 'type': 'ns'}
-        long_json = {"metric": f"{stb_name}", "timestamp": ts_dict, "value": col_dict, "tags": tag_dict}
+        long_json = {"metric": stb_name, "timestamp": ts_dict, "value": col_dict, "tags": tag_dict}
         return long_json, stb_name
 
     def getNoIdTbName(self, stb_name):
@@ -626,73 +626,81 @@ class TDTestCase:
         except LinesError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
-    def tagValueLengthCheckCase(self):
+    def tagValueLengthCheckCase(self, value_type="obj"):
         """
             check full type tag value limit
         """
         tdCom.cleanTb()
         # i8
         for t1 in [-127, 127]:
-            input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t1_value=t1))
+            input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t1_value=t1, value_type=value_type))
             self.resCmp(input_json, stb_name)
         for t1 in [-128, 128]:
             input_json = self.genFullTypeJson(tag_value=self.genTagValue(t1_value=t1))[0]
-            try:
-                self._conn.insert_lines([json.dumps(input_json)], 2)
-            except LinesError as err:
-                tdSql.checkNotEqual(err.errno, 0)
-
-        #i16
-        for t2 in [-32767, 32767]:
-            input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t2_value=t2))
-            self.resCmp(input_json, stb_name)
-        for t2 in [-32768, 32768]:
-            input_json = self.genFullTypeJson(tag_value=self.genTagValue(t2_value=t2))[0]
-            try:
-                self._conn.insert_lines([json.dumps(input_json)], 2)
-            except LinesError as err:
-                tdSql.checkNotEqual(err.errno, 0)
-
-        #i32
-        for t3 in [-2147483647, 2147483647]:
-            input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t3_value=t3))
-            self.resCmp(input_json, stb_name)
-        for t3 in [-2147483648, 2147483648]:
-            input_json = self.genFullTypeJson(tag_value=self.genTagValue(t3_value=t3))[0]
-            try:
-                self._conn.insert_lines([json.dumps(input_json)], 2)
-            except LinesError as err:
-                tdSql.checkNotEqual(err.errno, 0)
-
-        # #i64 #! json bug
-        # for t4 in [-9223372036854775807, 9223372036854775807]:
-        #     input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t4_value=t4))
-        #     print(input_json)
-        #     self.resCmp(input_json, stb_name)
-            
-        for t4 in [-9223372036854775808, 9223372036854775808]:
-            input_json = self.genFullTypeJson(tag_value=self.genTagValue(t4_value=t4))[0]
-            try:
-                self._conn.insert_lines([json.dumps(input_json)], 2)
-            except LinesError as err:
-                tdSql.checkNotEqual(err.errno, 0)
-
-        # f32
-        for t5 in [-3.4028234663852885981170418348451692544*(10**38), 3.4028234663852885981170418348451692544*(10**38)]:
-            input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t5_value=t5))
-            self.resCmp(input_json, stb_name)
-        # * limit set to 3.4028234664*(10**38)
-        for t5 in [-3.4028234664*(10**38), 3.4028234664*(10**38)]:
-            input_json = self.genFullTypeJson(tag_value=self.genTagValue(t5_value=t5))[0]
+            print(input_json)
             try:
                 self._conn.insert_lines([json.dumps(input_json)], 2)
                 raise Exception("should not reach here")
             except LinesError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
+        #i16
+        for t2 in [-32767, 32767]:
+            input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t2_value=t2, value_type=value_type))
+            self.resCmp(input_json, stb_name)
+        for t2 in [-32768, 32768]:
+            input_json = self.genFullTypeJson(tag_value=self.genTagValue(t2_value=t2))[0]
+            try:
+                self._conn.insert_lines([json.dumps(input_json)], 2)
+                raise Exception("should not reach here")
+            except LinesError as err:
+                tdSql.checkNotEqual(err.errno, 0)
+
+        #i32
+        for t3 in [-2147483647, 2147483647]:
+            input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t3_value=t3, value_type=value_type))
+            self.resCmp(input_json, stb_name)
+        for t3 in [-2147483648, 2147483648]:
+            input_json = self.genFullTypeJson(tag_value=self.genTagValue(t3_value=t3))[0]
+            try:
+                self._conn.insert_lines([json.dumps(input_json)], 2)
+                raise Exception("should not reach here")
+            except LinesError as err:
+                tdSql.checkNotEqual(err.errno, 0)
+
+        #i64 
+        for t4 in [-9223372036854775807, 9223372036854775807]:
+            input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t4_value=t4, value_type=value_type))
+            print(input_json)
+            self.resCmp(input_json, stb_name)
+            
+        for t4 in [-9223372036854775808, 9223372036854775808]:
+            input_json = self.genFullTypeJson(tag_value=self.genTagValue(t4_value=t4, value_type=value_type))[0]
+            try:
+                self._conn.insert_lines([json.dumps(input_json)], 2)
+                raise Exception("should not reach here")
+            except LinesError as err:
+                tdSql.checkNotEqual(err.errno, 0)
+
+
+        # ! bug
+        # # f32
+        # for t5 in [-3.4028234663852885981170418348451692544*(10**38), 3.4028234663852885981170418348451692544*(10**38)]:
+        #     input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t5_value=t5, value_type=value_type))
+        #     self.resCmp(input_json, stb_name)
+        # # * limit set to 3.4028234664*(10**38)
+        # for t5 in [-3.4028234664*(10**38), 3.4028234664*(10**38)]:
+        #     input_json = self.genFullTypeJson(tag_value=self.genTagValue(t5_value=t5, value_type=value_type))[0]
+        #     print(input_json)
+        #     try:
+        #         self._conn.insert_lines([json.dumps(input_json)], 2)
+        #         raise Exception("should not reach here")
+        #     except LinesError as err:
+        #         tdSql.checkNotEqual(err.errno, 0)
+
         # f64
         for t6 in [-1.79769*(10**308), -1.79769*(10**308)]:
-            input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t6_value=t6))
+            input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t6_value=t6, value_type=value_type))
             self.resCmp(input_json, stb_name)
         for t6 in [float(-1.797693134862316*(10**308)), -1.797693134862316*(10**308)]:
             input_json = self.genFullTypeJson(tag_value=self.genTagValue(t6_value=t6))[0]
@@ -702,39 +710,56 @@ class TDTestCase:
             except LinesError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-        # binary 
-        stb_name = tdCom.getLongName(7, "letters")
-        input_json = {"metric": f"{stb_name}", "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': tdCom.getLongName(16374, "letters"), 'type': 'binary'}}}
-        self._conn.insert_lines([json.dumps(input_json)], 2)
-        
-        input_json = {"metric": f"{stb_name}", "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': tdCom.getLongName(16375, "letters"), 'type': 'binary'}}}
-        try:
+        if value_type == "obj":
+            # binary 
+            stb_name = tdCom.getLongName(7, "letters")
+            input_json = {"metric": stb_name, "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': tdCom.getLongName(16374, "letters"), 'type': 'binary'}}}
             self._conn.insert_lines([json.dumps(input_json)], 2)
-            raise Exception("should not reach here")
-        except LinesError as err:
-            tdSql.checkNotEqual(err.errno, 0)
+            
+            input_json = {"metric": stb_name, "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': tdCom.getLongName(16375, "letters"), 'type': 'binary'}}}
+            try:
+                self._conn.insert_lines([json.dumps(input_json)], 2)
+                raise Exception("should not reach here")
+            except LinesError as err:
+                tdSql.checkNotEqual(err.errno, 0)
 
-        # # nchar
-        # # * legal nchar could not be larger than 16374/4
-        stb_name = tdCom.getLongName(7, "letters")
-        input_json = {"metric": f"{stb_name}", "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': tdCom.getLongName(4093, "letters"), 'type': 'nchar'}}}
-        self._conn.insert_lines([json.dumps(input_json)], 2)
-
-        input_json = {"metric": f"{stb_name}", "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': tdCom.getLongName(4094, "letters"), 'type': 'nchar'}}}
-        try:
+            # # nchar
+            # # * legal nchar could not be larger than 16374/4
+            stb_name = tdCom.getLongName(7, "letters")
+            input_json = {"metric": stb_name, "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': tdCom.getLongName(4093, "letters"), 'type': 'nchar'}}}
             self._conn.insert_lines([json.dumps(input_json)], 2)
-            raise Exception("should not reach here")
-        except LinesError as err:
-            tdSql.checkNotEqual(err.errno, 0)
 
-    def colValueLengthCheckCase(self):
+            input_json = {"metric": stb_name, "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': tdCom.getLongName(4094, "letters"), 'type': 'nchar'}}}
+            try:
+                self._conn.insert_lines([json.dumps(input_json)], 2)
+                raise Exception("should not reach here")
+            except LinesError as err:
+                tdSql.checkNotEqual(err.errno, 0)
+        elif value_type == "default":
+            stb_name = tdCom.getLongName(7, "letters")
+            if tdSql.getVariable("defaultJSONStrType")[0].lower() == "binary":
+                input_json = {"metric": stb_name, "timestamp": 1626006833639019, "value": True, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1": tdCom.getLongName(16374, "letters")}}
+            elif tdSql.getVariable("defaultJSONStrType")[0].lower() == "nchar":
+                input_json = {"metric": stb_name, "timestamp": 1626006833639019, "value": True, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1": tdCom.getLongName(4093, "letters")}}
+            self._conn.insert_lines([json.dumps(input_json)], 2)
+            if tdSql.getVariable("defaultJSONStrType")[0].lower() == "binary":
+                input_json = {"metric": stb_name, "timestamp": 1626006833639019, "value": True, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1": tdCom.getLongName(16375, "letters")}}
+            elif tdSql.getVariable("defaultJSONStrType")[0].lower() == "nchar":
+                input_json = {"metric": stb_name, "timestamp": 1626006833639019, "value": True, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1": tdCom.getLongName(4094, "letters")}}
+            try:
+                self._conn.insert_lines([json.dumps(input_json)], 2)
+                raise Exception("should not reach here")
+            except LinesError as err:
+                tdSql.checkNotEqual(err.errno, 0)
+
+    def colValueLengthCheckCase(self, value_type="obj"):
         """
             check full type col value limit
         """
         tdCom.cleanTb()
         # i8
         for value in [-127, 127]:
-            input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="tinyint"))
+            input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="tinyint", value_type=value_type))
             self.resCmp(input_json, stb_name)
         tdCom.cleanTb()
         for value in [-128, 128]:
@@ -747,7 +772,7 @@ class TDTestCase:
         # i16
         tdCom.cleanTb()
         for value in [-32767]:
-            input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="smallint"))
+            input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="smallint", value_type=value_type))
             self.resCmp(input_json, stb_name)
         tdCom.cleanTb()
         for value in [-32768, 32768]:
@@ -761,7 +786,7 @@ class TDTestCase:
         # i32
         tdCom.cleanTb()
         for value in [-2147483647]:
-            input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="int"))
+            input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="int", value_type=value_type))
             self.resCmp(input_json, stb_name)
         tdCom.cleanTb()
         for value in [-2147483648, 2147483648]:
@@ -772,26 +797,24 @@ class TDTestCase:
             except LinesError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-        # i64 #! json bug
-        # tdCom.cleanTb()
-        # for value in [-9223372036854775807]:
-        #     input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="bigint"))
-        #     print("input_json---", input_json)
-        #     self.resCmp(input_json, stb_name)
-        # tdCom.cleanTb()
-        # for value in [-9223372036854775808, 9223372036854775808]:
-        #     input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="bigint"))[0]
-        #     try:
-        #         self._conn.insert_lines([json.dumps(input_json)], 2)
-        #         raise Exception("should not reach here")
-        #     except LinesError as err:
-        #         tdSql.checkNotEqual(err.errno, 0)
+        # i64 
+        tdCom.cleanTb()
+        for value in [-9223372036854775807]:
+            input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="bigint", value_type=value_type))
+            self.resCmp(input_json, stb_name)
+        tdCom.cleanTb()
+        for value in [-9223372036854775808, 9223372036854775808]:
+            input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="bigint", value_type=value_type))[0]
+            try:
+                self._conn.insert_lines([json.dumps(input_json)], 2)
+                raise Exception("should not reach here")
+            except LinesError as err:
+                tdSql.checkNotEqual(err.errno, 0)
 
         # f32       
         tdCom.cleanTb()
         for value in [-3.4028234663852885981170418348451692544*(10**38), 3.4028234663852885981170418348451692544*(10**38)]:
-            input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="float"))
-            print(input_json)
+            input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="float", value_type=value_type))
             self.resCmp(input_json, stb_name)
         # * limit set to 4028234664*(10**38)
         tdCom.cleanTb()
@@ -803,51 +826,73 @@ class TDTestCase:
             except LinesError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-        # f64
-        tdCom.cleanTb()
-        for value in [-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308), -1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)]:
-            input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="double"))
-            self.resCmp(input_json, stb_name)
+        # f64 #! bug
+        # tdCom.cleanTb()
+        # for value in [-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308), -1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)]:
+        #     input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="double", value_type=value_type))
+        #     print("value_type----", value_type)
+        #     print("input_json----", input_json)
+        #     self.resCmp(input_json, stb_name)
         # * limit set to 1.797693134862316*(10**308)
         tdCom.cleanTb()
         for value in [-1.797693134862316*(10**308), -1.797693134862316*(10**308)]:
-            input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="double"))[0]
+            input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="double", value_type=value_type))[0]
             try:
                 self._conn.insert_lines([json.dumps(input_json)], 2)
                 raise Exception("should not reach here")
             except LinesError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-        # binary 
-        tdCom.cleanTb()
-        stb_name = tdCom.getLongName(7, "letters")
-        input_json = {"metric": f"{stb_name}", "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(16374, "letters"), 'type': 'binary'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
-        self._conn.insert_lines([json.dumps(input_json)], 2)
-        
-        tdCom.cleanTb()
-        input_json = {"metric": f"{stb_name}", "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(16375, "letters"), 'type': 'binary'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
-        try:
+        if value_type == "obj":
+            # binary 
+            tdCom.cleanTb()
+            stb_name = tdCom.getLongName(7, "letters")
+            input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(16374, "letters"), 'type': 'binary'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
             self._conn.insert_lines([json.dumps(input_json)], 2)
-            raise Exception("should not reach here")
-        except LinesError as err:
-            tdSql.checkNotEqual(err.errno, 0)
+            
+            tdCom.cleanTb()
+            input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(16375, "letters"), 'type': 'binary'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
+            try:
+                self._conn.insert_lines([json.dumps(input_json)], 2)
+                raise Exception("should not reach here")
+            except LinesError as err:
+                tdSql.checkNotEqual(err.errno, 0)
 
-        # nchar
-        # * legal nchar could not be larger than 16374/4
-        tdCom.cleanTb()
-        stb_name = tdCom.getLongName(7, "letters")
-        input_json = {"metric": f"{stb_name}", "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(4093, "letters"), 'type': 'nchar'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
-        self._conn.insert_lines([json.dumps(input_json)], 2)
-
-        tdCom.cleanTb()
-        input_json = {"metric": f"{stb_name}", "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(4094, "letters"), 'type': 'nchar'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
-        try:
+            # nchar
+            # * legal nchar could not be larger than 16374/4
+            tdCom.cleanTb()
+            stb_name = tdCom.getLongName(7, "letters")
+            input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(4093, "letters"), 'type': 'nchar'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
             self._conn.insert_lines([json.dumps(input_json)], 2)
-            raise Exception("should not reach here")
-        except LinesError as err:
-            tdSql.checkNotEqual(err.errno, 0)
 
-    def tagColIllegalValueCheckCase(self):
+            tdCom.cleanTb()
+            input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(4094, "letters"), 'type': 'nchar'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
+            try:
+                self._conn.insert_lines([json.dumps(input_json)], 2)
+                raise Exception("should not reach here")
+            except LinesError as err:
+                tdSql.checkNotEqual(err.errno, 0)
+        elif value_type == "default":
+            # binary 
+            tdCom.cleanTb()
+            stb_name = tdCom.getLongName(7, "letters")
+            if tdSql.getVariable("defaultJSONStrType")[0].lower() == "binary":
+                input_json = {"metric": stb_name, "timestamp": 1626006833639019, "value": tdCom.getLongName(16374, "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
+            elif tdSql.getVariable("defaultJSONStrType")[0].lower() == "nchar":
+                input_json = {"metric": stb_name, "timestamp": 1626006833639019, "value": tdCom.getLongName(4093, "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
+            self._conn.insert_lines([json.dumps(input_json)], 2)
+            tdCom.cleanTb()
+            if tdSql.getVariable("defaultJSONStrType")[0].lower() == "binary":
+                input_json = {"metric": stb_name, "timestamp": 1626006833639019, "value": tdCom.getLongName(16375, "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
+            elif tdSql.getVariable("defaultJSONStrType")[0].lower() == "nchar":
+                input_json = {"metric": stb_name, "timestamp": 1626006833639019, "value": tdCom.getLongName(4094, "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
+            try:
+                self._conn.insert_lines([json.dumps(input_json)], 2)
+                raise Exception("should not reach here")
+            except LinesError as err:
+                tdSql.checkNotEqual(err.errno, 0)
+
+    def tagColIllegalValueCheckCase(self, value_type="obj"):
 
         """
             test illegal tag col value
@@ -879,21 +924,21 @@ class TDTestCase:
                 
 
         # check binary and nchar blank
-        input_sql1 = self.genFullTypeJson(col_value=self.genTsColValue(value="abc aaa", t_type="binary"))[0]
-        input_sql2 = self.genFullTypeJson(col_value=self.genTsColValue(value="abc aaa", t_type="nchar"))[0]
-        input_sql3 = self.genFullTypeJson(tag_value=self.genTagValue(t7_value="abc aaa"))[0]
-        input_sql4 = self.genFullTypeJson(tag_value=self.genTagValue(t8_value="abc aaa"))[0]
+        input_sql1 = self.genFullTypeJson(col_value=self.genTsColValue(value="abc aaa", t_type="binary", value_type=value_type))[0]
+        input_sql2 = self.genFullTypeJson(col_value=self.genTsColValue(value="abc aaa", t_type="nchar", value_type=value_type))[0]
+        input_sql3 = self.genFullTypeJson(tag_value=self.genTagValue(t7_value="abc aaa", value_type=value_type))[0]
+        input_sql4 = self.genFullTypeJson(tag_value=self.genTagValue(t8_value="abc aaa", value_type=value_type))[0]
         for input_json in [input_sql1, input_sql2, input_sql3, input_sql4]:
             try:
                 self._conn.insert_lines([json.dumps(input_json)], 2)
             except LinesError as err:
-                pass
+                tdSql.checkNotEqual(err.errno, 0)
 
         # check accepted binary and nchar symbols 
         # # * ~!@#$¥%^&*()-+={}|[]、「」:;
         for symbol in list('~!@#$¥%^&*()-+={}|[]、「」:;'):
-            input_json1 = self.genFullTypeJson(col_value=self.genTsColValue(value=f"abc{symbol}aaa", t_type="binary"))[0]
-            input_json2 = self.genFullTypeJson(tag_value=self.genTagValue(t8_value=f"abc{symbol}aaa"))[0]
+            input_json1 = self.genFullTypeJson(col_value=self.genTsColValue(value=f"abc{symbol}aaa", t_type="binary", value_type=value_type))[0]
+            input_json2 = self.genFullTypeJson(tag_value=self.genTagValue(t8_value=f"abc{symbol}aaa", value_type=value_type))[0]
             self._conn.insert_lines([json.dumps(input_json1)], 2)
             self._conn.insert_lines([json.dumps(input_json2)], 2)
 
@@ -1060,7 +1105,7 @@ class TDTestCase:
         tag_value = {"t0": {"value": True, "type": "bool"}}
         tag_value["id"] = tb_name
         col_value=self.genTsColValue(value=True, t_type="bool")
-        input_json = {"metric": f"{stb_name}", "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": col_value, "tags": tag_value}
+        input_json = {"metric": stb_name, "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": col_value, "tags": tag_value}
         self._conn.insert_lines([json.dumps(input_json)], 2)
 
         # * every binary and nchar must be length+2, so here is two tag, max length could not larger than 16384-2*2
@@ -1091,7 +1136,7 @@ class TDTestCase:
         tag_value = {"t0": {"value": True, "type": "bool"}}
         tag_value["id"] = tb_name
         col_value=self.genTsColValue(value=True, t_type="bool")
-        input_json = {"metric": f"{stb_name}", "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": col_value, "tags": tag_value}
+        input_json = {"metric": stb_name, "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": col_value, "tags": tag_value}
         self._conn.insert_lines([json.dumps(input_json)], 2)
 
         # * legal nchar could not be larger than 16374/4
@@ -1528,9 +1573,9 @@ class TDTestCase:
             self.nowTsCheckCase(value_type)
             self.dateFormatTsCheckCase(value_type)
             self.illegalTsCheckCase(value_type)
-        # self.tagValueLengthCheckCase()
-        # self.colValueLengthCheckCase()
-        # self.tagColIllegalValueCheckCase()
+            self.tagValueLengthCheckCase(value_type)
+            self.colValueLengthCheckCase(value_type)
+            self.tagColIllegalValueCheckCase(value_type)
         # #! bug
         # self.duplicateIdTagColInsertCheckCase()
         # self.noIdStbExistCheckCase()
