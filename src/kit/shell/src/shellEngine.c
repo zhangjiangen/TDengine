@@ -573,14 +573,20 @@ static void shellPrintNChar(const char *str, int length, int width) {
   wchar_t tail[3];
   int pos = 0, cols = 0, totalCols = 0, tailLen = 0;
 
+  int32_t availLen = 0;
+
   while (pos < length) {
     wchar_t wc;
     int bytes = mbtowc(&wc, str + pos, MB_CUR_MAX);
     if (bytes <= 0) {
       break;
     }
+
     pos += bytes;
+    availLen = pos;
+
     if (pos > length) {
+      availLen = pos - bytes;
       break;
     }
 
@@ -593,23 +599,30 @@ static void shellPrintNChar(const char *str, int length, int width) {
       continue;
     }
 
-    if (width <= 0) {
-      printf("%lc", wc);
-      continue;
-    }
+//    if (width <= 0) {
+//      printf("%lc", wc);
+//      continue;
+//    }
 
     totalCols += w;
     if (totalCols > width) {
+      availLen -= bytes;
       break;
     }
     if (totalCols <= (width - 3)) {
-      printf("%lc", wc);
+//      printf("%lc", wc);
       cols += w;
     } else {
       tail[tailLen] = wc;
       tailLen++;
     }
   }
+
+  char* buf = malloc(availLen + 1);
+  memcpy(buf, str, availLen);
+  buf[availLen] = 0;
+  printf("%s", buf);
+  tfree(buf);
 
   if (totalCols > width) {
     // width could be 1 or 2, so printf("...") cannot be used
