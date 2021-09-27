@@ -599,18 +599,12 @@ static void shellPrintNChar(const char *str, int length, int width) {
       continue;
     }
 
-//    if (width <= 0) {
-//      printf("%lc", wc);
-//      continue;
-//    }
-
     totalCols += w;
     if (totalCols > width) {
       availLen -= bytes;
       break;
     }
     if (totalCols <= (width - 3)) {
-//      printf("%lc", wc);
       cols += w;
     } else {
       tail[tailLen] = wc;
@@ -635,7 +629,11 @@ static void shellPrintNChar(const char *str, int length, int width) {
     }
   } else {
     for (int i = 0; i < tailLen; i++) {
+#ifdef WINDOWS
+      wprintf(L"%lc", tail[i]);
+#else
       printf("%lc", tail[i]);
+#endif     
     }
     cols = totalCols;
   }
