@@ -126,13 +126,13 @@ class TDTestCase:
                 if type(value) is dict:
                     tag_value_list.append(str(value["value"]))
                     td_tag_value_list.append(str(value["value"]))
-                    tag_name_list.append(key)
+                    tag_name_list.append(key.lower())
                     td_tag_type_list.append(value["type"].upper())
                     tb_name = ""
                 else:
                     tag_value_list.append(str(value))
                     td_tag_value_list.append(str(value))
-                    tag_name_list.append(key)
+                    tag_name_list.append(key.lower())
                     tb_name = ""
 
                     if type(value) is bool:
@@ -263,7 +263,7 @@ class TDTestCase:
         return tag_value
 
     def genFullTypeJson(self, ts_value="", col_value="", tag_value="", stb_name="", tb_name="", 
-                        id_noexist_tag=None, id_change_tag=None, id_upper_tag=None, id_double_tag=None,
+                        id_noexist_tag=None, id_change_tag=None, id_upper_tag=None, id_mixul_tag=None, id_double_tag=None,
                         t_add_tag=None, t_mul_tag=None, c_multi_tag=None, c_blank_tag=None, t_blank_tag=None, 
                         chinese_tag=None, multi_field_tag=None, point_trans_tag=None, value_type="obj"):
         if value_type == "obj":
@@ -279,6 +279,10 @@ class TDTestCase:
                 tag_value = self.genTagValue()
             if id_upper_tag is not None:
                 id = "ID"
+            else:
+                id = "id"
+            if id_mixul_tag is not None:
+                id = "iD"
             else:
                 id = "id"
             if id_noexist_tag is None:
@@ -317,7 +321,7 @@ class TDTestCase:
             if multi_field_tag is not None:
                 sql_json = {"metric": stb_name, "timestamp": ts_value, "value": col_value, "tags": tag_value, "tags2": tag_value}
             if point_trans_tag is not None:
-                sql_json = {"metric": ".point.trans.test", "timestamp": ts_value, "value": col_value, "tags": tag_value}
+                sql_json = {"metric": "`.point.trans.test`", "timestamp": ts_value, "value": col_value, "tags": tag_value}
 
         elif value_type == "default":
             if stb_name == "":
@@ -332,6 +336,10 @@ class TDTestCase:
                 tag_value = self.genTagValue(value_type=value_type)
             if id_upper_tag is not None:
                 id = "ID"
+            else:
+                id = "id"
+            if id_mixul_tag is not None:
+                id = "iD"
             else:
                 id = "id"
             if id_noexist_tag is None:
@@ -366,7 +374,7 @@ class TDTestCase:
             if multi_field_tag is not None:
                 sql_json = {"metric": stb_name, "timestamp": ts_value, "value": col_value, "tags": tag_value, "tags2": tag_value}
             if point_trans_tag is not None:
-                sql_json = {"metric": ".point.trans.test", "timestamp": ts_value, "value": col_value, "tags": tag_value}
+                sql_json = {"metric": "`.point.trans.test`", "timestamp": ts_value, "value": col_value, "tags": tag_value}
         return sql_json, stb_name
     
     def genMulTagColDict(self, genType, count=1, value_type="obj"):
@@ -538,13 +546,15 @@ class TDTestCase:
         input_json, stb_name = self.genFullTypeJson(id_change_tag=True, value_type=value_type)
         self.resCmp(input_json, stb_name)
     
-    def idUpperCheckCase(self, value_type="obj"):
+    def idLetterCheckCase(self, value_type="obj"):
         """
             check id param
             eg: id and ID
         """
         tdCom.cleanTb()
         input_json, stb_name = self.genFullTypeJson(id_upper_tag=True, value_type=value_type)
+        self.resCmp(input_json, stb_name)
+        input_json, stb_name = self.genFullTypeJson(id_mixul_tag=True, value_type=value_type)
         self.resCmp(input_json, stb_name)
         input_json, stb_name = self.genFullTypeJson(id_change_tag=True, id_upper_tag=True, value_type=value_type)
         self.resCmp(input_json, stb_name)
@@ -634,6 +644,29 @@ class TDTestCase:
             self._conn.insert_lines([json.dumps(input_json)], 2)
         except LinesError as err:
             tdSql.checkNotEqual(err.errno, 0)
+
+    def tbnameCheckCase(self, value_type="obj"):
+        """
+            check length 192
+            check upper tbname
+            chech upper tag
+            length of stb_name tb_name <= 192
+        """
+        stb_name_129 = tdCom.getLongName(len=129, mode="letters")
+        tb_name_129 = tdCom.getLongName(len=129, mode="letters")
+        tdCom.cleanTb()
+        input_json, stb_name = self.genFullTypeJson(stb_name=stb_name_129, tb_name=tb_name_129, value_type=value_type)
+        self.resCmp(input_json, stb_name)
+        tdSql.query(f'select * from {stb_name}')
+        tdSql.checkRows(1)
+        for input_json in [self.genFullTypeJson(stb_name=tdCom.getLongName(len=130, mode="letters"), value_type=value_type), self.genFullTypeJson(tb_name=tdCom.getLongName(len=130, mode="letters"))]:
+            try:
+                self._conn.insert_lines([json.dumps(input_json)], 2)
+            except LinesError as err:
+                tdSql.checkNotEqual(err.errno, 0)
+        input_json = {'metric': 'Abcdffgg', 'timestamp': {'value': 1626006833639000000, 'type': 'ns'}, 'value': {'value': False, 'type': 'bool'}, 'tags': {'T1': {'value': 127, 'type': 'tinyint'}, 'id': 'Abcddd'}}
+        stb_name = "Abcdffgg"
+        self.resCmp(input_json, stb_name)
 
     def tagValueLengthCheckCase(self, value_type="obj"):
         """
@@ -1056,12 +1089,18 @@ class TDTestCase:
                 self.createDb("test_update", db_update_tag=db_update_tag)
             input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value=True, t_type="bool", value_type=value_type), tag_value=self.genTagValue(t0_value=True, value_type=value_type))
             self.resCmp(input_json, stb_name)
-            input_json, stb_name = self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, col_value=self.genTsColValue(value=True, t_type="bool", value_type=value_type), tag_value=self.genTagValue(t0_value=True, value_type=value_type), t_add_tag=True)
-            print(db_update_tag)
+            input_json, stb_name = self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, col_value=self.genTsColValue(value=False, t_type="bool", value_type=value_type), tag_value=self.genTagValue(t0_value=True, value_type=value_type), t_add_tag=True)
             if db_update_tag == 1 :
-                self.resCmp(input_json, stb_name, condition=f'where tbname like "{tb_name}"')
-            else:
                 self.resCmp(input_json, stb_name, condition=f'where tbname like "{tb_name}"', none_check_tag=True)
+                tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
+                tdSql.checkData(0, 11, None)  
+                tdSql.checkData(0, 12, None)  
+            else:
+                self._conn.insert_lines([json.dumps(input_json)], 2)
+                tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
+                tdSql.checkData(0, 1, True)  
+                tdSql.checkData(0, 11, None)  
+                tdSql.checkData(0, 12, None)  
             self.createDb()
 
     def tagAddCheckCase(self, value_type="obj"):
@@ -1608,7 +1647,7 @@ class TDTestCase:
             self.symbolsCheckCase(value_type)
             self.tsCheckCase(value_type)
             self.idSeqCheckCase(value_type)
-            self.idUpperCheckCase(value_type)
+            self.idLetterCheckCase(value_type)
             self.noIdCheckCase(value_type)
             self.maxColTagCheckCase(value_type)
             self.idIllegalNameCheckCase(value_type)
@@ -1616,6 +1655,7 @@ class TDTestCase:
             self.nowTsCheckCase(value_type)
             self.dateFormatTsCheckCase(value_type)
             self.illegalTsCheckCase(value_type)
+            self.tbnameCheckCase(value_type)
             self.tagValueLengthCheckCase(value_type)
             self.colValueLengthCheckCase(value_type)
             self.tagColIllegalValueCheckCase(value_type)
@@ -1623,8 +1663,7 @@ class TDTestCase:
             self.noIdStbExistCheckCase(value_type)
             self.duplicateInsertExistCheckCase(value_type)
             self.tagColBinaryNcharLengthCheckCase(value_type)
-            # ! confirm update tag
-            # self.tagColAddDupIDCheckCase(value_type)
+            self.tagColAddDupIDCheckCase(value_type)
             self.tagAddCheckCase(value_type)
             self.tagMd5Check(value_type)
             self.tagColBinaryMaxLengthCheckCase(value_type)
@@ -1634,7 +1673,7 @@ class TDTestCase:
             self.multiColsInsertCheckCase(value_type)
             self.blankTagInsertCheckCase(value_type)
             self.multiFieldCheckCase(value_type)
-            # self.pointTransCheckCase()
+            # self.pointTransCheckCase(value_type)
         # #! bug
         # # self.lengthIcreaseCrashCheckCase()
         self.boolTypeCheckCase()
@@ -1652,7 +1691,6 @@ class TDTestCase:
         self.sStbDtbDdataMtInsertMultiThreadCheckCase()
         self.sStbDtbDdataAtInsertMultiThreadCheckCase()
         self.sStbStbDdataDtsInsertMultiThreadCheckCase()
-        #! run fail
         self.sStbStbDdataDtsMtInsertMultiThreadCheckCase()
         self.sStbStbDdataDtsAtInsertMultiThreadCheckCase()
         self.sStbDtbDdataDtsInsertMultiThreadCheckCase()
@@ -1662,7 +1700,9 @@ class TDTestCase:
         print("running {}".format(__file__))
         self.createDb()
         try:
-            self.runAll()
+            self.idLetterCheckCase()
+            # self.tbnameCheckCase()
+            # self.runAll()
         except Exception as err:
             print(''.join(traceback.format_exception(None, err, err.__traceback__)))
             raise err
