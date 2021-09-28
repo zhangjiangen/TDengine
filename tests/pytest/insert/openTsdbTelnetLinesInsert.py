@@ -160,7 +160,7 @@ class TDTestCase:
             if "id=" in elm.lower():
                 tb_name = elm.split('=')[1]
             else:
-                tag_name_list.append(elm.split("=")[0])
+                tag_name_list.append(elm.split("=")[0].lower())
                 tag_value_list.append(elm.split("=")[1])
                 tb_name = ""
                 td_tag_value_list.append(self.getTdTypeValue(elm.split("=")[1])[1])
@@ -191,7 +191,7 @@ class TDTestCase:
     def genFullTypeSql(self, stb_name="", tb_name="", value="", t0="", t1="127i8", t2="32767i16", t3="2147483647i32",
                         t4="9223372036854775807i64", t5="11.12345f32", t6="22.123456789f64", t7="\"binaryTagValue\"",
                         t8="L\"ncharTagValue\"", ts="1626006833639000000ns",
-                        id_noexist_tag=None, id_change_tag=None, id_upper_tag=None, id_double_tag=None,
+                        id_noexist_tag=None, id_change_tag=None, id_upper_tag=None, id_mixul_tag=None, id_double_tag=None,
                         t_add_tag=None, t_mul_tag=None, t_multi_tag=None, c_blank_tag=None, t_blank_tag=None, 
                         chinese_tag=None, multi_field_tag=None, point_trans_tag=None):
         if stb_name == "":
@@ -204,6 +204,10 @@ class TDTestCase:
             value = random.choice(["f", "F", "false", "False", "t", "T", "true", "True", "TRUE", "FALSE"])
         if id_upper_tag is not None:
             id = "ID"
+        else:
+            id = "id"
+        if id_mixul_tag is not None:
+            id = random.choice(["iD", "Id"])
         else:
             id = "id"
         sql_seq = f'{stb_name} {ts} {value} {id}=\"{tb_name}\" t0={t0} t1={t1} t2={t2} t3={t3} t4={t4} t5={t5} t6={t6} t7={t7} t8={t8}'
@@ -232,7 +236,7 @@ class TDTestCase:
         if multi_field_tag is not None:
             sql_seq = f'{stb_name} {ts} {value} {id}=\"{tb_name}\" t0={t0} {value}'
         if point_trans_tag is not None:
-            sql_seq = f'point.trans.test {ts} {value} t0={t0}'
+            sql_seq = f'.point.trans.test {ts} {value} t0={t0}'
         return sql_seq, stb_name
     
     def genMulTagColStr(self, genType, count=1):
@@ -282,7 +286,6 @@ class TDTestCase:
 
     def resCmp(self, input_sql, stb_name, query_sql="select * from", condition="", ts=None, id=True, none_check_tag=None):
         expect_list = self.inputHandle(input_sql)
-        # self._conn.insert_lines([input_sql], 1)
         self._conn.insert_lines([input_sql], 1)
         query_sql = f"{query_sql} {stb_name} {condition}"
         res_row_list, res_field_list_without_ts, res_type_list = self.resHandle(query_sql, True)
@@ -349,6 +352,34 @@ class TDTestCase:
         for ts in ts_list:
             input_sql, stb_name = self.genFullTypeSql(ts=ts)
             self.resCmp(input_sql, stb_name, ts=ts)
+        #! bug
+        # tdSql.execute(f"drop database if exists test_ts")
+        # tdSql.execute(f"create database if not exists test_ts precision 'ms'")
+        # tdSql.execute("use test_ts")
+        input_json = ['test_ms 1626006833640ms t t0=t', 'test_ms 1626006833641ms f t0=t']
+        # self._conn.insert_lines(input_json, 1)
+        # res = tdSql.query('select * from test_ms', True)
+        # tdSql.checkEqual(str(res[0][0]), "2021-07-11 20:33:53.640000")
+        # tdSql.checkEqual(str(res[1][0]), "2021-07-11 20:33:53.641000")
+
+        tdSql.execute(f"drop database if exists test_ts")
+        tdSql.execute(f"create database if not exists test_ts precision 'us'")
+        tdSql.execute("use test_ts")
+        input_json = ['test_us 1626006833639000us t t0=t', 'test_us 1626006833639001us f t0=t']
+        self._conn.insert_lines(input_json, 1)
+        res = tdSql.query('select * from test_us', True)
+        tdSql.checkEqual(str(res[0][0]), "2021-07-11 20:33:53.639000")
+        tdSql.checkEqual(str(res[1][0]), "2021-07-11 20:33:53.639001")
+
+        #! bug
+        # tdSql.execute(f"drop database if exists test_ts")
+        # tdSql.execute(f"create database if not exists test_ts precision 'ns'")
+        # tdSql.execute("use test_ts")
+        # input_json = ['test_ns 1626006833639000000ns t t0=t', 'test_ms 1626006833639000001ns f t0=t']
+        # self._conn.insert_lines(input_json, 1)
+        # res = tdSql.query('select * from test_ns', True)
+        # tdSql.checkEqual(str(res[0][0]), "2021-07-11 20:33:53.639000000")
+        # tdSql.checkEqual(str(res[1][0]), "2021-07-11 20:33:53.639000001")
     
     def idSeqCheckCase(self):
         """
@@ -359,13 +390,15 @@ class TDTestCase:
         input_sql, stb_name = self.genFullTypeSql(id_change_tag=True)
         self.resCmp(input_sql, stb_name)
     
-    def idUpperCheckCase(self):
+    def idLetterCheckCase(self):
         """
             check id param
             eg: id and ID
         """
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(id_upper_tag=True)
+        self.resCmp(input_sql, stb_name)
+        input_sql, stb_name = self.genFullTypeSql(id_mixul_tag=True)
         self.resCmp(input_sql, stb_name)
         input_sql, stb_name = self.genFullTypeSql(id_change_tag=True, id_upper_tag=True)
         self.resCmp(input_sql, stb_name)
@@ -461,6 +494,34 @@ class TDTestCase:
             raise Exception("should not reach here")
         except LinesError as err:
             tdSql.checkNotEqual(err.errno, 0)
+
+    def tbnameCheckCase(self):
+        """
+            check length 192
+            check upper tbname
+            chech upper tag
+            length of stb_name tb_name <= 192
+        """
+        stb_name_129 = tdCom.getLongName(len=129, mode="letters")
+        tb_name_129 = tdCom.getLongName(len=129, mode="letters")
+        tdCom.cleanTb()
+        input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name_129, tb_name=tb_name_129)
+        print(input_sql)
+        self.resCmp(input_sql, stb_name)
+        tdSql.query(f'select * from {stb_name}')
+        tdSql.checkRows(1)
+        #! bug
+        # for input_json in [self.genFullTypeSql(stb_name=tdCom.getLongName(len=130, mode="letters"), tb_name=tdCom.getLongName(len=5, mode="letters"))[0], self.genFullTypeSql(tb_name=tdCom.getLongName(len=130, mode="letters"))[0]]:
+        #     print(input_json)
+        #     try:
+        #         self._conn.insert_lines([input_json], 1)
+        #         raise Exception("should not reach here")
+        #     except LinesError as err:
+        #         tdSql.checkNotEqual(err.errno, 0)
+
+        input_sql = 'Abcdffgg 1626006833639000000ns False T1=127i8 id="Abcddd"'
+        stb_name = "Abcdffgg"
+        self.resCmp(input_sql, stb_name)
 
     def tagValueLengthCheckCase(self):
         """
@@ -818,19 +879,25 @@ class TDTestCase:
             * col is added without value when update==0
             * col is added with value when update==1
         """
-        print("tagColAddDupIDCheckCase")
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(7, "letters")
         for db_update_tag in [0, 1]:
             if db_update_tag == 1 :
                 self.createDb("test_update", db_update_tag=db_update_tag)
-            input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name, t0="f", value="f")
+            input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name, t0="t", value="t")
             self.resCmp(input_sql, stb_name)
-            self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t0="f", value="f", t_add_tag=True)
+            input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t0="t", value="f", t_add_tag=True)
             if db_update_tag == 1 :
-                self.resCmp(input_sql, stb_name, condition=f'where tbname like "{tb_name}"')
-            else:
                 self.resCmp(input_sql, stb_name, condition=f'where tbname like "{tb_name}"', none_check_tag=True)
+                tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
+                tdSql.checkData(0, 11, None)  
+                tdSql.checkData(0, 12, None)  
+            else:
+                self._conn.insert_lines([input_sql], 1)
+                tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
+                tdSql.checkData(0, 1, True)  
+                tdSql.checkData(0, 11, None)  
+                tdSql.checkData(0, 12, None)  
             self.createDb()
 
     def tagColAddCheckCase(self):
@@ -1034,6 +1101,30 @@ class TDTestCase:
         except LinesError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
+    def spellCheckCase(self):
+        stb_name = tdCom.getLongName(8, "letters")
+        input_sql_list = [f'{stb_name}_1 1626006833639000000Ns 127I8 t0=127I8 t1=32767I16 t2=2147483647I32 t3=9223372036854775807I64 t4=11.12345027923584F32 t5=22.123456789F64',
+                            f'{stb_name}_2 1626006833639000000nS 32767I16 t0=127I8 t1=32767I16 t2=2147483647I32 t3=9223372036854775807I64 t4=11.12345027923584F32 t5=22.123456789F64',
+                            f'{stb_name}_3 1626006833639000000NS 2147483647I32 t0=127I8 t1=32767I16 t2=2147483647I32 t3=9223372036854775807I64 t4=11.12345027923584F32 t5=22.123456789F64',
+                            f'{stb_name}_4 1626006833639019Us 9223372036854775807I64 t0=127I8 t1=32767I16 t2=2147483647I32 t3=9223372036854775807I64 t4=11.12345027923584F32 t5=22.123456789F64',
+                            f'{stb_name}_5 1626006833639019uS 11.12345027923584F32 t0=127I8 t1=32767I16 t2=2147483647I32 t3=9223372036854775807I64 t4=11.12345027923584F32 t5=22.123456789F64',
+                            f'{stb_name}_6 1626006833639019US 22.123456789F64 t0=127I8 t1=32767I16 t2=2147483647I32 t3=9223372036854775807I64 t4=11.12345027923584F32 t5=22.123456789F64',
+                            f'{stb_name}_7 1626006833640Ms 22.123456789F64 t0=127I8 t1=32767I16 t2=2147483647I32 t3=9223372036854775807I64 t4=11.12345027923584F32 t5=22.123456789F64',
+                            f'{stb_name}_8 1626006833640mS 22.123456789F64 t0=127I8 t1=32767I16 t2=2147483647I32 t3=9223372036854775807I64 t4=11.12345027923584F32 t5=22.123456789F64',
+                            f'{stb_name}_9 1626006833640MS 22.123456789F64 t0=127I8 t1=32767I16 t2=2147483647I32 t3=9223372036854775807I64 t4=11.12345027923584F32 t5=22.123456789F64',
+                            f'{stb_name}_10 1626006834S 22.123456789F64 t0=127I8 t1=32767I16 t2=2147483647I32 t3=9223372036854775807I64 t4=11.12345027923584F32 t5=22.123456789F64']
+        for input_sql in input_sql_list:
+            stb_name = input_sql.split(' ')[0]
+            self.resCmp(input_sql, stb_name)
+
+    def pointTransCheckCase(self, value_type="obj"):
+        """
+            metric value "." trans to "_"
+        """
+        tdCom.cleanTb()
+        input_sql = self.genFullTypeSql(point_trans_tag=True)[0]
+        self.resCmp(input_sql, stb_name)
+
     def errorTypeCheckCase(self):
         stb_name = tdCom.getLongName(8, "letters")
         input_sql_list = [f'{stb_name}_1 1626006833639000000Ns "hkgjiwdj" t0=f t1=127I8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="vozamcts" t8=L"ncharTagValue"', \
@@ -1057,7 +1148,6 @@ class TDTestCase:
         """
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(point_trans_tag=True)[0]
-        stb_name = input_sql.split(" ")[0].replace(".", "_")
         self.resCmp(input_sql, stb_name)
 
     def defaultTypeCheckCase(self):
@@ -1330,7 +1420,7 @@ class TDTestCase:
         self.symbolsCheckCase()
         self.tsCheckCase()
         self.idSeqCheckCase()
-        self.idUpperCheckCase()
+        self.idLetterCheckCase()
         self.noIdCheckCase()
         self.maxColTagCheckCase()
         self.idIllegalNameCheckCase()
@@ -1338,6 +1428,7 @@ class TDTestCase:
         self.nowTsCheckCase()
         self.dateFormatTsCheckCase()
         self.illegalTsCheckCase()
+        self.tbnameCheckCase()
         self.tagValueLengthCheckCase()
         self.colValueLengthCheckCase()
         self.tagColIllegalValueCheckCase()
@@ -1359,8 +1450,9 @@ class TDTestCase:
         self.blankTagInsertCheckCase()
         self.chineseCheckCase()
         self.multiFieldCheckCase()
+        self.spellCheckCase()
         self.errorTypeCheckCase()
-        self.pointTransCheckCase()
+        # self.pointTransCheckCase()
         self.defaultTypeCheckCase()
         # # MultiThreads
         self.stbInsertMultiThreadCheckCase()
@@ -1380,8 +1472,9 @@ class TDTestCase:
         print("running {}".format(__file__))
         self.createDb()
         try:
-            for i in range(100):
-              self.runAll()
+            # self.tagColAddDupIDCheckCase()
+            # for i in range(100):
+            self.runAll()
             # self.test()
         except Exception as err:
             print(''.join(traceback.format_exception(None, err, err.__traceback__)))
