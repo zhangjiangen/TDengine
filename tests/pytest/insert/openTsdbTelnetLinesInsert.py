@@ -502,26 +502,32 @@ class TDTestCase:
             chech upper tag
             length of stb_name tb_name <= 192
         """
-        stb_name_129 = tdCom.getLongName(len=129, mode="letters")
-        tb_name_129 = tdCom.getLongName(len=129, mode="letters")
+        stb_name_129 = tdCom.getLongName(len=192, mode="letters")
+        tb_name_129 = tdCom.getLongName(len=192, mode="letters")
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name_129, tb_name=tb_name_129)
-        print(input_sql)
         self.resCmp(input_sql, stb_name)
         tdSql.query(f'select * from {stb_name}')
         tdSql.checkRows(1)
-        #! bug
-        # for input_json in [self.genFullTypeSql(stb_name=tdCom.getLongName(len=130, mode="letters"), tb_name=tdCom.getLongName(len=5, mode="letters"))[0], self.genFullTypeSql(tb_name=tdCom.getLongName(len=130, mode="letters"))[0]]:
-        #     print(input_json)
-        #     try:
-        #         self._conn.insert_lines([input_json], 1)
-        #         raise Exception("should not reach here")
-        #     except LinesError as err:
-        #         tdSql.checkNotEqual(err.errno, 0)
+        for input_sql in [self.genFullTypeSql(stb_name=tdCom.getLongName(len=193, mode="letters"), tb_name=tdCom.getLongName(len=5, mode="letters"))[0], self.genFullTypeSql(tb_name=tdCom.getLongName(len=193, mode="letters"))[0]]:
+            print(input_sql)
+            try:
+                self._conn.insert_lines([input_sql], 1)
+                raise Exception("should not reach here")
+            except LinesError as err:
+                tdSql.checkNotEqual(err.errno, 0)
 
         input_sql = 'Abcdffgg 1626006833639000000ns False T1=127i8 id="Abcddd"'
         stb_name = "Abcdffgg"
         self.resCmp(input_sql, stb_name)
+
+    def tagNameLengthCheckCase(self):
+        """
+            check tag name limit <= 64
+        """
+        tdCom.cleanTb()
+        tag_name = {tdCom.getLongName(64, "letters")}
+        input_sql = f'{tdCom.getLongName(7, "letters")} 16260068336 39000000ns L"bcdaaa" {tdCom.getLongName(64, "letters")}=f',
 
     def tagValueLengthCheckCase(self):
         """
@@ -1474,7 +1480,8 @@ class TDTestCase:
         try:
             # self.tagColAddDupIDCheckCase()
             # for i in range(100):
-            self.runAll()
+            self.tbnameCheckCase()
+            # self.runAll()
             # self.test()
         except Exception as err:
             print(''.join(traceback.format_exception(None, err, err.__traceback__)))
