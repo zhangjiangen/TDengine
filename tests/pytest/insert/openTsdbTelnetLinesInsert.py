@@ -352,15 +352,15 @@ class TDTestCase:
         for ts in ts_list:
             input_sql, stb_name = self.genFullTypeSql(ts=ts)
             self.resCmp(input_sql, stb_name, ts=ts)
-        #! bug
-        # tdSql.execute(f"drop database if exists test_ts")
-        # tdSql.execute(f"create database if not exists test_ts precision 'ms'")
-        # tdSql.execute("use test_ts")
+
+        tdSql.execute(f"drop database if exists test_ts")
+        tdSql.execute(f"create database if not exists test_ts precision 'ms'")
+        tdSql.execute("use test_ts")
         input_json = ['test_ms 1626006833640ms t t0=t', 'test_ms 1626006833641ms f t0=t']
-        # self._conn.insert_lines(input_json, 1)
-        # res = tdSql.query('select * from test_ms', True)
-        # tdSql.checkEqual(str(res[0][0]), "2021-07-11 20:33:53.640000")
-        # tdSql.checkEqual(str(res[1][0]), "2021-07-11 20:33:53.641000")
+        self._conn.insert_lines(input_json, 1)
+        res = tdSql.query('select * from test_ms', True)
+        tdSql.checkEqual(str(res[0][0]), "2021-07-11 20:33:53.640000")
+        tdSql.checkEqual(str(res[1][0]), "2021-07-11 20:33:53.641000")
 
         tdSql.execute(f"drop database if exists test_ts")
         tdSql.execute(f"create database if not exists test_ts precision 'us'")
@@ -371,15 +371,15 @@ class TDTestCase:
         tdSql.checkEqual(str(res[0][0]), "2021-07-11 20:33:53.639000")
         tdSql.checkEqual(str(res[1][0]), "2021-07-11 20:33:53.639001")
 
-        #! bug
-        # tdSql.execute(f"drop database if exists test_ts")
-        # tdSql.execute(f"create database if not exists test_ts precision 'ns'")
-        # tdSql.execute("use test_ts")
-        # input_json = ['test_ns 1626006833639000000ns t t0=t', 'test_ms 1626006833639000001ns f t0=t']
-        # self._conn.insert_lines(input_json, 1)
-        # res = tdSql.query('select * from test_ns', True)
-        # tdSql.checkEqual(str(res[0][0]), "2021-07-11 20:33:53.639000000")
-        # tdSql.checkEqual(str(res[1][0]), "2021-07-11 20:33:53.639000001")
+        tdSql.execute(f"drop database if exists test_ts")
+        tdSql.execute(f"create database if not exists test_ts precision 'ns'")
+        tdSql.execute("use test_ts")
+        input_json = ['test_ns 1626006833639000000ns t t0=t', 'test_ns 1626006833639000001ns f t0=t']
+        self._conn.insert_lines(input_json, 1)
+        res = tdSql.query('select * from test_ns', True)
+        tdSql.checkEqual(str(res[0][0]), "1626006833639000000")
+        tdSql.checkEqual(str(res[1][0]), "1626006833639000001")
+        self.createDb()
     
     def idSeqCheckCase(self):
         """
@@ -502,15 +502,14 @@ class TDTestCase:
             chech upper tag
             length of stb_name tb_name <= 192
         """
-        stb_name_129 = tdCom.getLongName(len=192, mode="letters")
-        tb_name_129 = tdCom.getLongName(len=192, mode="letters")
+        stb_name_192 = tdCom.getLongName(len=192, mode="letters")
+        tb_name_192 = tdCom.getLongName(len=192, mode="letters")
         tdCom.cleanTb()
-        input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name_129, tb_name=tb_name_129)
+        input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name_192, tb_name=tb_name_192)
         self.resCmp(input_sql, stb_name)
         tdSql.query(f'select * from {stb_name}')
         tdSql.checkRows(1)
         for input_sql in [self.genFullTypeSql(stb_name=tdCom.getLongName(len=193, mode="letters"), tb_name=tdCom.getLongName(len=5, mode="letters"))[0], self.genFullTypeSql(tb_name=tdCom.getLongName(len=193, mode="letters"))[0]]:
-            print(input_sql)
             try:
                 self._conn.insert_lines([input_sql], 1)
                 raise Exception("should not reach here")
@@ -526,8 +525,17 @@ class TDTestCase:
             check tag name limit <= 64
         """
         tdCom.cleanTb()
-        tag_name = {tdCom.getLongName(64, "letters")}
-        input_sql = f'{tdCom.getLongName(7, "letters")} 16260068336 39000000ns L"bcdaaa" {tdCom.getLongName(64, "letters")}=f',
+        tag_name = tdCom.getLongName(63, "letters")
+        tag_name = f'T{tag_name}'
+        stb_name = tdCom.getLongName(7, "letters")
+        input_sql = f'{stb_name} 1626006833639000000ns L"bcdaaa" {tag_name}=f'
+        self.resCmp(input_sql, stb_name)
+        input_sql = f'{stb_name} 1626006833639000001ns L"gggcdaaa" {tdCom.getLongName(65, "letters")}=f'
+        try:
+            self._conn.insert_lines([input_sql], 1)
+            raise Exception("should not reach here")
+        except LinesError as err:
+            tdSql.checkNotEqual(err.errno, 0)   
 
     def tagValueLengthCheckCase(self):
         """
@@ -845,7 +853,6 @@ class TDTestCase:
         """
             case no id when stb exist
         """
-        print("noIdStbExistCheckCase")
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(tb_name="sub_table_0123456", t0="f", value="f")
         self.resCmp(input_sql, stb_name)
@@ -868,7 +875,6 @@ class TDTestCase:
         """
             check length increase
         """
-        print("tagColBinaryNcharLengthCheckCase")
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
@@ -910,7 +916,6 @@ class TDTestCase:
         """
             check tag count add
         """
-        print("tagColAddCheckCase")
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name, t0="f", value="f")
@@ -1153,7 +1158,7 @@ class TDTestCase:
             metric value "." trans to "_"
         """
         tdCom.cleanTb()
-        input_sql = self.genFullTypeSql(point_trans_tag=True)[0]
+        input_sql, stb_name = self.genFullTypeSql(point_trans_tag=True)
         self.resCmp(input_sql, stb_name)
 
     def defaultTypeCheckCase(self):
@@ -1435,6 +1440,7 @@ class TDTestCase:
         self.dateFormatTsCheckCase()
         self.illegalTsCheckCase()
         self.tbnameCheckCase()
+        self.tagNameLengthCheckCase()
         self.tagValueLengthCheckCase()
         self.colValueLengthCheckCase()
         self.tagColIllegalValueCheckCase()
@@ -1478,11 +1484,7 @@ class TDTestCase:
         print("running {}".format(__file__))
         self.createDb()
         try:
-            # self.tagColAddDupIDCheckCase()
-            # for i in range(100):
-            self.tbnameCheckCase()
-            # self.runAll()
-            # self.test()
+            self.runAll()
         except Exception as err:
             print(''.join(traceback.format_exception(None, err, err.__traceback__)))
             raise err
