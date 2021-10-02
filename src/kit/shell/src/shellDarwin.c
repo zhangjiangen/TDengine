@@ -368,7 +368,7 @@ void *shellLoopQuery(void *arg) {
 
   pthread_cleanup_push(cleanup_handler, NULL);
 
-    char *command = malloc(MAX_COMMAND_SIZE);
+    char *command = malloc(DOUBLE_COMMAND_SIZE);
     if (command == NULL){
       tscError("failed to malloc command");
       return NULL;
@@ -378,7 +378,7 @@ void *shellLoopQuery(void *arg) {
 
     do {
       // Read command from shell.
-      memset(command, 0, MAX_COMMAND_SIZE);
+      memset(command, 0, DOUBLE_COMMAND_SIZE);
       set_terminal_mode();
       err = shellReadCommand(con, command);
       if (err) {

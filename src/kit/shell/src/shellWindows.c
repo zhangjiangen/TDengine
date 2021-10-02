@@ -301,13 +301,13 @@ int32_t shellReadCommand(TAOS *con, char command[]) {
 
 void *shellLoopQuery(void *arg) {
   TAOS *con = (TAOS *)arg;
-  char *command = malloc(MAX_COMMAND_SIZE);
+  char *command = malloc(DOUBLE_COMMAND_SIZE);
   if (command == NULL) return NULL;
 
   int32_t err = 0;
 
   do {
-    memset(command, 0, MAX_COMMAND_SIZE);
+    memset(command, 0, DOUBLE_COMMAND_SIZE);
     shellPrintPrompt();
 
     // Read command from shell.

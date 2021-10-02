@@ -20,6 +20,7 @@
 #include "shellCommand.h"
 #include "tkey.h"
 #include "tulog.h"
+#include "autoTab.h"
 
 #define OPT_ABORT 1 /* �Cabort */
 
@@ -239,6 +240,8 @@ int32_t shellReadCommand(TAOS *con, char *command) {
 
     if (c == EOF) {
       return c;
+    } else if (c == TAB_KEY) {
+      pressTabKey(con, &cmd);
     }
 
     if (c < 0) {  // For UTF-8
@@ -393,7 +396,7 @@ void *shellLoopQuery(void *arg) {
 
   pthread_cleanup_push(cleanup_handler, NULL);
 
-  char *command = malloc(MAX_COMMAND_SIZE);
+  char *command = malloc(DOUBLE_COMMAND_SIZE);
   if (command == NULL){
     uError("failed to malloc command");
     return NULL;
@@ -403,7 +406,7 @@ void *shellLoopQuery(void *arg) {
   
   do {
     // Read command from shell.
-    memset(command, 0, MAX_COMMAND_SIZE);
+    memset(command, 0, DOUBLE_COMMAND_SIZE);
     set_terminal_mode();
     err = shellReadCommand(con, command);
     if (err) {
