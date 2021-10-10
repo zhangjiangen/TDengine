@@ -98,19 +98,19 @@ TEST(testCase, histogram_binary_search) {
     pHisto->elems[i].val = i;
   }
 
-  int32_t idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, 1, pHisto->maxEntries);
+  int32_t idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, 1);
   assert(idx == 1);
 
-  idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, 9, pHisto->maxEntries);
+  idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, 9);
   assert(idx == 9);
 
-  idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, 20, pHisto->maxEntries);
+  idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, 20);
   assert(idx == 10);
 
-  idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, -1, pHisto->maxEntries);
+  idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, -1);
   assert(idx == 0);
 
-  idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, 3.9, pHisto->maxEntries);
+  idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, 3.9);
   assert(idx == 4);
 
   free(pHisto);
