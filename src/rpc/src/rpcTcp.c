@@ -44,7 +44,7 @@ typedef struct SThreadObj {
   int             numOfFds;
   int             threadId;
   char            label[TSDB_LABEL_LEN];
-  void           *shandle;  // handle passed by upper layer during server initialization
+  void           *shandle;  // handle passed by upper layer during server initialization  RPCInfo
   void           *(*processData)(SRecvInfo *pPacket);
 } SThreadObj;
 
