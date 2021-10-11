@@ -22,6 +22,11 @@
 typedef int64_t   RaftIndex;
 typedef uint64_t  RaftTerm;
 
+typedef enum RaftCode {
+  RAFT_ERR_COMPACT = -1,
+  RAFT_
+} RaftCode;
+
 typedef enum RaftRole {
   RAFT_FOLLOWER   = 1,
   RAFT_CANDIDATE  = 2,
@@ -41,6 +46,12 @@ typedef struct RaftRefEntry {
   unsigned int refCount;
 } RaftRefEntry;
 
+/* meta data about snapshot */
+typedef struct RaftSnapshotMeta {
+  RaftIndex lastIndex;
+  RaftTerm  lastTerm;
+} RaftSnapshotMeta;
+
 /* in-memory raft log storage */
 typedef struct RaftLog {
   /* Circular buffer of log entries */
@@ -52,14 +63,11 @@ typedef struct RaftLog {
   /* Indexes of used slots [front, back) */
   size_t front, back;
 
-  /* Index of first entry is offset+1 */
+  /* Index of first entry is offset + 1 */
   RaftIndex offset;
 
-  /* last index and term of snapshot */
-  struct {
-    RaftIndex lastIndex;
-    RaftTerm  lastTerm;
-  } snapshot;
+  /* meta data of snapshot */
+  RaftSnapshotMeta snapshot;
 } RaftLog;
 
 // raft core algorithm struct

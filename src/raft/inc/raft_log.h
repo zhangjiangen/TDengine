@@ -26,15 +26,35 @@ void raftLogClose(RaftLog* pLog);
  * When startup populating log entrues loaded from disk,
  * init raft memory log with snapshot index,term and log start idnex.
  **/ 
-vodi raftLogStart(RaftLog* pLog,
-                  RaftIndex snapshotIndex,
-                  RaftTerm  snapshotTerm,
+void raftLogStart(RaftLog* pLog,
+                  RaftSnapshotMeta snapshot,
                   RaftIndex startIndex);
+
+/** 
+ * Get the number of entries the log. 
+ **/
+size_t raftLogNumEntries(const RaftLog* pLog);
 
 /**
  * return index of last in memory log, return 0 if log is empty
  **/
 RaftIndex raftLogLastIndex(RaftLog* pLog);
 
-#endif /* TD_RAFT_LOG_H */
+/**
+ * return last term of in memory log, return 0 if log is empty
+ **/
+RaftTerm raftLogLastTerm(RaftLog* pLog);
 
+/**
+ * return term of log with the given index, return 0 if the term of index cannot be found
+ * , errCode will save the error code.
+ **/
+RaftTerm raftLogTermOf(RaftLog* pLog, RaftIndex index, RaftCode* errCode);
+
+/* Append a new entry to the log. */
+int raftLogAppend(RaftLog* pLog,
+                  RaftTerm term,
+                  const struct RaftBuffer *buf);
+
+
+#endif /* TD_RAFT_LOG_H */
