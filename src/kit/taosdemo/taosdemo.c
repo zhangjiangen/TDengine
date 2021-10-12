@@ -388,6 +388,8 @@ typedef struct SDbs_S {
     uint64_t    totalInsertRows;
     uint64_t    totalAffectedRows;
 
+    char*       req_fmt;
+
 } SDbs;
 
 typedef struct SpecifiedQueryInfo_S {
@@ -501,6 +503,7 @@ typedef struct SThreadInfo_S {
     uint64_t  querySeq;   // sequence number of sql command
     TAOS_SUB*  tsub;
 
+    int       socket;
 } threadInfo;
 
 #ifdef WINDOWS
@@ -580,8 +583,7 @@ static void prompt();
 static int createDatabasesAndStables();
 static void createChildTables();
 static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet);
-static int postProceSql(char *host, struct sockaddr_in *pServAddr,
-        uint16_t port, char* sqlstr, threadInfo *pThreadInfo);
+static int postProceSql(char* sqlstr, threadInfo *pThreadInfo);
 static int64_t getTSRandTail(int64_t timeStampStep, int32_t seq,
         int disorderRatio, int disorderRange);
 static bool getInfoFromJsonFile(char* file);
@@ -2210,10 +2212,7 @@ static void selectAndGetResult(
         taos_free_result(res);
 
     } else if (0 == strncasecmp(g_queryInfo.queryMode, "rest", strlen("rest"))) {
-        int retCode = postProceSql(
-                g_queryInfo.host, &(g_queryInfo.serv_addr), g_queryInfo.port,
-                command,
-                pThreadInfo);
+        int retCode = postProceSql(command, pThreadInfo);
         if (0 != retCode) {
             printf("====restful return fail, threadID[%d]\n", pThreadInfo->threadID);
         }
@@ -3390,154 +3389,86 @@ static void printfQuerySystemInfo(TAOS * taos) {
     free(dbInfos);
 }
 
-static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port,
-        char* sqlstr, threadInfo *pThreadInfo)
-{
-    char *req_fmt = "POST %s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\nAuthorization: Basic %s\r\nContent-Length: %d\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n%s";
-
-    char *url = "/rest/sql";
-
-    int bytes, sent, received, req_str_len, resp_len;
+static int postProceSql(char* sqlstr, threadInfo *pThreadInfo) {
+    int bytes, sent;
+    int req_str_len;
     char *request_buf;
-    char response_buf[RESP_BUF_LEN];
-    uint16_t rest_port = port + TSDB_PORT_HTTP;
-
     int req_buf_len = strlen(sqlstr) + REQ_EXTRA_BUF_LEN;
-
-    request_buf = malloc(req_buf_len);
+    request_buf = calloc(req_buf_len, 1);
     if (NULL == request_buf) {
         errorPrint("%s", "cannot allocate memory.\n");
-        exit(EXIT_FAILURE);
+        return -1;
     }
-
-    char userpass_buf[INPUT_BUF_LEN];
-    int mod_table[] = {0, 2, 1};
-
-    static char base64[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
-        'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
-        'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
-        'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
-        'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
-        'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
-        'w', 'x', 'y', 'z', '0', '1', '2', '3',
-        '4', '5', '6', '7', '8', '9', '+', '/'};
-
-    snprintf(userpass_buf, INPUT_BUF_LEN, "%s:%s",
-            g_Dbs.user, g_Dbs.password);
-    size_t userpass_buf_len = strlen(userpass_buf);
-    size_t encoded_len = 4 * ((userpass_buf_len +2) / 3);
-
-    char base64_buf[INPUT_BUF_LEN];
-#ifdef WINDOWS
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-    SOCKET sockfd;
-#else
-    int sockfd;
-#endif
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-#ifdef WINDOWS
-        errorPrint( "Could not create socket : %d" , WSAGetLastError());
-#endif
-        debugPrint("%s() LN%d, sockfd=%d\n", __func__, __LINE__, sockfd);
-        free(request_buf);
-        ERROR_EXIT("opening socket");
-    }
-
-    int retConn = connect(sockfd, (struct sockaddr *)pServAddr, sizeof(struct sockaddr));
-    debugPrint("%s() LN%d connect() return %d\n", __func__, __LINE__, retConn);
-    if (retConn < 0) {
-        free(request_buf);
-        ERROR_EXIT("connecting");
-    }
-
-    memset(base64_buf, 0, INPUT_BUF_LEN);
-
-    for (int n = 0, m = 0; n < userpass_buf_len;) {
-        uint32_t oct_a = n < userpass_buf_len ?
-            (unsigned char) userpass_buf[n++]:0;
-        uint32_t oct_b = n < userpass_buf_len ?
-            (unsigned char) userpass_buf[n++]:0;
-        uint32_t oct_c = n < userpass_buf_len ?
-            (unsigned char) userpass_buf[n++]:0;
-        uint32_t triple = (oct_a << 0x10) + (oct_b << 0x08) + oct_c;
-
-        base64_buf[m++] = base64[(triple >> 3* 6) & 0x3f];
-        base64_buf[m++] = base64[(triple >> 2* 6) & 0x3f];
-        base64_buf[m++] = base64[(triple >> 1* 6) & 0x3f];
-        base64_buf[m++] = base64[(triple >> 0* 6) & 0x3f];
-    }
-
-    for (int l = 0; l < mod_table[userpass_buf_len % 3]; l++)
-        base64_buf[encoded_len - 1 - l] = '=';
-
-    debugPrint("%s() LN%d: auth string base64 encoded: %s\n",
-            __func__, __LINE__, base64_buf);
-    char *auth = base64_buf;
-
-    int r = snprintf(request_buf,
-            req_buf_len,
-            req_fmt, url, host, rest_port,
-            auth, strlen(sqlstr), sqlstr);
-    if (r >= req_buf_len) {
-        free(request_buf);
-        ERROR_EXIT("too long request");
-    }
+    snprintf(request_buf, req_buf_len,
+    "%sContent-Length: %d\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n%s",
+    g_Dbs.req_fmt, (int32_t)strlen(sqlstr), sqlstr);
     verbosePrint("%s() LN%d: Request:\n%s\n", __func__, __LINE__, request_buf);
 
     req_str_len = strlen(request_buf);
     sent = 0;
     do {
 #ifdef WINDOWS
-        bytes = send(sockfd, request_buf + sent, req_str_len - sent, 0);
+        bytes = send(pThreadInfo->socket, request_buf + sent, req_str_len - sent, 0);
 #else
-        bytes = write(sockfd, request_buf + sent, req_str_len - sent);
-#endif
-        if (bytes < 0)
-            ERROR_EXIT("writing message to socket");
-        if (bytes == 0)
-            break;
-        sent+=bytes;
-    } while(sent < req_str_len);
-
-    memset(response_buf, 0, RESP_BUF_LEN);
-    resp_len = sizeof(response_buf) - 1;
-    received = 0;
-    do {
-#ifdef WINDOWS
-        bytes = recv(sockfd, response_buf + received, resp_len - received, 0);
-#else
-        bytes = read(sockfd, response_buf + received, resp_len - received);
+        // printf("send at : %ld\n", taosGetTimestamp(3));
+        bytes = write(pThreadInfo->socket, request_buf + sent, req_str_len - sent);
 #endif
         if (bytes < 0) {
+            errorPrint("writing message to socket. Reason: %s\n", strerror(errno));
             free(request_buf);
-            ERROR_EXIT("reading response from socket");
-        }
-        if (bytes == 0)
+            return -1;
+        } 
+        if (bytes == 0) {
             break;
-        received += bytes;
-    } while(received < resp_len);
+        }
+           
+        sent+=bytes;
+    }  while(sent < req_str_len);
 
-    if (received == resp_len) {
-        free(request_buf);
-        ERROR_EXIT("storing complete response from socket");
-    }
+    taosMsleep(30);
+    // printf("finish sent at : %ld\n", taosGetTimestamp(3));
+    // char response_buf[RESP_BUF_LEN];
+    // memset(response_buf, 0, RESP_BUF_LEN);
+    // int resp_len = sizeof(response_buf) - 1;
 
-    response_buf[RESP_BUF_LEN - 1] = '\0';
-    printf("Response:\n%s\n", response_buf);
+    // int received = 0;
+    // do {
+// #ifdef WINDOWS
+//         bytes = recv(sockfd, response_buf + received, resp_len - received, 0);
+// #else
+    // bytes = read(pThreadInfo->socket, response_buf, resp_len);
+// #endif
+//         if (bytes < 0) {
+//             errorPrint("%s", "reading response from socket\n");
+//             free(request_buf);
+//             return -1;
+//         }
+//         if (bytes == 0){
+//             break;
+//         }  
+//         received += bytes;
+//     } while(received < resp_len);
 
-    if (strlen(pThreadInfo->filePath) > 0) {
-        appendResultBufToFile(response_buf, pThreadInfo);
-    }
+//     if (received == resp_len) {
+//         errorPrint("%s", "storing complete response from socket\n");
+//         free(request_buf);
+//         return -1;
+//     }
+    // bytes = read(pThreadInfo->socket, response_buf, resp_len);
+    // response_buf[RESP_BUF_LEN - 1] = '\0';
+    // if (strstr(response_buf, "status")) {
+    //     if (!strstr(response_buf, "succ")) {
+    //         printf("%s\n", response_buf);
+    //     }
+    // }
+    
+    // printf("Response:\n%s\n", response_buf);
+    // printf("finish read at : %ld\n", taosGetTimestamp(3));
+    // if (strlen(pThreadInfo->filePath) > 0) {
+    //     appendResultBufToFile(response_buf, pThreadInfo);
+    // }
 
     free(request_buf);
-#ifdef WINDOWS
-    closesocket(sockfd);
-    WSACleanup();
-#else
-    close(sockfd);
-#endif
 
     return 0;
 }
@@ -6937,8 +6868,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             verbosePrint("[%d] %s() LN%d %s\n", pThreadInfo->threadID,
                     __func__, __LINE__, pThreadInfo->buffer);
 
-            if (0 != postProceSql(g_Dbs.host, &g_Dbs.serv_addr, g_Dbs.port,
-                        pThreadInfo->buffer, pThreadInfo)) {
+            if (0 != postProceSql(pThreadInfo->buffer, pThreadInfo)) {
                 affectedRows = -1;
                 printf("========restful return fail, threadID[%d]\n",
                         pThreadInfo->threadID);
@@ -10321,12 +10251,62 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     if (threads != 0) {
         b = ntables % threads;
     }
-
+    
     if (g_args.iface == REST_IFACE || ((stbInfo) && (stbInfo->iface == REST_IFACE))) {
         if (convertHostToServAddr(
                     g_Dbs.host, g_Dbs.port, &(g_Dbs.serv_addr)) != 0) {
             ERROR_EXIT("convert host to server address");
         }
+        char *tmp_fmt = "POST %s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\nAuthorization: Basic %s\r\n";
+        char *url = "/rest/sql";
+        uint16_t rest_port = g_Dbs.port + TSDB_PORT_HTTP;
+        char userpass_buf[INPUT_BUF_LEN];
+        int mod_table[] = {0, 2, 1};
+        g_Dbs.req_fmt = calloc(1, 4096);
+        if (NULL == g_Dbs.req_fmt) {
+            errorPrint("%s", "cannot allocate memory.\n");
+            exit(EXIT_FAILURE);
+        }
+        static char base64[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+        'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+        'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+        'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+        'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+        'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+        'w', 'x', 'y', 'z', '0', '1', '2', '3',
+        '4', '5', '6', '7', '8', '9', '+', '/'};
+        snprintf(userpass_buf, INPUT_BUF_LEN, "%s:%s",
+            g_Dbs.user, g_Dbs.password);
+        size_t userpass_buf_len = strlen(userpass_buf);
+        size_t encoded_len = 4 * ((userpass_buf_len +2) / 3);
+
+        char base64_buf[INPUT_BUF_LEN];
+        memset(base64_buf, 0, INPUT_BUF_LEN);
+        for (int n = 0, m = 0; n < userpass_buf_len;) {
+            uint32_t oct_a = n < userpass_buf_len ?
+                (unsigned char) userpass_buf[n++]:0;
+            uint32_t oct_b = n < userpass_buf_len ?
+                (unsigned char) userpass_buf[n++]:0;
+            uint32_t oct_c = n < userpass_buf_len ?
+                (unsigned char) userpass_buf[n++]:0;
+            uint32_t triple = (oct_a << 0x10) + (oct_b << 0x08) + oct_c;
+
+            base64_buf[m++] = base64[(triple >> 3* 6) & 0x3f];
+            base64_buf[m++] = base64[(triple >> 2* 6) & 0x3f];
+            base64_buf[m++] = base64[(triple >> 1* 6) & 0x3f];
+            base64_buf[m++] = base64[(triple >> 0* 6) & 0x3f];
+        }
+        for (int l = 0; l < mod_table[userpass_buf_len % 3]; l++)
+            base64_buf[encoded_len - 1 - l] = '=';
+
+        debugPrint("%s() LN%d: auth string base64 encoded: %s\n",
+                __func__, __LINE__, base64_buf);
+        char *auth = base64_buf;
+
+        snprintf(g_Dbs.req_fmt,
+                4096,
+                tmp_fmt, url, g_Dbs.host, rest_port,
+                auth);
     }
 
     pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
@@ -10476,6 +10456,33 @@ static void startMultiThreadInsertData(int threads, char* db_name,
               pThreadInfo->start_time = pThreadInfo->start_time + rand_int() % 10000 - rand_tinyint();
               }
               */
+        if (g_args.iface == REST_IFACE || ((stbInfo) && (stbInfo->iface == REST_IFACE))) {
+            #ifdef WINDOWS
+            WSADATA wsaData;
+            WSAStartup(MAKEWORD(2, 2), &wsaData);
+            SOCKET sockfd;
+            #else
+            int sockfd;
+            #endif
+            sockfd = socket(AF_INET, SOCK_STREAM, 0);
+            int  set = 1;
+            setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE , (void  *)&set, sizeof(int));
+            if (sockfd < 0) {
+            #ifdef WINDOWS
+                errorPrint( "Could not create socket : %d" , WSAGetLastError());
+            #endif
+                debugPrint("%s() LN%d, sockfd=%d\n", __func__, __LINE__, sockfd);
+                ERROR_EXIT("opening socket");
+            }
+            pThreadInfo->socket = sockfd;
+            int retConn = connect(pThreadInfo->socket, (struct sockaddr *)&g_Dbs.serv_addr,
+            sizeof(struct sockaddr));
+            debugPrint("%s() LN%d connect() return %d\n", __func__, __LINE__, retConn);
+            if (retConn < 0) {
+                errorPrint2("failed to connect. Reason: %s\n",strerror(errno));
+                exit(EXIT_FAILURE);
+            }
+        } 
         tsem_init(&(pThreadInfo->lock_sem), 0, 0);
         if (ASYNC_MODE == g_Dbs.asyncMode) {
             pthread_create(pids + i, NULL, asyncWrite, pThreadInfo);
@@ -10483,7 +10490,6 @@ static void startMultiThreadInsertData(int threads, char* db_name,
             pthread_create(pids + i, NULL, syncWrite, pThreadInfo);
         }
     }
-
     free(stmtBuffer);
 
     int64_t start = taosGetTimestampUs();
@@ -10503,6 +10509,14 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
         tsem_destroy(&(pThreadInfo->lock_sem));
         taos_close(pThreadInfo->taos);
+        if (g_args.iface == REST_IFACE || ((stbInfo) && (stbInfo->iface == REST_IFACE))) {
+#ifdef WINDOWS
+            closesocket(pThreadInfo->socket);
+            WSACleanup();
+#else
+            close(pThreadInfo->socket);
+#endif
+        }
 
         if (pThreadInfo->stmt) {
             taos_stmt_close(pThreadInfo->stmt);
