@@ -376,7 +376,7 @@ static void resetAfterAnsiEscape(void) {
     printf("\x1b[0m");
 }
 
-#include <time.h>
+
 
 static int taosRandom()
 {

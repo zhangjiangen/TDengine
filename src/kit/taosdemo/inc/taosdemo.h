@@ -53,6 +53,7 @@
 #include "taos.h"
 #include "taoserror.h"
 #include "tutil.h"
+#include <time.h>
 
 #define REQ_EXTRA_BUF_LEN   1024
 #define RESP_BUF_LEN        4096
