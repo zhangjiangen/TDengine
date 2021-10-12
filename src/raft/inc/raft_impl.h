@@ -23,8 +23,20 @@ typedef int64_t   RaftIndex;
 typedef uint64_t  RaftTerm;
 
 typedef enum RaftCode {
-  RAFT_ERR_COMPACT = -1,
-  RAFT_
+  RAFT_OK = 0,
+
+  /**
+   * RAFT_INDEX_COMPACTED is returned when a request index is predates the last snapshot
+   **/
+  RAFT_INDEX_COMPACTED = -1,
+
+  /**
+   * RAFT_INDEX_UNAVAILABLE is returned when a request index is unavailable
+   **/
+  RAFT_INDEX_UNAVAILABLE = -2,
+
+  /* out of memory */
+  RAFT_OOM = -3,
 } RaftCode;
 
 typedef enum RaftRole {
@@ -33,18 +45,12 @@ typedef enum RaftRole {
   RAFT_LEADER     = 3,
 } RaftRole;
 
-/* raft log entry */
+/* raft log entry with reference count */
 typedef struct RaftEntry {
   RaftTerm term;
   RaftBuffer buffer;
-} RaftEntry;
-
-/* raft log entry with reference count */
-typedef struct RaftRefEntry {
-  RaftEntry* entry;
-
   unsigned int refCount;
-} RaftRefEntry;
+} RaftEntry;
 
 /* meta data about snapshot */
 typedef struct RaftSnapshotMeta {
@@ -55,13 +61,13 @@ typedef struct RaftSnapshotMeta {
 /* in-memory raft log storage */
 typedef struct RaftLog {
   /* Circular buffer of log entries */
-  RaftRefEntry *entries;
+  RaftEntry *entries;
 
   /* size of Circular buffer */
-  size_t size;
+  int size;
 
   /* Indexes of used slots [front, back) */
-  size_t front, back;
+  int front, back;
 
   /* Index of first entry is offset + 1 */
   RaftIndex offset;

@@ -33,7 +33,7 @@ void raftLogStart(RaftLog* pLog,
 /** 
  * Get the number of entries the log. 
  **/
-size_t raftLogNumEntries(const RaftLog* pLog);
+int raftLogNumEntries(const RaftLog* pLog);
 
 /**
  * return index of last in memory log, return 0 if log is empty
@@ -54,7 +54,29 @@ RaftTerm raftLogTermOf(RaftLog* pLog, RaftIndex index, RaftCode* errCode);
 /* Append a new entry to the log. */
 int raftLogAppend(RaftLog* pLog,
                   RaftTerm term,
-                  const struct RaftBuffer *buf);
+                  const RaftBuffer *buf);
 
+/**
+ * acquire log from given index onwards.
+ **/ 
+int raftLogAcquire(RaftLog* pLog,
+                  RaftIndex index,
+                  RaftEntry **ppEntries,
+                  int *n);
+
+void raftLogRelease(RaftLog* pLog,
+                    RaftIndex index,
+                    RaftEntry *pEntries,
+                    int n);
+
+/* Delete all entries from the given index (included) onwards. */
+void raftLogTruncate(RaftLog* pLog, RaftIndex index);
+
+/** 
+ * when taking a new snapshot, the function will update the last snapshot information and delete
+ * all entries up last_index - trailing (included). If the log contains no entry
+ * a last_index - trailing, then no entry will be deleted. 
+ **/
+void raftLogSnapshot(RaftLog* pLog, RaftIndex index, RaftIndex trailing);
 
 #endif /* TD_RAFT_LOG_H */
