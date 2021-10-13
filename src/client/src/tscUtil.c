@@ -912,10 +912,6 @@ SSDataBlock* doGetDataBlock(void* param, bool* newgroup) {
   SSqlRes* pRes = &pSql->res;
 
   SSDataBlock* pBlock = pInput->block;
-  if (pOperator->pRuntimeEnv != NULL) {
-    pOperator->pRuntimeEnv->current = pInput->pTableQueryInfo;
-    pOperator->pRuntimeEnv->groupResInfo.totalGroup = 1;
-  }
   
   pBlock->info.rows = pRes->numOfRows;
   if (pRes->numOfRows != 0) {
@@ -4733,8 +4729,13 @@ void tscSetDummyStableQuery(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr) {
   if (pQueryInfo->interval.interval <= 0) {
     return;
   }
+
+  if (pQueryInfo->pDownstream != NULL && pQueryInfo->groupbyTag) {  // subquery in the from clause
+    pQueryAttr->dummyStableQuery = true;
+    return;
+  }
   
-  if (pQueryInfo->pUpstream != NULL && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // subquery in the from clause
+  if (pQueryInfo->pUpstream != NULL && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {
     size_t size = taosArrayGetSize(pQueryInfo->pUpstream);
     for(int32_t i = 0; i < size; ++i) {
       SQueryInfo* pq = taosArrayGetP(pQueryInfo->pUpstream, i);

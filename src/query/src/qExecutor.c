@@ -5478,6 +5478,9 @@ SOperatorInfo *createMultiwaySortOperatorInfo(SQueryRuntimeEnv *pRuntimeEnv, SEx
   pInfo->bufCapacity     = numOfRows;
   pInfo->orderColumnList = getResultGroupCheckColumns(pRuntimeEnv->pQueryAttr);
   pInfo->binfo.pRes      = createOutputBuf(pExpr, numOfOutput, numOfRows);
+  if (pRuntimeEnv->pQueryAttr->dummyStableQuery) {
+    pInfo->binfo.pRes->info.tid = -1;
+  }
 
   {  // todo extract method to create prev compare buffer
     int32_t len = 0;

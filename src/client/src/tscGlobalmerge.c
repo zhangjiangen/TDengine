@@ -756,6 +756,32 @@ static void appendOneRowToDataBlock(SSDataBlock *pBlock, char *buf, SColumnModel
   pBlock->info.rows += 1;
 }
 
+static void handleDummyStableQuery(SQueryRuntimeEnv     *pRuntimeEnv, int32_t* tid) {
+  ++(*tid);
+
+  STableGroupInfo  *pTableGroupInfo = &pRuntimeEnv->tableqinfoGroupInfo;
+
+  STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};
+  STableQueryInfo** pTableQueryInfo = (STableQueryInfo**)taosHashGet(pTableGroupInfo->map, tid, sizeof(*tid));
+  STableQueryInfo* item = NULL;
+  
+  if (pTableQueryInfo == NULL) {
+    item = createTmpTableQueryInfo(win);    
+    assert(taosArrayGetSize(pTableGroupInfo->pGroupList) == 1);
+    SArray* pa = taosArrayGetP(pTableGroupInfo->pGroupList, 0);
+
+    taosArrayPush(pa, &item);
+
+    STableId id = {.tid = *tid, .uid = 0};
+    taosHashPut(pRuntimeEnv->tableqinfoGroupInfo.map, &id.tid, sizeof(id.tid), &item, POINTER_BYTES);
+  } else {
+    item = *pTableQueryInfo;
+  }
+
+  pRuntimeEnv->current = item;
+  pRuntimeEnv->groupResInfo.totalGroup = 1;
+}
+
 SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup) {
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
   if (pOperator->status == OP_EXEC_DONE) {
@@ -803,7 +829,10 @@ SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup) {
         } else {
           sameGroup = false;
           *newgroup = true;
-          pInfo->binfo.pRes->info.tid++;
+          
+          if (pOperator->pRuntimeEnv->pQueryAttr->dummyStableQuery) {
+            handleDummyStableQuery(pOperator->pRuntimeEnv, &pInfo->binfo.pRes->info.tid);
+          }
           break;
         }
       }
