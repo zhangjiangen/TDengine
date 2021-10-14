@@ -13,19 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_VNODE_VERSION_H
-#define TDENGINE_VNODE_VERSION_H
+#ifndef _TD_COMMON_SCHEMA_H_
+#define _TD_COMMON_SCHEMA_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "vnodeInt.h"
-
-int32_t vnodeReadVersion(SVnodeObj *pVnode);
-int32_t vnodeSaveVersion(SVnodeObj *pVnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_COMMON_SCHEMA_H_*/

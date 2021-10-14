@@ -13,21 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_VNODE_WORKER_H
-#define TDENGINE_VNODE_WORKER_H
+#ifndef _TD_VNODE_MGMT_H_
+#define _TD_VNODE_MGMT_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "vnodeInt.h"
 
-int32_t vnodeInitMWorker();
-void    vnodeCleanupMWorker();
-int32_t vnodeCleanupInMWorker(SVnodeObj *pVnode);
-int32_t vnodeDestroyInMWorker(SVnodeObj *pVnode);
+int32_t vnodeInitMgmt();
+void    vnodeCleanupMgmt();
+void    vnodeProcessMgmtMsg(SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_VNODE_MGMT_H_*/
