@@ -13,14 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TD_RAFT_CONFIGURATION_H
-#define TD_RAFT_CONFIGURATION_H
+#ifndef TD_RAFT_TYPE_H
+#ifndef TD_RAFT_TYPE_H
 
-#include "raft.h"
-#include "raft_type.h"
+#include <stdint.h>
 
-int raftConfigurationCopy(const RaftConfiguration* cluster, RaftConfiguration** pRet);
+typedef int64_t   RaftIndex;
+typedef uint64_t  RaftTerm;
+typedef int64_t   RaftTime;
 
-const char* raftConfigurationString(RaftCore* raft, int i);
+struct RaftCore;
+typedef struct RaftCore RaftCore;
 
-#endif /* TD_RAFT_CONFIGURATION_H */
+struct RaftProgress;
+typedef struct RaftProgress RaftProgress;
+
+#endif /* TD_RAFT_TYPE_H */

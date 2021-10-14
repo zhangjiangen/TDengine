@@ -51,6 +51,12 @@ RaftTerm raftLogLastTerm(RaftLog* pLog);
  **/
 RaftTerm raftLogTermOf(RaftLog* pLog, RaftIndex index, RaftCode* errCode);
 
+/** 
+ * Get the last index of the most recent snapshot. Return 0 if there are no *
+ * snapshots. 
+ **/
+RaftIndex raftLogSnapshotIndex(RaftLog* pLog);
+
 /* Append a new entry to the log. */
 int raftLogAppend(RaftLog* pLog,
                   RaftTerm term,

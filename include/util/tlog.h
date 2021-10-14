@@ -41,6 +41,7 @@ extern int32_t qDebugFlag;
 extern int32_t wDebugFlag;
 extern int32_t sDebugFlag;
 extern int32_t tsdbDebugFlag;
+extern int32_t raftDebugFlag;
 extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
 

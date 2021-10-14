@@ -119,6 +119,10 @@ RaftTerm raftLogTermOf(RaftLog* pLog, RaftIndex index, RaftCode* errCode) {
   return pLog->entries[i].term;
 }
 
+RaftIndex raftLogSnapshotIndex(RaftLog* pLog) {
+  return pLog->snapshot.lastIndex;
+}
+
 int raftLogAppend(RaftLog* pLog,
                   RaftTerm term,
                   const RaftBuffer *buf) {

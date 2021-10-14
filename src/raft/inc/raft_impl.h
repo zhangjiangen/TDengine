@@ -17,10 +17,8 @@
 #define TD_RAFT_IMPL_H
 
 #include "raft.h"
+#include "raft_type.h"
 #include "tqueue.h"
-
-typedef int64_t   RaftIndex;
-typedef uint64_t  RaftTerm;
 
 typedef enum RaftCode {
   RAFT_OK = 0,
@@ -76,15 +74,40 @@ typedef struct RaftLog {
   RaftSnapshotMeta snapshot;
 } RaftLog;
 
-// raft core algorithm struct
-typedef struct RaftCore {
+typedef struct RaftIOMethods {
+  RaftTime (*time)(RaftCore*);
+
+} RaftIOMethods;
+
+typedef struct RaftLeaderState {
+  RaftProgress* progress;
+} RaftLeaderState;
+
+// raft core algorithm
+struct RaftCore {
   RaftRole role;
+
+	/** 
+   * maxInflightMsgs limits the max number of in-flight append messages during
+	 * optimistic replication phase. The application transportation layer usually
+	 * has its own sending buffer over TCP/UDP. Setting MaxInflightMsgs to avoid
+	 * overflowing that sending buffer. 
+   **/
+  int maxInflightMsgs;
 
   // user define state machine
   RaftFSM* pFSM;
   
-  RaftLog  log;
-} RaftCore;
+  RaftIOMethods io;
+
+  RaftLog*  log;
+
+  RaftTime heartbeatTimeoutMS;
+
+  RaftTime installSnapShotTimeoutMS;
+
+  RaftLeaderState leaderState;
+};
 
 struct RaftNode {
   // the cluster configuration
@@ -108,5 +131,14 @@ struct RaftNode {
 struct Raft {
   RaftNode* nodes;
 };
+
+extern int32_t raftDebugFlag;
+
+#define raftFatal(...) do { if (raftDebugFlag & DEBUG_FATAL) { taosPrintLog("RAFT FATAL ", 255, __VA_ARGS__); }}     while(0)
+#define raftError(...) do { if (raftDebugFlag & DEBUG_ERROR) { taosPrintLog("RAFT ERROR ", 255, __VA_ARGS__); }}     while(0)
+#define raftWarn(...)  do { if (raftDebugFlag & DEBUG_WARN)  { taosPrintLog("RAFT WARN ", 255, __VA_ARGS__); }}      while(0)
+#define raftInfo(...)  do { if (raftDebugFlag & DEBUG_INFO)  { taosPrintLog("RAFT ", 255, __VA_ARGS__); }}           while(0)
+#define raftDebug(...) do { if (raftDebugFlag & DEBUG_DEBUG) { taosPrintLog("RAFT ", raftDebugFlag, __VA_ARGS__); }} while(0)
+#define raftTrace(...) do { if (raftDebugFlag & DEBUG_TRACE) { taosPrintLog("RAFT ", raftDebugFlag, __VA_ARGS__); }} while(0)
 
 #endif /* TD_RAFT_IMPL_H */
