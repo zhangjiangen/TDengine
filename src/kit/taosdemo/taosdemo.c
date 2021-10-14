@@ -590,6 +590,7 @@ static int64_t getTSRandTail(int64_t timeStampStep, int32_t seq,
 static bool getInfoFromJsonFile(char* file);
 static void init_rand_data();
 static int regexMatch(const char *s, const char *reg, int cflags);
+char* fmtts(int64_t ts);
 
 /* ************ Global variables ************  */
 
@@ -3408,12 +3409,13 @@ static int postProceSql(char* sqlstr, threadInfo *pThreadInfo) {
     req_str_len = strlen(request_buf);
     sent = 0;
     do {
+        printf("%s--start write\n", fmtts(taosGetTimestampMs()));
 #ifdef WINDOWS
         bytes = send(pThreadInfo->socket, request_buf + sent, req_str_len - sent, 0);
 #else
-        // printf("send at : %ld\n", taosGetTimestamp(3));
         bytes = write(pThreadInfo->socket, request_buf + sent, req_str_len - sent);
 #endif
+        printf("%s--end write\n", fmtts(taosGetTimestampMs()));
         if (bytes < 0) {
             errorPrint("writing message to socket. Reason: %s\n", strerror(errno));
             free(request_buf);
@@ -3422,52 +3424,65 @@ static int postProceSql(char* sqlstr, threadInfo *pThreadInfo) {
         if (bytes == 0) {
             break;
         }
+        if (bytes != req_str_len) {
+            printf("bytes: %d and req_str_len: %d\n", bytes, req_str_len);
+        }
            
         sent+=bytes;
     }  while(sent < req_str_len);
 
-    taosMsleep(30);
-    // printf("finish sent at : %ld\n", taosGetTimestamp(3));
-    // char response_buf[RESP_BUF_LEN];
-    // memset(response_buf, 0, RESP_BUF_LEN);
-    // int resp_len = sizeof(response_buf) - 1;
+    // taosMsleep(30);
+    char response_buf[RESP_BUF_LEN];
+    memset(response_buf, 0, RESP_BUF_LEN);
+    int resp_len = sizeof(response_buf) - 1;
 
-    // int received = 0;
-    // do {
-// #ifdef WINDOWS
-//         bytes = recv(sockfd, response_buf + received, resp_len - received, 0);
-// #else
-    // bytes = read(pThreadInfo->socket, response_buf, resp_len);
-// #endif
-//         if (bytes < 0) {
-//             errorPrint("%s", "reading response from socket\n");
-//             free(request_buf);
-//             return -1;
-//         }
-//         if (bytes == 0){
-//             break;
-//         }  
-//         received += bytes;
-//     } while(received < resp_len);
+    int received = 0;
+    char resEncodingChunk[] = "Encoding: chunked";
+    char resHttp[] = "HTTP/1.1 ";
+    int resHttpLen = strlen(resHttp);
+    char resHttpOk[] = "HTTP/1.1 200 OK";
+    int resHttpOkLen = strlen(resHttpOk);
 
-//     if (received == resp_len) {
-//         errorPrint("%s", "storing complete response from socket\n");
-//         free(request_buf);
-//         return -1;
-//     }
-    // bytes = read(pThreadInfo->socket, response_buf, resp_len);
-    // response_buf[RESP_BUF_LEN - 1] = '\0';
-    // if (strstr(response_buf, "status")) {
-    //     if (!strstr(response_buf, "succ")) {
-    //         printf("%s\n", response_buf);
-    //     }
-    // }
-    
-    // printf("Response:\n%s\n", response_buf);
-    // printf("finish read at : %ld\n", taosGetTimestamp(3));
-    // if (strlen(pThreadInfo->filePath) > 0) {
-    //     appendResultBufToFile(response_buf, pThreadInfo);
-    // }
+    do {
+        printf("%s--start read\n", fmtts(taosGetTimestampMs()));
+#ifdef WINDOWS
+        bytes = recv(socpThreadInfo->socket, response_buf + received, resp_len - received, 0);
+#else
+        bytes = read(pThreadInfo->socket, response_buf + received, resp_len - received);
+#endif
+        verbosePrint("%s() LN%d: bytes:%d\n", __func__, __LINE__, bytes);
+        printf("%s--end read\n", fmtts(taosGetTimestampMs()));
+        if (bytes < 0) {
+            errorPrint("%s", "reading response from socket\n");
+            free(request_buf);
+            return -1;
+        }
+        if (bytes == 0){
+            break;
+        }  
+        received += bytes;
+        verbosePrint("%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
+                __func__, __LINE__, received, resp_len, response_buf);
+
+        if (((NULL == strstr(response_buf, resEncodingChunk))
+                    && (0 == strncmp(response_buf, resHttp, resHttpLen)))
+                || ((0 == strncmp(response_buf, resHttpOk, resHttpOkLen))
+                    && (NULL != strstr(response_buf, "\"status\":")))) {
+            debugPrint(
+                    "%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
+                    __func__, __LINE__, received, resp_len, response_buf);
+            break;
+        }
+    } while(received < resp_len);
+
+    if (received == resp_len) {
+        errorPrint("%s", "storing complete response from socket\n");
+        free(request_buf);
+        return -1;
+    }
+    if (strlen(pThreadInfo->filePath) > 0) {
+        appendResultBufToFile(response_buf, pThreadInfo);
+    }
 
     free(request_buf);
 
@@ -12172,4 +12187,42 @@ int main(int argc, char *argv[]) {
     }
 
     return 0;
+}
+
+char* fmtts(int64_t ts) {
+  static char buf[96];
+  size_t pos = 0;
+  struct tm tm;
+
+  if (ts > -62135625943 && ts < 32503651200) {
+    time_t t = (time_t)ts;
+    localtime_r(&t, &tm);
+    pos += strftime(buf + pos, sizeof(buf), "s=%Y-%m-%d %H:%M:%S", &tm);
+  }
+
+  if (ts > -62135625943000 && ts < 32503651200000) {
+    time_t t = (time_t)(ts / 1000);
+    localtime_r(&t, &tm);
+    if (pos > 0) {
+      buf[pos++] = ' ';
+      buf[pos++] = '|';
+      buf[pos++] = ' ';
+    }
+    pos += strftime(buf + pos, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
+    pos += sprintf(buf + pos, ".%03d", (int)(ts % 1000));
+  }
+
+//   {
+//     time_t t = (time_t)(ts / 1000000);
+//     localtime_r(&t, &tm);
+//     if (pos > 0) {
+//       buf[pos++] = ' ';
+//       buf[pos++] = '|';
+//       buf[pos++] = ' ';
+//     }
+//     pos += strftime(buf + pos, sizeof(buf), "us=%Y-%m-%d %H:%M:%S", &tm);
+//     pos += sprintf(buf + pos, ".%06d", (int)(ts % 1000000));
+//   }
+
+  return buf;
 }
