@@ -1079,11 +1079,11 @@ class TDTestCase:
         input_json = self.genFullTypeJson(stb_name=stb_name)[0]
         self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
         os.system('python3 query/schemalessQueryCrash.py &')
-        time.sleep(10)
+        time.sleep(2)
         tb_name = tdCom.getLongName(5, "letters")
         input_json, stb_name = self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, tag_value=self.genTagValue(t7_value="binaryTagValuebinaryTagValue", t8_value="ncharTagValuencharTagValue"))
         self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
-        time.sleep(6)
+        time.sleep(3)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
 
@@ -1685,9 +1685,7 @@ class TDTestCase:
             self.multiFieldCheckCase(value_type)
             self.pointTransCheckCase(value_type)
             self.stbInsertMultiThreadCheckCase(value_type)
-            
-        # #! bug
-        # self.lengthIcreaseCrashCheckCase()
+        
         self.tagNameLengthCheckCase()
         self.boolTypeCheckCase()
         self.batchErrorInsertCheckCase()
@@ -1706,6 +1704,7 @@ class TDTestCase:
         self.sStbStbDdataDtsInsertMultiThreadCheckCase()
         self.sStbStbDdataDtsMtInsertMultiThreadCheckCase()
         self.sStbDtbDdataDtsMtInsertMultiThreadCheckCase()
+        self.lengthIcreaseCrashCheckCase()
 
     def run(self):
         print("running {}".format(__file__))
