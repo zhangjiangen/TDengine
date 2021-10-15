@@ -57,7 +57,6 @@
 #include "taoserror.h"
 #include "tutil.h"
 
-
 #define REQ_EXTRA_BUF_LEN 1024
 #define RESP_BUF_LEN 4096
 
@@ -409,6 +408,12 @@ typedef struct SSuperTable_S {
     uint64_t totalAffectedRows;
 } SSuperTable;
 
+typedef struct normalTable_S {
+    SSuperTable* stbInfo;
+    uint64_t     tbSeq;
+    char*        tbName;
+} SNormalTable;
+
 typedef struct {
     char    name[TSDB_DB_NAME_LEN];
     char    create_time[32];
@@ -592,6 +597,7 @@ typedef struct SThreadInfo_S {
     uint64_t  querySeq;  // sequence number of sql command
     TAOS_SUB* tsub;
 
+    SNormalTable* tableList;
 } threadInfo;
 
 extern SDbs           g_Dbs;

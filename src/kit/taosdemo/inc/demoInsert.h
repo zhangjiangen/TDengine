@@ -20,11 +20,6 @@
 #include "demoUtil.h"
 #include "taosdemo.h"
 
-typedef struct normalTable_S {
-    SSuperTable* stbInfo;
-    char*        tbName;
-} normalTable;
-
 void initOfInsertMeta();
 int  insertTestProcess();
 #endif

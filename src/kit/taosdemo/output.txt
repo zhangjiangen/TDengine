@@ -1,0 +1,83 @@
+host:                       localhost:6030
+user:                       root
+configDir:                  
+resultFile:                 ./output.txt
+thread num of insert data:  8
+thread num of create table: 8
+number of records per req:  30000
+max sql length:             1048576
+database count:          1
+database[0]:
+  database[0] name:       test
+  drop:                  yes
+  replica:               1
+  precision:             ms
+  super table count:     1
+  super table[0]:
+      stbName:           meters
+      autoCreateTable:   no
+      childTblExists:    no
+      childTblCount:     10000
+      childTblPrefix:    d
+      dataSource:        rand
+      iface:             taosc
+      insertRows:        10000
+      interlace rows:    0
+      interlaceRows:     0
+      disorderRange:     1000
+      disorderRatio:     0
+      maxSqlLen:         1048576
+      timeStampStep:     1
+      startTimestamp:    2017-07-14 10:40:00.000
+      sampleFormat:      
+      sampleFile:        
+      tagsFile:          
+      columnCount:       3
+        column[0]:FLOAT column[1]:INT column[2]:FLOAT 
+      tagCount:            2
+        tag[0]:INT tag[1]:BINARY(64) 
+
+host:                       localhost:6030
+user:                       root
+configDir:                  
+resultFile:                 ./output.txt
+thread num of insert data:  8
+thread num of create table: 8
+number of records per req:  30000
+max sql length:             1048576
+database count:          1
+database[0]:
+  database[0] name:       test
+  drop:                  yes
+  replica:               1
+  precision:             ms
+  super table count:     1
+  super table[0]:
+      stbName:           meters
+      autoCreateTable:   no
+      childTblExists:    no
+      childTblCount:     10000
+      childTblPrefix:    d
+      dataSource:        rand
+      iface:             taosc
+      insertRows:        10000
+      interlace rows:    0
+      interlaceRows:     0
+      disorderRange:     1000
+      disorderRatio:     0
+      maxSqlLen:         1048576
+      timeStampStep:     1
+      startTimestamp:    2017-07-14 10:40:00.000
+      sampleFormat:      
+      sampleFile:        
+      tagsFile:          
+      columnCount:       3
+        column[0]:FLOAT column[1]:INT column[2]:FLOAT 
+      tagCount:            2
+        tag[0]:INT tag[1]:BINARY(64) 
+
+creating 10000 table(s) with 8 thread(s)
+
+
+Spent 24.0000 seconds to create 10000 table(s) with 8 thread(s), actual 10000 table(s) created
+
