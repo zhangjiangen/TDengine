@@ -57,10 +57,6 @@
 #include "taoserror.h"
 #include "tutil.h"
 
-#include "demoData.h"
-#include "demoInput.h"
-#include "demoInsert.h"
-#include "demoQuery.h"
 
 #define REQ_EXTRA_BUF_LEN 1024
 #define RESP_BUF_LEN 4096

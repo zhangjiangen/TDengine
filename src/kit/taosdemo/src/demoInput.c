@@ -14,6 +14,7 @@
  */
 
 #include "demoInput.h"
+#include "demoUtil.h"
 
 bool getColumnAndTagTypeFromInsertJsonFile(cJSON *      stbInfo,
                                            SSuperTable *superTbls) {

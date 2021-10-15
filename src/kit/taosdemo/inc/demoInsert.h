@@ -15,8 +15,16 @@
 #ifndef _DEMOINSERT_H_
 #define _DEMOINSERT_H_
 
+#include "demoData.h"
+#include "demoOutput.h"
+#include "demoUtil.h"
 #include "taosdemo.h"
-void initOfInsertMeta();
-int insertTestProcess();
 
+typedef struct normalTable_S {
+    SSuperTable* stbInfo;
+    char*        tbName;
+} normalTable;
+
+void initOfInsertMeta();
+int  insertTestProcess();
 #endif

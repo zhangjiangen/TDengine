@@ -14,8 +14,9 @@
  */
 #ifndef _DEMOUTIL_H_
 #define _DEMOUTIL_H_
+#include "demoData.h"
+#include "demoOutput.h"
 #include "taosdemo.h"
-
 void prompt();
 int  taosRandom();
 void setupForAnsiEscape(void);
@@ -30,8 +31,6 @@ int regexMatch(const char *s, const char *reg, int cflags);
 
 int isCommentLine(char *line);
 
-void querySqlFile(TAOS *taos, char *sqlFile);
-
 bool  isStringNumber(char *input);
 void  tmfclose(FILE *fp);
 void  tmfree(char *buf);
@@ -42,4 +41,14 @@ int   postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port,
 int   convertHostToServAddr(char *host, uint16_t port,
                             struct sockaddr_in *serv_addr);
 void  replaceChildTblName(char *inSql, char *outSql, int tblIndex);
+void  fetchResult(TAOS_RES *res, threadInfo *pThreadInfo);
+void  getTableName(char *pTblName, threadInfo *pThreadInfo, uint64_t tableSeq);
+int   getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
+                                  char **  childTblNameOfSuperTbl,
+                                  int64_t *childTblCountOfSuperTbl);
+int   getChildNameOfSuperTableWithLimitAndOffset(TAOS *taos, char *dbName,
+                                                 char *   stbName,
+                                                 char **  childTblNameOfSuperTbl,
+                                                 int64_t *childTblCountOfSuperTbl,
+                                                 int64_t limit, uint64_t offset);
 #endif

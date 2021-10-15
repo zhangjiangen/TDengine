@@ -18,6 +18,7 @@
 #include "taosdemo.h"
 void printfInsertMetaToFile(FILE *fp);
 int  printfInsertMeta();
+void printfQueryMeta();
 void printHelp();
 void printVersion();
 void errorWrongValue(char *program, char *wrong_arg, char *wrong_value);
@@ -26,4 +27,6 @@ void errorPrintReqArg(char *program, char *wrong_arg);
 void errorPrintReqArg2(char *program, char *wrong_arg);
 void errorPrintReqArg3(char *program, char *wrong_arg);
 void printStatPerThread(threadInfo *pThreadInfo);
+void appendResultBufToFile(char *resultBuf, threadInfo *pThreadInfo);
+void printfQuerySystemInfo(TAOS *taos);
 #endif

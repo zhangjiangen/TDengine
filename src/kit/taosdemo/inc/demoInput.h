@@ -16,4 +16,5 @@
 #ifndef _DEMOINPUT_H_
 #define _DEMOINPUT_H_
 #include "taosdemo.h"
+bool getInfoFromJsonFile(char *file);
 #endif

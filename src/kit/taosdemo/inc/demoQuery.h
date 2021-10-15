@@ -14,7 +14,9 @@
  */
 #ifndef _DEMOQUERY_H_
 #define _DEMOQUERY_H_
+#include "demoUtil.h"
 #include "taosdemo.h"
 void initOfQueryMeta();
 int  queryTestProcess();
+void queryAggrFunc();
 #endif

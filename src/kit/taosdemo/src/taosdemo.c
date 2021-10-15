@@ -13,7 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "taosdemo.h"
-
+#include "demoInput.h"
+#include "demoInsert.h"
+#include "demoQuery.h"
+#include "demoSubscribe.h"
 /* ************ Global variables ************  */
 
 SArguments g_args = {
@@ -1425,6 +1428,187 @@ void testCmdLine() {
 
     if (g_Dbs.aggr_func) {
         queryAggrFunc();
+    }
+}
+
+void querySqlFile(TAOS *taos, char *sqlFile) {
+    FILE *fp = fopen(sqlFile, "r");
+    if (fp == NULL) {
+        printf("failed to open file %s, reason:%s\n", sqlFile, strerror(errno));
+        return;
+    }
+
+    int    read_len = 0;
+    char * cmd = calloc(1, TSDB_MAX_BYTES_PER_ROW);
+    size_t cmd_len = 0;
+    char * line = NULL;
+    size_t line_len = 0;
+
+    double t = taosGetTimestampMs();
+
+    while ((read_len = tgetline(&line, &line_len, fp)) != -1) {
+        if (read_len >= TSDB_MAX_BYTES_PER_ROW) continue;
+        line[--read_len] = '\0';
+
+        if (read_len == 0 || isCommentLine(line)) {  // line starts with #
+            continue;
+        }
+
+        if (line[read_len - 1] == '\\') {
+            line[read_len - 1] = ' ';
+            memcpy(cmd + cmd_len, line, read_len);
+            cmd_len += read_len;
+            continue;
+        }
+
+        memcpy(cmd + cmd_len, line, read_len);
+        if (0 != queryDbExec(taos, cmd, NO_INSERT_TYPE, false)) {
+            errorPrint2("%s() LN%d, queryDbExec %s failed!\n", __func__,
+                        __LINE__, cmd);
+            tmfree(cmd);
+            tmfree(line);
+            tmfclose(fp);
+            return;
+        }
+        memset(cmd, 0, TSDB_MAX_BYTES_PER_ROW);
+        cmd_len = 0;
+    }
+
+    t = taosGetTimestampMs() - t;
+    printf("run %s took %.6f second(s)\n\n", sqlFile, t);
+
+    tmfree(cmd);
+    tmfree(line);
+    tmfclose(fp);
+    return;
+}
+
+void setParaFromArg() {
+    char type[20];
+    char length[20];
+    if (g_args.host) {
+        tstrncpy(g_Dbs.host, g_args.host, MAX_HOSTNAME_SIZE);
+    } else {
+        tstrncpy(g_Dbs.host, "127.0.0.1", MAX_HOSTNAME_SIZE);
+    }
+
+    if (g_args.user) {
+        tstrncpy(g_Dbs.user, g_args.user, MAX_USERNAME_SIZE);
+    }
+
+    tstrncpy(g_Dbs.password, g_args.password, SHELL_MAX_PASSWORD_LEN);
+
+    if (g_args.port) {
+        g_Dbs.port = g_args.port;
+    }
+
+    g_Dbs.threadCount = g_args.nthreads;
+    g_Dbs.threadCountForCreateTbl = g_args.nthreads;
+
+    g_Dbs.dbCount = 1;
+    g_Dbs.db[0].drop = true;
+
+    tstrncpy(g_Dbs.db[0].dbName, g_args.database, TSDB_DB_NAME_LEN);
+    g_Dbs.db[0].dbCfg.replica = g_args.replica;
+    tstrncpy(g_Dbs.db[0].dbCfg.precision, "ms", SMALL_BUFF_LEN);
+
+    tstrncpy(g_Dbs.resultFile, g_args.output_file, MAX_FILE_NAME_LEN);
+
+    g_Dbs.use_metric = g_args.use_metric;
+
+    g_Dbs.aggr_func = g_args.aggr_func;
+
+    char   dataString[TSDB_MAX_BYTES_PER_ROW];
+    char * data_type = g_args.data_type;
+    char **dataType = g_args.dataType;
+
+    memset(dataString, 0, TSDB_MAX_BYTES_PER_ROW);
+
+    if ((data_type[0] == TSDB_DATA_TYPE_BINARY) ||
+        (data_type[0] == TSDB_DATA_TYPE_BOOL) ||
+        (data_type[0] == TSDB_DATA_TYPE_NCHAR)) {
+        g_Dbs.aggr_func = false;
+    }
+
+    if (g_args.use_metric) {
+        g_Dbs.db[0].superTblCount = 1;
+        tstrncpy(g_Dbs.db[0].superTbls[0].stbName, "meters",
+                 TSDB_TABLE_NAME_LEN);
+        g_Dbs.db[0].superTbls[0].childTblCount = g_args.ntables;
+        g_Dbs.threadCount = g_args.nthreads;
+        g_Dbs.threadCountForCreateTbl = g_args.nthreads;
+        g_Dbs.asyncMode = g_args.async_mode;
+
+        g_Dbs.db[0].superTbls[0].autoCreateTable = PRE_CREATE_SUBTBL;
+        g_Dbs.db[0].superTbls[0].childTblExists = TBL_NO_EXISTS;
+        g_Dbs.db[0].superTbls[0].disorderRange = g_args.disorderRange;
+        g_Dbs.db[0].superTbls[0].disorderRatio = g_args.disorderRatio;
+        tstrncpy(g_Dbs.db[0].superTbls[0].childTblPrefix, g_args.tb_prefix,
+                 TBNAME_PREFIX_LEN);
+        tstrncpy(g_Dbs.db[0].superTbls[0].dataSource, "rand", SMALL_BUFF_LEN);
+
+        if (g_args.iface == INTERFACE_BUT) {
+            g_Dbs.db[0].superTbls[0].iface = TAOSC_IFACE;
+        } else {
+            g_Dbs.db[0].superTbls[0].iface = g_args.iface;
+        }
+        tstrncpy(g_Dbs.db[0].superTbls[0].startTimestamp,
+                 "2017-07-14 10:40:00.000", MAX_TB_NAME_SIZE);
+        g_Dbs.db[0].superTbls[0].timeStampStep = g_args.timestamp_step;
+
+        g_Dbs.db[0].superTbls[0].insertRows = g_args.insertRows;
+        g_Dbs.db[0].superTbls[0].maxSqlLen = g_args.max_sql_len;
+
+        g_Dbs.db[0].superTbls[0].columnCount = 0;
+        for (int i = 0; i < MAX_NUM_COLUMNS; i++) {
+            if (data_type[i] == TSDB_DATA_TYPE_NULL) {
+                break;
+            }
+
+            g_Dbs.db[0].superTbls[0].columns[i].data_type = data_type[i];
+            tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType, dataType[i],
+                     min(DATATYPE_BUFF_LEN, strlen(dataType[i]) + 1));
+            if (1 == regexMatch(dataType[i],
+                                "^(NCHAR|BINARY)(\\([1-9][0-9]*\\))$",
+                                REG_ICASE | REG_EXTENDED)) {
+                sscanf(dataType[i], "%[^(](%[^)]", type, length);
+                g_Dbs.db[0].superTbls[0].columns[i].dataLen = atoi(length);
+                tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType, type,
+                         min(DATATYPE_BUFF_LEN, strlen(type) + 1));
+            } else {
+                g_Dbs.db[0].superTbls[0].columns[i].dataLen = g_args.binwidth;
+                tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
+                         dataType[i],
+                         min(DATATYPE_BUFF_LEN, strlen(dataType[i]) + 1));
+            }
+            g_Dbs.db[0].superTbls[0].columnCount++;
+        }
+
+        if (g_Dbs.db[0].superTbls[0].columnCount > g_args.columnCount) {
+            g_Dbs.db[0].superTbls[0].columnCount = g_args.columnCount;
+        } else {
+            for (int i = g_Dbs.db[0].superTbls[0].columnCount;
+                 i < g_args.columnCount; i++) {
+                g_Dbs.db[0].superTbls[0].columns[i].data_type =
+                    TSDB_DATA_TYPE_INT;
+                tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType, "INT",
+                         min(DATATYPE_BUFF_LEN, strlen("INT") + 1));
+                g_Dbs.db[0].superTbls[0].columns[i].dataLen = 0;
+                g_Dbs.db[0].superTbls[0].columnCount++;
+            }
+        }
+
+        tstrncpy(g_Dbs.db[0].superTbls[0].tags[0].dataType, "INT",
+                 min(DATATYPE_BUFF_LEN, strlen("INT") + 1));
+        g_Dbs.db[0].superTbls[0].tags[0].dataLen = 0;
+
+        tstrncpy(g_Dbs.db[0].superTbls[0].tags[1].dataType, "BINARY",
+                 min(DATATYPE_BUFF_LEN, strlen("BINARY") + 1));
+        g_Dbs.db[0].superTbls[0].tags[1].dataLen = g_args.binwidth;
+        g_Dbs.db[0].superTbls[0].tagCount = 2;
+    } else {
+        g_Dbs.threadCountForCreateTbl = g_args.nthreads;
+        g_Dbs.db[0].superTbls[0].tagCount = 0;
     }
 }
 

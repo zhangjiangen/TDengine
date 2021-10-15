@@ -14,7 +14,11 @@
  */
 
 #include "demoQuery.h"
-
+void *queryNtableAggrFunc(void *sarg);
+void  selectAndGetResult(threadInfo *pThreadInfo, char *command);
+void *queryStableAggrFunc(void *sarg);
+void *superTableQuery(void *sarg);
+void *specifiedTableQuery(void *sarg);
 /* Globale Variables */
 char *g_aggreFuncDemo[] = {"*",
                            "count(*)",

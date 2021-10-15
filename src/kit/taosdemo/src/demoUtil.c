@@ -14,6 +14,7 @@
  */
 
 #include "demoUtil.h"
+#include "demoData.h"
 
 void prompt() {
     if (!g_args.answer_yes) {
@@ -151,28 +152,7 @@ void postFreeResource() {
             }
         }
     }
-
-    tmfree(g_randbool_buff);
-    tmfree(g_randint_buff);
-    tmfree(g_rand_voltage_buff);
-    tmfree(g_randbigint_buff);
-    tmfree(g_randsmallint_buff);
-    tmfree(g_randtinyint_buff);
-    tmfree(g_randfloat_buff);
-    tmfree(g_rand_current_buff);
-    tmfree(g_rand_phase_buff);
-
-    tmfree(g_sampleDataBuf);
-
-#if STMT_BIND_PARAM_BATCH == 1
-    for (int l = 0; l < g_args.columnCount; l++) {
-        if (g_sampleBindBatchArray) {
-            tmfree((char *)((uintptr_t) * (uintptr_t *)(g_sampleBindBatchArray +
-                                                        sizeof(char *) * l)));
-        }
-    }
-    tmfree(g_sampleBindBatchArray);
-#endif
+    freeDataResource();
 }
 
 /*
@@ -282,58 +262,6 @@ int isCommentLine(char *line) {
     if (line == NULL) return 1;
 
     return regexMatch(line, "^\\s*#.*", REG_EXTENDED);
-}
-
-void querySqlFile(TAOS *taos, char *sqlFile) {
-    FILE *fp = fopen(sqlFile, "r");
-    if (fp == NULL) {
-        printf("failed to open file %s, reason:%s\n", sqlFile, strerror(errno));
-        return;
-    }
-
-    int    read_len = 0;
-    char * cmd = calloc(1, TSDB_MAX_BYTES_PER_ROW);
-    size_t cmd_len = 0;
-    char * line = NULL;
-    size_t line_len = 0;
-
-    double t = taosGetTimestampMs();
-
-    while ((read_len = tgetline(&line, &line_len, fp)) != -1) {
-        if (read_len >= TSDB_MAX_BYTES_PER_ROW) continue;
-        line[--read_len] = '\0';
-
-        if (read_len == 0 || isCommentLine(line)) {  // line starts with #
-            continue;
-        }
-
-        if (line[read_len - 1] == '\\') {
-            line[read_len - 1] = ' ';
-            memcpy(cmd + cmd_len, line, read_len);
-            cmd_len += read_len;
-            continue;
-        }
-
-        memcpy(cmd + cmd_len, line, read_len);
-        if (0 != queryDbExec(taos, cmd, NO_INSERT_TYPE, false)) {
-            errorPrint2("%s() LN%d, queryDbExec %s failed!\n", __func__,
-                        __LINE__, cmd);
-            tmfree(cmd);
-            tmfree(line);
-            tmfclose(fp);
-            return;
-        }
-        memset(cmd, 0, TSDB_MAX_BYTES_PER_ROW);
-        cmd_len = 0;
-    }
-
-    t = taosGetTimestampMs() - t;
-    printf("run %s took %.6f second(s)\n\n", sqlFile, t);
-
-    tmfree(cmd);
-    tmfree(line);
-    tmfclose(fp);
-    return;
 }
 
 bool isStringNumber(char *input) {
@@ -804,8 +732,7 @@ int getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
         -1, 0);
 }
 
-static void getTableName(char *pTblName, threadInfo *pThreadInfo,
-                         uint64_t tableSeq) {
+void getTableName(char *pTblName, threadInfo *pThreadInfo, uint64_t tableSeq) {
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
     if (stbInfo) {
         if (AUTO_CREATE_SUBTBL != stbInfo->autoCreateTable) {

@@ -14,6 +14,9 @@
  */
 
 #include "demoOutput.h"
+#include "demoUtil.h"
+int xDumpResultToFile(const char *fname, TAOS_RES *tres);
+
 void printfInsertMetaToFile(FILE *fp) {
     SHOW_PARSE_RESULT_START_TO_FILE(fp);
 
