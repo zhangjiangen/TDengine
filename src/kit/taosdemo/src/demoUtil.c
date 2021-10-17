@@ -732,8 +732,9 @@ int getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
         -1, 0);
 }
 
-void getTableName(char *pTblName, threadInfo *pThreadInfo, uint64_t tableSeq) {
-    SSuperTable *stbInfo = pThreadInfo->stbInfo;
+void getTableName(char *pTblName, SNormalTable *tbInfo, threadInfo *pThreadInfo,
+                  uint64_t tableSeq) {
+    SSuperTable *stbInfo = tbInfo->stbInfo;
     if (stbInfo) {
         if (AUTO_CREATE_SUBTBL != stbInfo->autoCreateTable) {
             if (stbInfo->childTblLimit > 0) {
@@ -747,9 +748,12 @@ void getTableName(char *pTblName, threadInfo *pThreadInfo, uint64_t tableSeq) {
                              pThreadInfo->threadID, __func__, __LINE__,
                              pThreadInfo->start_table_from,
                              pThreadInfo->ntables, tableSeq);
-                snprintf(
-                    pTblName, TSDB_TABLE_NAME_LEN, "%s",
-                    stbInfo->childTblName + tableSeq * TSDB_TABLE_NAME_LEN);
+                // TODO:
+                // snprintf(
+                //     pTblName, TSDB_TABLE_NAME_LEN, "%s",
+                //     stbInfo->childTblName + tableSeq * TSDB_TABLE_NAME_LEN);
+                snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64 "",
+                         stbInfo->childTblPrefix, tableSeq);
             }
         } else {
             snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64 "",

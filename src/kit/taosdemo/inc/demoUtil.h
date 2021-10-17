@@ -42,13 +42,14 @@ int   convertHostToServAddr(char *host, uint16_t port,
                             struct sockaddr_in *serv_addr);
 void  replaceChildTblName(char *inSql, char *outSql, int tblIndex);
 void  fetchResult(TAOS_RES *res, threadInfo *pThreadInfo);
-void  getTableName(char *pTblName, threadInfo *pThreadInfo, uint64_t tableSeq);
-int   getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
-                                  char **  childTblNameOfSuperTbl,
-                                  int64_t *childTblCountOfSuperTbl);
-int   getChildNameOfSuperTableWithLimitAndOffset(TAOS *taos, char *dbName,
-                                                 char *   stbName,
-                                                 char **  childTblNameOfSuperTbl,
-                                                 int64_t *childTblCountOfSuperTbl,
-                                                 int64_t limit, uint64_t offset);
+void getTableName(char *pTblName, SNormalTable *tbInfo, threadInfo *pThreadInfo,
+                  uint64_t tableSeq);
+int  getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
+                                 char **  childTblNameOfSuperTbl,
+                                 int64_t *childTblCountOfSuperTbl);
+int  getChildNameOfSuperTableWithLimitAndOffset(TAOS *taos, char *dbName,
+                                                char *   stbName,
+                                                char **  childTblNameOfSuperTbl,
+                                                int64_t *childTblCountOfSuperTbl,
+                                                int64_t limit, uint64_t offset);
 #endif

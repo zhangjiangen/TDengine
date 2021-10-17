@@ -558,6 +558,7 @@ typedef struct SThreadInfo_S {
 
     int          threadID;
     char         db_name[TSDB_DB_NAME_LEN];
+    int          dbNum;
     uint32_t     time_precision;
     char         filePath[4096];
     FILE*        fp;
