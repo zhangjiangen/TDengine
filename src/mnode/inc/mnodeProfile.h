@@ -37,7 +37,24 @@ typedef struct {
   int32_t  numOfStreams;
   SStreamDesc *pStreams;
   SQueryDesc * pQueries;
+  uint32_t appId;
 } SConnObj;
+
+typedef struct {
+  uint32_t appId;
+
+  char     user[TSDB_USER_LEN];
+  char     appName[TSDB_APPNAME_LEN];  // app name that invokes taosc
+
+  uint32_t ip;
+  uint32_t port;
+  uint32_t pid;
+
+  int32_t numConnections;
+//  int32_t connectTimes;
+//  int32_t queryTimes;
+//  int32_t insertTimes;
+} SAppObj;
 
 int32_t mnodeInitProfile();
 void    mnodeCleanupProfile();

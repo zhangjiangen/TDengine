@@ -31,12 +31,15 @@
 
 #define CONN_KEEP_TIME  (tsShellActivityTimer * 3)
 #define CONN_CHECK_TIME (tsShellActivityTimer * 2)
+#define APP_KEEP_TIME  ((CONN_KEEP_TIME) * 10)
+#define APP_CHECK_TIME ((CONN_CHECK_TIME) * 10)
 #define QUERY_ID_SIZE   20
 #define QUERY_OBJ_ID_SIZE   18
 #define SUBQUERY_INFO_SIZE   6
 #define QUERY_STREAM_SAVE_SIZE 20
 
 static SCacheObj *tsMnodeConnCache = NULL;
+static SCacheObj *tsMnodeAppCache = NULL;
 static int32_t tsConnIndex = 0;
 
 static int32_t mnodeGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
@@ -44,9 +47,13 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
 static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mnodeCancelGetNextConn(void *pIter);
+static int32_t mnodeGetAppsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mnodeRetrieveApps(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static void    mnodeCancelGetNextApp(void *pIter);
 static int32_t mnodeGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mnodeFreeConn(void *data);
+static void    mnodeFreeApp(void *data);
 static int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessKillConnectionMsg(SMnodeMsg *pMsg);
@@ -58,6 +65,9 @@ int32_t mnodeInitProfile() {
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_CONNS, mnodeGetConnsMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_CONNS, mnodeRetrieveConns);
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_CONNS, mnodeCancelGetNextConn);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_APPS, mnodeGetAppsMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_APPS, mnodeRetrieveApps);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_APPS, mnodeCancelGetNextApp);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_STREAMS, mnodeGetStreamMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_STREAMS, mnodeRetrieveStreams);
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_STREAMS, mnodeCancelGetNextConn);
@@ -67,11 +77,13 @@ int32_t mnodeInitProfile() {
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_KILL_CONN, mnodeProcessKillConnectionMsg);
 
   tsMnodeConnCache = taosCacheInit(TSDB_DATA_TYPE_INT, CONN_CHECK_TIME, true, mnodeFreeConn, "conn");
+  tsMnodeAppCache  = taosCacheInit(TSDB_DATA_TYPE_INT, CONN_CHECK_TIME, true, mnodeFreeApp, "app");
   return 0;
 }
 
 void mnodeCleanupProfile() {
   if (tsMnodeConnCache != NULL) {
+    taosCacheCleanup(tsMnodeAppCache);
     taosCacheCleanup(tsMnodeConnCache);
     tsMnodeConnCache = NULL;
   }
@@ -135,12 +147,34 @@ SConnObj *mnodeAccquireConn(int32_t connId, char *user, uint32_t ip, uint16_t po
   return pConn;
 }
 
+static void mnodeFreeApp(void *data) {
+  SAppObj *pApp = data;
+
+  mDebug("appId:%d, is destroyed", pApp->appId);
+}
+
 static void mnodeFreeConn(void *data) {
   SConnObj *pConn = data;
   tfree(pConn->pQueries);
   tfree(pConn->pStreams);
 
   mDebug("connId:%d, is destroyed", pConn->connId);
+}
+
+static void *mnodeGetNextApp(void *pIter, SAppObj **pApp) {
+  *pApp = NULL;
+
+  pIter = taosHashIterate(tsMnodeAppCache->pHashTable, pIter);
+  if (pIter == NULL) return NULL;
+
+  SCacheDataNode **pNode = pIter;
+  if (pNode == NULL || *pNode == NULL) {
+    taosHashCancelIterate(tsMnodeAppCache->pHashTable, pIter);
+    return NULL;
+  }
+
+  *pApp = (SAppObj*)((*pNode)->data);
+  return pIter;
 }
 
 static void *mnodeGetNextConn(void *pIter, SConnObj **pConn) {
@@ -157,6 +191,10 @@ static void *mnodeGetNextConn(void *pIter, SConnObj **pConn) {
 
   *pConn = (SConnObj*)((*pNode)->data);
   return pIter;
+}
+
+static void mnodeCancelGetNextApp(void *pIter) {
+  taosHashCancelIterate(tsMnodeAppCache->pHashTable, pIter);
 }
 
 static void mnodeCancelGetNextConn(void *pIter) {
@@ -280,6 +318,115 @@ static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, voi
   pShow->numOfReads += numOfRows;
   mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   
+  return numOfRows;
+}
+
+static int32_t mnodeGetAppsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+  SUserObj *pUser = mnodeGetUserFromConn(pConn);
+  if (pUser == NULL) return 0;
+  if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
+
+  int32_t cols = 0;
+  SSchema *pSchema = pMeta->schema;
+
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "appId");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "user");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  // app name
+  pShow->bytes[cols] = TSDB_APPNAME_LEN + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "program");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  // app pid
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "pid");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "ip:port");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "num_connections");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pMeta->numOfColumns = htons(cols);
+  pShow->numOfColumns = cols;
+
+  pShow->offset[0] = 0;
+  for (int32_t i = 1; i < cols; ++i) {
+    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  }
+
+  pShow->numOfRows = taosHashGetSize(tsMnodeAppCache->pHashTable);
+  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+
+  return 0;
+}
+
+static int32_t mnodeRetrieveApps(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+  int32_t   numOfRows = 0;
+  SAppObj *pAppObj = NULL;
+  int32_t   cols = 0;
+  char *    pWrite;
+  char      ipStr[TSDB_IPv4ADDR_LEN + 6];
+
+  while (numOfRows < rows) {
+    pShow->pIter = mnodeGetNextApp(pShow->pIter, &pAppObj);
+    if (pAppObj == NULL) break;
+
+    cols = 0;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int32_t *) pWrite = pAppObj->appId;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pAppObj->user, pShow->bytes[cols]);
+    cols++;
+
+    // app name
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pAppObj->appName, pShow->bytes[cols]);
+    cols++;
+
+    // app pid
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int32_t*)pWrite = pAppObj->pid;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    snprintf(ipStr, sizeof(ipStr), "%s:%u", taosIpStr(pAppObj->ip), pAppObj->port);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, ipStr, pShow->bytes[cols]);
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int32_t *)pWrite = pAppObj->numConnections;
+    cols++;
+
+    numOfRows++;
+  }
+
+  pShow->numOfReads += numOfRows;
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+
   return numOfRows;
 }
 
