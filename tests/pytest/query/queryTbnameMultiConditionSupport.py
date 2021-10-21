@@ -204,12 +204,12 @@ class TDTestCase:
         tdSql.checkData(2, 0, f'{tb_name}_sub_3')
 
         ## all types or
-        query_sql = f'select tbname,t1,t2,t3,t4,t5,t6,t7,t8,t9 from {tb_name} where t1=1 or t2=1 or t3=1 or t4=2 or t5=2.2 or t6=7.7 or t7="binary8" or t8="nchar9" or t9=false or tbname in ("{tb_name}_sub_5", "{tb_name}_sub_6") or tbname like "%sub_4"'
+        query_sql = f'select tbname,t1,t2,t3,t4,t5,t6,t7,t8,t9 from {tb_name} where (t1=1 or t2=1 or t3=1 or t4=2 or t5=2.2 or t6=7.7 or t7="binary8" or t8="nchar9" or t9=false or tbname in ("{tb_name}_sub_5", "{tb_name}_sub_6") or tbname like "%sub_4") and tbname match "{tb_name}_sub_[45]" and tbname nmatch "{tb_name}_sub_[4]"'
         tdSql.query(query_sql)
-        tdSql.checkRows(4)
-        tdSql.checkData(3, 0, f'{tb_name}_sub_5')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, f'{tb_name}_sub_5')
 
-        ## with cols' all types
+        # with cols' all types
         query_sql = f'select tbname,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,t1,t2,t3,t4,t5,t6,t7,t8,t9 from {tb_name} where (c1=2 and c2=3 and c3=4 and c4=5 and c5=6.6 and c6=7.7 or c7="binary8" or c8="nchar9" and c9=false) and (t1=1 or t2=1 or t3=1 or t4=2 or t5=2.2 or t6=7.7 or t7="binary8" or t8="nchar9" or t9=false or tbname in ("{tb_name}_sub_5", "{tb_name}_sub_6") or tbname like "%sub_4") and tbname match "{tb_name}_sub_[45]" and tbname nmatch "{tb_name}_sub_[4]"'
         tdSql.query(query_sql)
         tdSql.checkRows(1)
