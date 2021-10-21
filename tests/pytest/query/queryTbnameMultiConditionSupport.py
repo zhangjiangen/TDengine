@@ -54,7 +54,11 @@ class TDTestCase:
             self.insertData(f'{tb_name}_sub_{i}')
         return tb_name
 
-    def queryFullColType(self, tb_name):
+    def checkTbColTypeCondition(self):
+        '''
+            Ordinary table full column type Condition
+        '''
+        tb_name = self.initTb()
         ## ts > and <=
         query_sql = f'select tbname,ts from {tb_name} where ts > "2021-01-11 12:00:00" and ts <= "2021-01-13 12:00:00"'
         tdSql.query(query_sql)
@@ -99,7 +103,49 @@ class TDTestCase:
         tdSql.query(query_sql)
         tdSql.checkRows(10)
     
-    def queryFullTagType(self, tb_name):
+    def queryTbnameCondition(self):
+        tb_name = self.initStb()
+        ## tbname > and <
+        query_sql = f'select tbname from {tb_name} where tbname > "{tb_name}_sub_2" and tbname < "{tb_name}_sub_4"'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, f"{tb_name}_sub_3")
+
+        ## tbname >= and <=
+        query_sql = f'select tbname from {tb_name} where tbname >= "{tb_name}_sub_2" and tbname <= "{tb_name}_sub_4"'
+        tdSql.query(query_sql)
+        tdSql.checkRows(3)
+
+        ## tbname != and is not Null
+        query_sql = f'select tbname from {tb_name} where tbname != "{tb_name}_sub_2" and tbname is not Null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(4)
+
+        ## tbname <> or is Null
+        query_sql = f'select tbname from {tb_name} where tbname <> "{tb_name}_sub_2" or tbname is Null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(4)
+
+        ## between and and
+        query_sql = f'select tbname from {tb_name} where tbname between "{tb_name}_sub_2" and "{tb_name}_sub_4" and tbname != "{tb_name}_sub_3"'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+
+        ## match or like
+        query_sql = f'select tbname from {tb_name} where tbname match "{tb_name}_sub_[34]" or tbname like "{tb_name}%5"'
+        tdSql.query(query_sql)
+        tdSql.checkRows(3)
+
+        ## nmatch or in
+        query_sql = f'select tbname from {tb_name} where tbname nmatch "{tb_name}_sub_[34]" or tbname in ("{tb_name}_sub_3", "{tb_name}_sub_2")'
+        tdSql.query(query_sql)
+        tdSql.checkRows(4)
+
+    def checkStbTagTypeCondition(self):
+        '''
+            Super table full type Condition
+        '''
+        tb_name = self.initStb()
         ## ts > and <=
         query_sql = f'select tbname,ts from {tb_name} where ts > "2021-01-11 12:00:00" and ts <= "2021-01-13 12:00:00"'
         tdSql.query(query_sql)
@@ -164,31 +210,17 @@ class TDTestCase:
         tdSql.checkData(3, 0, f'{tb_name}_sub_5')
 
         ## with cols' all types
-        query_sql = f'select tbname,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,t1,t2,t3,t4,t5,t6,t7,t8,t9 from {tb_name} where (c1=2 and c2=3 and c3=4 and c4=5 and c5=6.6 and c6=7.7 or c7="binary8" or c8="nchar9" and c9=false) and (t1=1 or t2=1 or t3=1 or t4=2 or t5=2.2 or t6=7.7 or t7="binary8" or t8="nchar9" or t9=false or tbname in ("{tb_name}_sub_5", "{tb_name}_sub_6") or tbname like "%sub_4")'
+        query_sql = f'select tbname,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,t1,t2,t3,t4,t5,t6,t7,t8,t9 from {tb_name} where (c1=2 and c2=3 and c3=4 and c4=5 and c5=6.6 and c6=7.7 or c7="binary8" or c8="nchar9" and c9=false) and (t1=1 or t2=1 or t3=1 or t4=2 or t5=2.2 or t6=7.7 or t7="binary8" or t8="nchar9" or t9=false or tbname in ("{tb_name}_sub_5", "{tb_name}_sub_6") or tbname like "%sub_4") and tbname match "{tb_name}_sub_[45]" and tbname nmatch "{tb_name}_sub_[4]"'
         tdSql.query(query_sql)
-        tdSql.checkRows(4)
-        tdSql.checkData(3, 0, f'{tb_name}_sub_5')
-
-
-    def checkTbColTypeOperator(self):
-        '''
-            Ordinary table full column type and operator
-        '''
-        tb_name = self.initTb()
-        self.queryFullColType(tb_name)
-
-    def checkStbAllTypeOperator(self):
-        '''
-            Super table full column type and operator
-        '''
-        tb_name = self.initStb()
-        self.queryFullTagType(tb_name)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, f'{tb_name}_sub_5')
 
     def run(self):
         tdSql.prepare()
-        self.checkTbColTypeOperator()
-        self.checkStbAllTypeOperator()
-
+        self.checkTbColTypeCondition()
+        self.queryTbnameCondition()
+        self.checkStbTagTypeCondition()
+        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
