@@ -14,7 +14,12 @@
  */
 
 #include "raft_configuration.h"
+#include "raft_message.h"
 #include "raft_impl.h"
+
+static int sendMsg(RaftNode *pNode, RaftMessage* pMsg);
+static int handleMsg(RaftCore* raft, RaftMessage* pMsg);
+static int prehandleOutterMsg(RaftCore* raft, RaftMessage* pMsg);
 
 int RaftCreate(Raft** ppRaft) {
   *ppRaft = (Raft*)malloc(sizeof(Raft));
@@ -26,4 +31,67 @@ int RaftDestroy(Raft* pRaft) {
   free(pRaft);
 
   return 0;
+}
+
+int RaftApply(RaftNode *pNode,
+              const RaftBuffer *pBuf,
+              RaftApplyFp applyCb) {
+  RaftMessage* pMsg = (RaftMessage*)malloc(sizeof(RaftMessage));
+  if (pMsg == NULL) {
+    return RAFT_OOM;
+  }
+
+  pMsg->msgType = RAFT_MSG_INTERNAL_PROP;
+  pMsg->from = pNode->selfId;
+
+  pMsg->propose.pBuf = pBuf;
+  pMsg->propose.applyCb = applyCb;
+
+  return sendMsg(pNode, pMsg);
+}
+
+static int sendMsg(RaftNode *pNode, RaftMessage* pMsg) {
+
+}
+
+static int handleMsg(RaftCore* raft, RaftMessage* pMsg) {
+  raftDebug("from");
+  RaftMessageType msgType = pMsg->msgType;
+  RaftId from = pMsg->from;
+  RaftId to = pMsg->to;
+  RaftTerm term = pMsg->term;
+  RaftId leader;
+  int err;
+
+  if (!isInternalMessage(msgType)) {
+    err = prehandleOutterMsg(raft, pMsg);
+    if (err != RAFT_OK) {
+      return err;
+    }
+  }
+
+  if (isVoteMsg(msgType)) {
+    return handleVoteMessage(raft, pMsg);
+  }
+
+  return raft->stepFp(raft, pMsg);
+}
+
+static int prehandleOutterMsg(RaftCore* raft, RaftMessage* pMsg) {
+  RaftTerm term = pMsg->term;
+  RaftId from = pMsg->from;
+  RaftMessageType msgType = pMsg->msgType;
+  RaftId leader;
+
+  if (term > raft->currentTerm) {
+    leader = from;
+    if (isVoteMsg(msgType)) {
+
+    }
+  } else if (term < raft->currentTerm) {
+    
+    return RAFT_IGNORED;
+  }
+
+  return RAFT_OK;
 }

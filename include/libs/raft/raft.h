@@ -52,25 +52,47 @@ typedef struct Raft Raft;
 struct RaftNode;
 typedef struct RaftNode RaftNode;
 
+typedef struct RaftLogStore {
+  void* data;
+
+  int (*initLogStore)();
+
+  int (*commitLog)(RaftIndex index);
+  
+  int (*loadLogFrom)(RaftIndex index, int limit, RaftBuffer** ppBuffer, int* n);
+
+  int (*appendLog)(RaftBuffer* pBuffer, RaftIndex index);
+
+  int (*removeLogBefore)(RaftIndex index);
+
+  int (*removeLogAfter)(RaftIndex index);
+
+} RaftLogStore;
+
 // raft state machine
 struct RaftFSM;
 typedef struct RaftFSM {
   // statemachine user data
   void *data;
 
-  // apply buffer data, bufs will be free by raft module
-  int (*apply)(struct RaftFSM *fsm, const RaftBuffer *bufs[], int nBufs);
+  // apply committed log, bufs will be free by raft module
+  int (*applyLog)(struct RaftFSM *fsm, RaftIndex index, const RaftBuffer *buf, void *pData);
 
   // configuration commit callback 
-  int (*onConfigurationCommit)(const RaftConfiguration* cluster);
+  int (*onConfigurationCommit)(const RaftConfiguration* cluster, void *pData);
 
   // fsm return snapshot in ppBuf, bufs will be free by raft module
   // TODO: getSnapshot SHOULD be async?
-  int (*getSnapshot)(struct RaftFSM *fsm, RaftBuffer **ppBuf);
+  int (*getSnapshot)(struct RaftFSM *fsm, RaftBuffer **ppBuf, int* objId, bool *isLast);
 
-  // fsm restore with pBuf data
-  int (*restore)(struct RaftFSM *fsm, RaftBuffer *pBuf);
+  // fsm apply snapshot with pBuf data
+  int (*applySnapshot)(struct RaftFSM *fsm, RaftBuffer *pBuf, int objId, bool isLast);
 
+  // call when restore snapshot and log done
+  int (*onRestoreDone)(struct RaftFSM *fsm);
+
+  void (*onRollback)(struct RaftFSM *fsm, RaftIndex index, const RaftBuffer *buf);
+π
   // fsm send data in buf to server,buf will be free by raft module
   int (*send)(struct RaftFSM* fsm, const RaftServer* server, const RaftBuffer *buf);
 } RaftFSM;
@@ -78,6 +100,9 @@ typedef struct RaftFSM {
 typedef struct RaftNodeOptions {
   // user define state machine
   RaftFSM* pFSM;
+
+  // log store, if it is NULL, use default implementation by WAL
+  RaftLogStore* logStore;
 
   // election timeout(in ms)
   // by default: 1000
@@ -102,6 +127,10 @@ typedef struct RaftNodeOptions {
    * by default: 128.
    */
   int snapshotTrailing;
+
+  int maxSizePerMsg;
+
+  int maxInflightMsgs;
 
   /**
    * Enable or disable pre-vote support.
@@ -130,9 +159,10 @@ int RaftStop(RaftNode* pNode);
 // client apply a cmd in buf
 typedef void (*RaftApplyFp)(const RaftBuffer *pBuf, int result);
 
-int RaftApply(RaftNode *pNode,
+int RaftPropose(RaftNode *pNode,
               const RaftBuffer *pBuf,
-              RaftApplyFp applyCb);
+              void *pData,
+              bool isWeak);
 
 // recv data from other servers in cluster,buf will be free in raft
 int RaftRecv(RaftNode *pNode, const RaftBuffer* pBuf);
@@ -146,12 +176,14 @@ int RaftAddServer(RaftNode *pNode,
 
 int RaftRemoveServer(RaftNode *pNode, 
                     const RaftServer* pServer,
+                    void *pData,
                     RaftChangeFp changeCb);
 
 // transfer leader to id
 typedef void (*RaftTransferFp)(RaftId id, int result);
 int RaftTransfer(RaftNode *pNode,
                  RaftId id,
+                 void *pData,
                  RaftTransferFp transferCb);
 
 #ifdef __cplusplus

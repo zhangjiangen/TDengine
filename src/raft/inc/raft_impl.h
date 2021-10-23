@@ -17,6 +17,7 @@
 #define TD_RAFT_IMPL_H
 
 #include "raft.h"
+#include "raft_message.h"
 #include "raft_type.h"
 #include "tqueue.h"
 
@@ -35,6 +36,9 @@ typedef enum RaftCode {
 
   /* out of memory */
   RAFT_OOM = -3,
+
+
+  RAFT_IGNORED = -4,
 } RaftCode;
 
 typedef enum RaftRole {
@@ -83,6 +87,8 @@ typedef struct RaftLeaderState {
   RaftProgress* progress;
 } RaftLeaderState;
 
+typedef int (*RaftStepFp)(RaftCore* raft, const RaftMessage* pMsg);
+
 // raft core algorithm
 struct RaftCore {
   RaftRole role;
@@ -100,6 +106,12 @@ struct RaftCore {
   
   RaftIOMethods io;
 
+  Raft currentTerm;
+
+  RaftId votedFor;
+
+  RaftStepFp stepFp;
+
   RaftLog*  log;
 
   RaftTime heartbeatTimeoutMS;
@@ -115,6 +127,8 @@ struct RaftNode {
 
   // node options
   RaftNodeOptions options;
+
+  RaftId selfId;
 
   // node worker thread
   pthread_t thread;
