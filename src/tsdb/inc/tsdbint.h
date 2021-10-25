@@ -111,7 +111,9 @@ int        tsdbUnlockRepo(STsdbRepo* pRepo);
 STsdbMeta* tsdbGetMeta(STsdbRepo* pRepo);
 int        tsdbCheckCommit(STsdbRepo* pRepo);
 int        tsdbRestoreInfo(STsdbRepo* pRepo);
+#if 0
 int        tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg);
+#endif
 int32_t    tsdbLoadLastCache(STsdbRepo *pRepo, STable* pTable);
 void       tsdbGetRootDir(int repoid, char dirName[]);
 void       tsdbGetDataDir(int repoid, char dirName[]);

@@ -157,7 +157,7 @@ typedef struct STableGroupSupporter {
 static STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList);
 static int32_t checkForCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *groupList);
 static int32_t checkForCachedLast(STsdbQueryHandle* pQueryHandle);
-static int32_t     lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle);
+static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle);
 static int32_t tsdbGetCachedLastRow(STable* pTable, SMemRow* pRes, TSKEY* lastKey);
 
 static void    changeQueryHandleForInterpQuery(TsdbQueryHandleT pHandle);

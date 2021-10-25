@@ -990,6 +990,7 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable* pTable) {
   return 0;
 }
 
+#if 0
 int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg) {
   bool cacheLastRow = false, cacheLastCol = false;
   SFSIter    fsiter;
@@ -1110,3 +1111,4 @@ int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg) {
   
   return 0;
 }
+#endif
