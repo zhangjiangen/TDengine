@@ -812,21 +812,31 @@ static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, 
   // Get the data in row
   
   STSchema *pSchema = tsdbGetTableSchema(pTable);
-  pTable->lastRow = taosTMalloc(memRowMaxBytesFromSchema(pSchema));
-  if (pTable->lastRow == NULL) {
+  SMemRow   tmpRow = taosTMalloc(memRowMaxBytesFromSchema(pSchema));
+  if (tmpRow == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
-  memRowSetType(pTable->lastRow, SMEM_ROW_DATA);
-  tdInitDataRow(memRowDataBody(pTable->lastRow), pSchema);
+  memRowSetType(tmpRow, SMEM_ROW_DATA);
+  tdInitDataRow(memRowDataBody(tmpRow), pSchema);
   for (int icol = 0; icol < schemaNCols(pSchema); icol++) {
     STColumn *pCol = schemaColAt(pSchema, icol);
     SDataCol *pDataCol = pReadh->pDCols[0]->cols + icol;
-    tdAppendColVal(memRowDataBody(pTable->lastRow), tdGetColDataOfRow(pDataCol, pBlock->numOfRows - 1), pCol->type,
+    tdAppendColVal(memRowDataBody(tmpRow), tdGetColDataOfRow(pDataCol, pBlock->numOfRows - 1), pCol->type,
                    pCol->offset);
   }
 
-  pTable->lastKey = memRowKey(pTable->lastRow);
+  TSKEY lastKey = memRowKey(tmpRow);
+
+  // during the load data in file, new data would be inserted and last row has already updated
+  if (tsdbGetTableLastKeyImpl(pTable) <= lastKey) {
+    TSDB_WLOCK_TABLE(pTable);
+    pTable->lastRow = tmpRow;
+    pTable->lastKey = lastKey;
+    TSDB_WUNLOCK_TABLE(pTable);
+  } else {
+    taosTZfree(tmpRow);
+  }
 
   return 0;
 }
