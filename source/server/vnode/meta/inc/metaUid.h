@@ -16,16 +16,27 @@
 #ifndef _TD_META_UID_H_
 #define _TD_META_UID_H_
 
-#include "os.h"
+#include "meta.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef uint64_t tb_uid_t;
-tb_uid_t         metaGenerateUid();
+/* ------------------------ APIS EXPOSED ------------------------ */
+typedef struct STableUidGenerator STableUidGenerator;
 
+// tb_uid_t
 #define IVLD_TB_UID 0
+tb_uid_t generateUid(STableUidGenerator *);
+
+// STableUidGenerator
+void tableUidGeneratorInit(STableUidGenerator *, tb_uid_t suid);
+#define tableUidGeneratorClear(ug)
+
+/* ------------------------ FOR TEST AND COMPILE ONLY ------------------------ */
+struct STableUidGenerator {
+  tb_uid_t nextUid;
+};
 
 #ifdef __cplusplus
 }

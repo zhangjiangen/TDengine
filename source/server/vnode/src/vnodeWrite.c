@@ -19,7 +19,7 @@
 #include "tqueue.h"
 #include "tworker.h"
 #include "taosmsg.h"
-#include "vnodeMain.h"
+
 #include "vnodeStatus.h"
 #include "vnodeWrite.h"
 #include "vnodeWriteMsg.h"
@@ -96,7 +96,7 @@ static int32_t vnodeWriteToWQueue(SVnode *pVnode, SWalHead *pHead, int32_t qtype
   atomic_add_fetch_32(&tsVwrite.queuedMsgs, 1);
   atomic_add_fetch_32(&pVnode->refCount, 1);
   atomic_add_fetch_32(&pVnode->queuedWMsg, 1);
-  taosWriteQitem(pVnode->wqueue, pWrite->qtype, pWrite);
+  taosWriteQitem(pVnode->pWriteQ, pWrite->qtype, pWrite);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -153,10 +153,10 @@ static bool vnodeProcessWriteStart(SVnode *pVnode, SVnWriteMsg *pWrite, int32_t 
 #if 0  
   pWrite->code = walWrite(pVnode->wal, pHead);
   if (pWrite->code < 0) return false;
-#endif  
+
 
   pVnode->version = pHead->version;
-
+#endif  
   // write data locally
   switch (msgType) {
     case TSDB_MSG_TYPE_SUBMIT:
@@ -179,6 +179,20 @@ static bool vnodeProcessWriteStart(SVnode *pVnode, SVnWriteMsg *pWrite, int32_t 
     case TSDB_MSG_TYPE_UPDATE_TAG_VAL:
       pWrite->code = vnodeProcessUpdateTagValReq(pVnode, (void*)pHead->cont, NULL);
       break;
+    //mq related
+    case TSDB_MSG_TYPE_MQ_CONNECT:
+      pWrite->code = vnodeProcessMqConnectReq(pVnode, (void*)pHead->cont, NULL);
+      break;
+    case TSDB_MSG_TYPE_MQ_DISCONNECT:
+      pWrite->code = vnodeProcessMqDisconnectReq(pVnode, (void*)pHead->cont, NULL);
+      break;
+    case TSDB_MSG_TYPE_MQ_ACK:
+      pWrite->code = vnodeProcessMqAckReq(pVnode, (void*)pHead->cont, NULL);
+      break;
+    case TSDB_MSG_TYPE_MQ_RESET:
+      pWrite->code = vnodeProcessMqResetReq(pVnode, (void*)pHead->cont, NULL);
+      break;
+    //mq related end
     default:
       pWrite->code = TSDB_CODE_VND_MSG_NOT_PROCESSED;
       break;
@@ -186,7 +200,7 @@ static bool vnodeProcessWriteStart(SVnode *pVnode, SVnWriteMsg *pWrite, int32_t 
 
   if (pWrite->code < 0) return false;
 
-  // update fync
+  // update fsync
   return (pWrite->code == 0 && msgType != TSDB_MSG_TYPE_SUBMIT);
 }
 
