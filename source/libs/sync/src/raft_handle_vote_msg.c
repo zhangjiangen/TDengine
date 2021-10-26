@@ -13,14 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TD_RAFT_CONFIGURATION_H
-#define TD_RAFT_CONFIGURATION_H
-
 #include "raft.h"
-#include "raft_type.h"
 
-int raftConfigurationCopy(const RaftConfiguration* cluster, RaftConfiguration** pRet);
+int handleVoteMessage(Raft* raft, const RaftMessage* msg) {
+  RaftMsgVote* pVoteMsg = &(msg->vote);
 
-const char* raftConfigurationString(RaftCore* raft, int i);
-
-#endif /* TD_RAFT_CONFIGURATION_H */
+	/** 
+   * The m.Term > r.Term clause is for MsgPreVote. For MsgVote m.Term should
+	 *always equal r.Term.
+   **/
+  if ((raft->votedFor == 0 || pVoteMsg->term > raft->currentTerm || raft->voted == pMsg->from) &&
+    )
+  return RAFT_OK;
+}

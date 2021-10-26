@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ * Copyright (c) 2019 TAOS Data, Inc. <cli@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -13,15 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_RAFT_INT_H_
-#define _TD_RAFT_INT_H_
+#ifndef TD_RAFT_TYPE_H
+#ifndef TD_RAFT_TYPE_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <stdint.h>
 
-#ifdef __cplusplus
-}
-#endif
+typedef int64_t   RaftIndex;
+typedef uint64_t  RaftTerm;
+typedef int64_t   RaftTime;
 
-#endif /*_TD_RAFT_INT_H_*/
+struct Raft;
+typedef struct Raft Raft;
+
+struct RaftProgress;
+typedef struct RaftProgress RaftProgress;
+
+#endif /* TD_RAFT_TYPE_H */

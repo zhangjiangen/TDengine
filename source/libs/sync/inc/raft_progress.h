@@ -116,10 +116,10 @@ struct RaftProgress {
   RaftInflights inflights;
 };
 
-int raftProgressCreate(RaftCore* raft);
-int raftProgressRecreate(RaftCore* raft, const RaftConfiguration* configuration);
+int raftProgressCreate(Raft* raft);
+int raftProgressRecreate(Raft* raft, const RaftConfiguration* configuration);
 
-bool raftProgressIsUptodate(RaftCore* raft, int i);
+bool raftProgressIsUptodate(Raft* raft, int i);
 
 /** 
  * raftProgressIsPaused returns whether sending log entries to this node has been
@@ -127,37 +127,37 @@ bool raftProgressIsUptodate(RaftCore* raft, int i);
  * MsgApps, is currently waiting for a snapshot, or has reached the
  * MaxInflightMsgs limit.
  **/
-bool raftProgressIsPaused(RaftCore* raft, int i);
+bool raftProgressIsPaused(Raft* raft, int i);
 
-bool raftProgressNeedAbortSnapshot(RaftCore*, int i);
+bool raftProgressNeedAbortSnapshot(Raft*, int i);
 
-void raftProgressAbortSnapshot(RaftCore* raft, int i);
+void raftProgressAbortSnapshot(Raft* raft, int i);
 
-RaftIndex raftProgressNextIndex(RaftCore* raft, int i);
+RaftIndex raftProgressNextIndex(Raft* raft, int i);
 
-RaftIndex raftProgressMatchIndex(RaftCore* raft, int i);
+RaftIndex raftProgressMatchIndex(Raft* raft, int i);
 
-void raftProgressUpdateLastSend(RaftCore* raft, int i);
+void raftProgressUpdateLastSend(Raft* raft, int i);
 
-void raftProgressUpdateSnapshotLastSend(RaftCore* raft, int i);
+void raftProgressUpdateSnapshotLastSend(Raft* raft, int i);
 
-bool raftProgressResetRecentRecv(RaftCore* raft, int i);
+bool raftProgressResetRecentRecv(Raft* raft, int i);
 
-void raftProgressMarkRecentRecv(RaftCore* raft, int i);
+void raftProgressMarkRecentRecv(Raft* raft, int i);
 
-bool raftProgressGetRecentRecv(RaftCore* raft, int i);
+bool raftProgressGetRecentRecv(Raft* raft, int i);
 
-void raftProgressBecomeSnapshot(RaftCore* raft, int i);
+void raftProgressBecomeSnapshot(Raft* raft, int i);
 
-void raftProgressBecomeProbe(RaftCore* raft, int i);
+void raftProgressBecomeProbe(Raft* raft, int i);
 
-void raftProgressBecomeReplicate(RaftCore* raft, int i);
+void raftProgressBecomeReplicate(Raft* raft, int i);
 
-void raftProgressAbortSnapshot(RaftCore* raft, int i);
+void raftProgressAbortSnapshot(Raft* raft, int i);
 
-RaftProgressState raftProgressState(RaftCore* raft, int i);
+RaftProgressState raftProgressState(Raft* raft, int i);
 
-void raftProgressOptimisticNextIndex(RaftCore* raft,
+void raftProgressOptimisticNextIndex(Raft* raft,
                                     int i,
                                     RaftIndex nextIndex);
 
@@ -165,13 +165,13 @@ void raftProgressOptimisticNextIndex(RaftCore* raft,
  *  raftProgressMaybeUpdate returns false if the given n index comes from an outdated message.
  * Otherwise it updates the progress and returns true.
  **/
-bool raftProgressMaybeUpdate(RaftCore* raft, int i, RaftIndex lastIndex);
+bool raftProgressMaybeUpdate(Raft* raft, int i, RaftIndex lastIndex);
 
 /** 
  * raftProgressMaybeDecrTo returns false if the given to index comes from an out of order message.
  * Otherwise it decreases the progress next index to min(rejected, last) and returns true.
  **/
-bool raftProgressMaybeDecrTo(RaftCore* raft,
+bool raftProgressMaybeDecrTo(Raft* raft,
                             int i,
                             RaftIndex rejected,
                             RaftIndex lastIndex);

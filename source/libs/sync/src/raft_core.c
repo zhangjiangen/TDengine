@@ -13,19 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TD_RAFT_TYPE_H
-#ifndef TD_RAFT_TYPE_H
+#include "raft.h"
 
-#include <stdint.h>
+int raftCreate(RaftNode *pNode, Raft** ppCore) {
+  return 0;
+}
 
-typedef int64_t   RaftIndex;
-typedef uint64_t  RaftTerm;
-typedef int64_t   RaftTime;
+int raftStep(Raft* pCore, RaftMessage* pMsg) {
 
-struct RaftCore;
-typedef struct RaftCore RaftCore;
-
-struct RaftProgress;
-typedef struct RaftProgress RaftProgress;
-
-#endif /* TD_RAFT_TYPE_H */
+}

@@ -78,6 +78,6 @@ static bool isVoteMsg(RaftMessageType msgType) {
   return msgType == RAFT_MSG_VOTE || msgType == RAFT_MSG_PRE_VOTE;
 }
 
-int handleVoteMessage(RaftCore* raft, const RaftMessage* msg);
+int handleVoteMessage(Raft* raft, const RaftMessage* msg);
 
 #endif  /* TD_RAFT_MESSAGE_H */

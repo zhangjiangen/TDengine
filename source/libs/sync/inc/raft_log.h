@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "raft_impl.h"
+#include "raft.h"
 
 #ifndef TD_RAFT_LOG_H
 #define TD_RAFT_LOG_H

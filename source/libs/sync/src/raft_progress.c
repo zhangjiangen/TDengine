@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "raft_impl.h"
+#include "raft.h"
 #include "raft_log.h"
 #include "raft_progress.h"
 
@@ -21,7 +21,7 @@ static resetProgressState(RaftProgress* progress, RaftProgressState state);
 static resumeProgress(RaftProgress* progress);
 static pauseProgress(RaftProgress* progress);
 
-int raftProgressCreate(RaftCore* raft) {
+int raftProgressCreate(Raft* raft) {
 
 /*
   inflights->buffer = (RaftIndex*)malloc(sizeof(RaftIndex) * raft->maxInflightMsgs);
@@ -32,16 +32,16 @@ int raftProgressCreate(RaftCore* raft) {
 */
 }
 
-int raftProgressRecreate(RaftCore* raft, const RaftConfiguration* configuration) {
+int raftProgressRecreate(Raft* raft, const RaftConfiguration* configuration) {
 
 }
 
-bool raftProgressIsUptodate(RaftCore* raft, int i) {
+bool raftProgressIsUptodate(Raft* raft, int i) {
   RaftProgress* progress = &(raft->leaderState.progress[i]);
   return raftLogLastIndex(raft->log) + 1== progress->nextIndex;
 }
 
-bool raftProgressIsPaused(RaftCore* raft, int i) {
+bool raftProgressIsPaused(Raft* raft, int i) {
   RaftProgress* progress = &(raft->leaderState.progress[i]);
   RaftTime now = raft->io.time(raft);
   bool needHeartbeat = now - progress->lastSend >= raft->heartbeatTimeoutMS;
@@ -74,50 +74,50 @@ bool raftProgressIsPaused(RaftCore* raft, int i) {
   assert(NULL);
 }
 
-bool raftProgressNeedAbortSnapshot(RaftCore*, int i) {
+bool raftProgressNeedAbortSnapshot(Raft*, int i) {
   RaftProgress* progress = &(raft->leaderState.progress[i]);
 
   return progress->state == PROGRESS_SNAPSHOT && progress->matchIndex >= progress->pendingSnapshotIndex;
 }
 
-RaftIndex raftProgressNextIndex(RaftCore* raft, int i) {
+RaftIndex raftProgressNextIndex(Raft* raft, int i) {
   return raft->leaderState.progress[i].nextIndex;
 }
 
-RaftIndex raftProgressMatchIndex(RaftCore* raft, int i) {
+RaftIndex raftProgressMatchIndex(Raft* raft, int i) {
   return raft->leaderState.progress[i].matchIndex;
 }
 
-void raftProgressUpdateLastSend(RaftCore* raft, int i) {
+void raftProgressUpdateLastSend(Raft* raft, int i) {
   raft->leaderState.progress[i].lastSend = raft->io.time(raft);
 }
 
-void raftProgressUpdateSnapshotLastSend(RaftCore* raft, int i) {
+void raftProgressUpdateSnapshotLastSend(Raft* raft, int i) {
   raft->leaderState.progress[i].lastSendSnapshot = raft->io.time(raft);
 }
 
-bool raftProgressResetRecentRecv(RaftCore* raft, int i) {
+bool raftProgressResetRecentRecv(Raft* raft, int i) {
   RaftProgress* progress = &(raft->leaderState.progress[i]);
   bool prev = progress->recentRecv;
   progress->recentRecv = false;
   return prev;
 }
 
-void raftProgressMarkRecentRecv(RaftCore* raft, int i) {
+void raftProgressMarkRecentRecv(Raft* raft, int i) {
   raft->leaderState.progress[i].recentRecv = true;
 }
 
-bool raftProgressGetRecentRecv(RaftCore* raft, int i) {
+bool raftProgressGetRecentRecv(Raft* raft, int i) {
   return raft->leaderState.progress[i].recentRecv;
 }
 
-void raftProgressBecomeSnapshot(RaftCore* raft, int i) {
+void raftProgressBecomeSnapshot(Raft* raft, int i) {
   RaftProgress* progress = &(raft->leaderState.progress[i]);
   resetProgressState(progress, PROGRESS_SNAPSHOT);
   progress->pendingSnapshotIndex = raftLogSnapshotIndex(raft->log);
 }
 
-void raftProgressBecomeProbe(RaftCore* raft, int i) {
+void raftProgressBecomeProbe(Raft* raft, int i) {
   RaftProgress* progress = &(raft->leaderState.progress[i]);
 
   if (progress->state == PROGRESS_SNAPSHOT) {
@@ -131,28 +131,28 @@ void raftProgressBecomeProbe(RaftCore* raft, int i) {
   }
 }
 
-void raftProgressBecomeReplicate(RaftCore* raft, int i) {
+void raftProgressBecomeReplicate(Raft* raft, int i) {
   resetProgressState(progress, PROGRESS_REPLICATE);
   progress->nextIndex = progress->matchIndex + 1;
 }
 
-void raftProgressAbortSnapshot(RaftCore* raft, int i) {
+void raftProgressAbortSnapshot(Raft* raft, int i) {
   RaftProgress* progress = &(raft->leaderState.progress[i]);
   progress->pendingSnapshotIndex = 0;
   progress->state = PROGRESS_PROBE;
 }
 
-RaftProgressState raftProgressState(RaftCore* raft, int i) {
+RaftProgressState raftProgressState(Raft* raft, int i) {
   return raft->leaderState.progress[i].state;
 }
 
-void raftProgressOptimisticNextIndex(RaftCore* raft,
+void raftProgressOptimisticNextIndex(Raft* raft,
                                     int i,
                                     RaftIndex nextIndex) {
   raft->leaderState.progress[i].nextIndex = nextIndex + 1;
 }
 
-bool raftProgressMaybeUpdate(RaftCore* raft, int i, RaftIndex lastIndex) {
+bool raftProgressMaybeUpdate(Raft* raft, int i, RaftIndex lastIndex) {
   RaftProgress* progress = &(raft->leaderState.progress[i]);
   bool updated = false;
 
@@ -168,7 +168,7 @@ bool raftProgressMaybeUpdate(RaftCore* raft, int i, RaftIndex lastIndex) {
   return updated;
 }
 
-bool raftProgressMaybeDecrTo(RaftCore* raft,
+bool raftProgressMaybeDecrTo(Raft* raft,
                             int i,
                             RaftIndex rejected,
                             RaftIndex lastIndex) {

@@ -15,10 +15,10 @@
 
 #include "raft_configuration.h"
 #include "raft_message.h"
-#include "raft_impl.h"
+#include "raft.h"
 
-extern int raftCreate(RaftNode *pNode, RaftCore** ppCore);
-extern int raftStep(RaftCore* pCore, RaftMessage* pMsg);
+extern int raftCreate(RaftNode *pNode, Raft** ppCore);
+extern int raftStep(Raft* pCore, RaftMessage* pMsg);
 
 static bool validateOptions(const RaftNodeOptions* options);
 static void setDefaultOptions(RaftNodeOptions* options);

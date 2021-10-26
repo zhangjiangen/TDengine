@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TD_RAFT_IMPL_H
-#define TD_RAFT_IMPL_H
+#ifndef TD_RAFT_H
+#define TD_RAFT_H
 
-#include "raft.h"
+#include "sync.h"
 #include "raft_message.h"
 #include "raft_type.h"
 #include "tqueue.h"
@@ -40,12 +40,6 @@ typedef enum RaftCode {
 
   RAFT_IGNORED = -4,
 } RaftCode;
-
-typedef enum RaftRole {
-  RAFT_FOLLOWER   = 1,
-  RAFT_CANDIDATE  = 2,
-  RAFT_LEADER     = 3,
-} RaftRole;
 
 /* raft log entry with reference count */
 typedef struct RaftEntry {
@@ -79,7 +73,7 @@ typedef struct RaftLog {
 } RaftLog;
 
 typedef struct RaftIOMethods {
-  RaftTime (*time)(RaftCore*);
+  RaftTime (*time)(Raft*);
 
 } RaftIOMethods;
 
@@ -87,10 +81,10 @@ typedef struct RaftLeaderState {
   RaftProgress* progress;
 } RaftLeaderState;
 
-typedef int (*RaftStepFp)(RaftCore* raft, const RaftMessage* pMsg);
+typedef int (*RaftStepFp)(Raft* raft, const RaftMessage* pMsg);
 
 // raft core algorithm
-struct RaftCore {
+struct Raft {
   RaftRole role;
 
 	/** 
@@ -139,20 +133,20 @@ struct RaftNode {
   taos_queue msgQueue;
 
   // raft core algorithm
-  RaftCore* raftCore;
+  Raft* raftCore;
 };
 
 struct Raft {
   RaftNode* nodes;
 };
 
-extern int32_t raftDebugFlag;
+extern int32_t sDebugFlag;
 
-#define raftFatal(...) do { if (raftDebugFlag & DEBUG_FATAL) { taosPrintLog("RAFT FATAL ", 255, __VA_ARGS__); }}     while(0)
-#define raftError(...) do { if (raftDebugFlag & DEBUG_ERROR) { taosPrintLog("RAFT ERROR ", 255, __VA_ARGS__); }}     while(0)
-#define raftWarn(...)  do { if (raftDebugFlag & DEBUG_WARN)  { taosPrintLog("RAFT WARN ", 255, __VA_ARGS__); }}      while(0)
-#define raftInfo(...)  do { if (raftDebugFlag & DEBUG_INFO)  { taosPrintLog("RAFT ", 255, __VA_ARGS__); }}           while(0)
-#define raftDebug(...) do { if (raftDebugFlag & DEBUG_DEBUG) { taosPrintLog("RAFT ", raftDebugFlag, __VA_ARGS__); }} while(0)
-#define raftTrace(...) do { if (raftDebugFlag & DEBUG_TRACE) { taosPrintLog("RAFT ", raftDebugFlag, __VA_ARGS__); }} while(0)
+#define raftFatal(...) do { if (sDebugFlag & DEBUG_FATAL) { taosPrintLog("RAFT FATAL ", 255, __VA_ARGS__); }}     while(0)
+#define raftError(...) do { if (sDebugFlag & DEBUG_ERROR) { taosPrintLog("RAFT ERROR ", 255, __VA_ARGS__); }}     while(0)
+#define raftWarn(...)  do { if (sDebugFlag & DEBUG_WARN)  { taosPrintLog("RAFT WARN ", 255, __VA_ARGS__); }}      while(0)
+#define raftInfo(...)  do { if (sDebugFlag & DEBUG_INFO)  { taosPrintLog("RAFT ", 255, __VA_ARGS__); }}           while(0)
+#define raftDebug(...) do { if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("RAFT ", sDebugFlag, __VA_ARGS__); }} while(0)
+#define raftTrace(...) do { if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("RAFT ", sDebugFlag, __VA_ARGS__); }} while(0)
 
-#endif /* TD_RAFT_IMPL_H */
+#endif /* TD_RAFT_H */

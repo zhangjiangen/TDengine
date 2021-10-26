@@ -15,11 +15,11 @@
 
 #include "raft_configuration.h"
 #include "raft_message.h"
-#include "raft_impl.h"
+#include "raft.h"
 
 static int sendMsg(RaftNode *pNode, RaftMessage* pMsg);
-static int handleMsg(RaftCore* raft, RaftMessage* pMsg);
-static int prehandleOutterMsg(RaftCore* raft, RaftMessage* pMsg);
+static int handleMsg(Raft* raft, RaftMessage* pMsg);
+static int prehandleOutterMsg(Raft* raft, RaftMessage* pMsg);
 
 int RaftCreate(Raft** ppRaft) {
   *ppRaft = (Raft*)malloc(sizeof(Raft));
@@ -54,7 +54,7 @@ static int sendMsg(RaftNode *pNode, RaftMessage* pMsg) {
 
 }
 
-static int handleMsg(RaftCore* raft, RaftMessage* pMsg) {
+static int handleMsg(Raft* raft, RaftMessage* pMsg) {
   raftDebug("from");
   RaftMessageType msgType = pMsg->msgType;
   RaftId from = pMsg->from;
@@ -77,7 +77,7 @@ static int handleMsg(RaftCore* raft, RaftMessage* pMsg) {
   return raft->stepFp(raft, pMsg);
 }
 
-static int prehandleOutterMsg(RaftCore* raft, RaftMessage* pMsg) {
+static int prehandleOutterMsg(Raft* raft, RaftMessage* pMsg) {
   RaftTerm term = pMsg->term;
   RaftId from = pMsg->from;
   RaftMessageType msgType = pMsg->msgType;
