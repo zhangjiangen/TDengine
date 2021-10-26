@@ -18,13 +18,13 @@
 
 #define RAFT_LOG_INIT_SIZE 1024
 
-static int locateEntry(RaftLog* pLog, RaftIndex index);
-static RaftIndex indexAt(RaftLog* pLog, int i);
+static int locateEntry(RaftLog* pLog, SyncIndex index);
+static SyncIndex indexAt(RaftLog* pLog, int i);
 static int positionAt(RaftLog* pLog, int i);
 static int ensureCapacity(RaftLog* pLog);
 static void decrEntry(RaftLog* pLog, RaftEntry *entry);
-static void removeSuffix(RaftLog* pLog, RaftIndex index);
-static void removePrefix(RaftLog* pLog, RaftIndex index);
+static void removeSuffix(RaftLog* pLog, SyncIndex index);
+static void removePrefix(RaftLog* pLog, SyncIndex index);
 
 void raftLogInit(RaftLog* pLog) {
   assert(pLog != NULL);
@@ -43,7 +43,7 @@ void raftLogClose(RaftLog* pLog) {
 
 void raftLogStart(RaftLog* pLog,
                   RaftSnapshotMeta snapshot,
-                  RaftIndex startIndex) {
+                  SyncIndex startIndex) {
   pLog->snapshot = snapshot;
   pLog->offset   = startIndex - 1; 
 }
@@ -59,7 +59,7 @@ int inline raftLogNumEntries(const RaftLog* pLog) {
   return pLog->back - pLog->front;
 }
 
-RaftIndex raftLogLastIndex(RaftLog* pLog) {
+SyncIndex raftLogLastIndex(RaftLog* pLog) {
   /**
    * if there are no entries and there is a snapshot,
    * check that the last index of snapshot is not smaller than log offset
@@ -71,8 +71,8 @@ RaftIndex raftLogLastIndex(RaftLog* pLog) {
   return pLog->offset + raftLogNumEntries(pLog);
 }
 
-RaftTerm raftLogLastTerm(RaftLog* pLog) {
-  RaftIndex lastIndex;
+SSyncTerm raftLogLastTerm(RaftLog* pLog) {
+  SyncIndex lastIndex;
 
   lastIndex = raftLogLastIndex(pLog);
 
@@ -83,7 +83,7 @@ RaftTerm raftLogLastTerm(RaftLog* pLog) {
   return 0;
 }
 
-RaftTerm raftLogTermOf(RaftLog* pLog, RaftIndex index, RaftCode* errCode) {
+SSyncTerm raftLogTermOf(RaftLog* pLog, SyncIndex index, RaftCode* errCode) {
   int i;
 
   assert(index > 0);
@@ -119,15 +119,15 @@ RaftTerm raftLogTermOf(RaftLog* pLog, RaftIndex index, RaftCode* errCode) {
   return pLog->entries[i].term;
 }
 
-RaftIndex raftLogSnapshotIndex(RaftLog* pLog) {
+SyncIndex raftLogSnapshotIndex(RaftLog* pLog) {
   return pLog->snapshot.lastIndex;
 }
 
 int raftLogAppend(RaftLog* pLog,
-                  RaftTerm term,
-                  const RaftBuffer *buf) {
+                  SSyncTerm term,
+                  const SSyncBuffer *buf) {
   int ret = 0;
-  RaftIndex index;
+  SyncIndex index;
   RaftEntry* pEntry = NULL;
 
   assert(pLog != NULL);
@@ -156,7 +156,7 @@ int raftLogAppend(RaftLog* pLog,
 }
 
 int raftLogAcquire(RaftLog* pLog,
-                  RaftIndex index,
+                  SyncIndex index,
                   RaftEntry **ppEntries,
                   int *n) {
   int i; 
@@ -203,7 +203,7 @@ int raftLogAcquire(RaftLog* pLog,
 }
 
 void raftLogRelease(RaftLog* pLog,
-                    RaftIndex index,
+                    SyncIndex index,
                     RaftEntry *pEntries,
                     int n) {
   int i;
@@ -221,7 +221,7 @@ void raftLogRelease(RaftLog* pLog,
   }
 }
 
-void raftLogTruncate(RaftLog* pLog, RaftIndex index) {
+void raftLogTruncate(RaftLog* pLog, SyncIndex index) {
   if (raftLogNumEntries(pLog) == 0) {
     return;
   }
@@ -229,8 +229,8 @@ void raftLogTruncate(RaftLog* pLog, RaftIndex index) {
   removeSuffix(pLog, index);
 }
 
-void raftLogSnapshot(RaftLog* pLog, RaftIndex lastIndex, RaftIndex trailing) {
-  RaftTerm lastTerm = raftLogLastTerm(pLog, lastIndex);
+void raftLogSnapshot(RaftLog* pLog, SyncIndex lastIndex, SyncIndex trailing) {
+  SSyncTerm lastTerm = raftLogLastTerm(pLog, lastIndex);
 
   assert(lastTerm != 0);
 
@@ -250,7 +250,7 @@ void raftLogSnapshot(RaftLog* pLog, RaftIndex lastIndex, RaftIndex trailing) {
  * return the offset of the log entries with the given raft index.
  * if there is no log with the given index, return size of the entries.
  **/
-static int locateEntry(RaftLog* pLog, RaftIndex index) {
+static int locateEntry(RaftLog* pLog, SyncIndex index) {
   int n = raftLogNumEntries(pLog);
 
   /**
@@ -266,7 +266,7 @@ static int locateEntry(RaftLog* pLog, RaftIndex index) {
 /**
  * return the raft index of the i-th entry in the log entries
  **/ 
-static RaftIndex indexAt(RaftLog* pLog, int i) {
+static SyncIndex indexAt(RaftLog* pLog, int i) {
   return pLog->offset + i + 1;
 }
 
@@ -292,9 +292,9 @@ static void decrEntry(RaftLog* pLog, RaftEntry *entry) {
 }
 
 /* removing all log entries from index(include) onward.*/
-static void removeSuffix(RaftLog* pLog, RaftIndex index) {
+static void removeSuffix(RaftLog* pLog, SyncIndex index) {
   int i, n;
-  RaftIndex start = index;
+  SyncIndex start = index;
   RaftEntry* entry;
 
   assert(pLog != NULL);
@@ -317,7 +317,7 @@ static void removeSuffix(RaftLog* pLog, RaftIndex index) {
 }
 
 /* Delete all entries up to the given index (included). */
-static void removePrefix(RaftLog* pLog, RaftIndex index) {
+static void removePrefix(RaftLog* pLog, SyncIndex index) {
   int i, n;
 
   assert(pLog != NULL);

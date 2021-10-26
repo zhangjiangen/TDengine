@@ -34,7 +34,7 @@ int RaftDestroy(Raft* pRaft) {
 }
 
 int RaftApply(RaftNode *pNode,
-              const RaftBuffer *pBuf,
+              const SSyncBuffer *pBuf,
               RaftApplyFp applyCb) {
   RaftMessage* pMsg = (RaftMessage*)malloc(sizeof(RaftMessage));
   if (pMsg == NULL) {
@@ -59,7 +59,7 @@ static int handleMsg(Raft* raft, RaftMessage* pMsg) {
   RaftMessageType msgType = pMsg->msgType;
   RaftId from = pMsg->from;
   RaftId to = pMsg->to;
-  RaftTerm term = pMsg->term;
+  SSyncTerm term = pMsg->term;
   RaftId leader;
   int err;
 
@@ -78,7 +78,7 @@ static int handleMsg(Raft* raft, RaftMessage* pMsg) {
 }
 
 static int prehandleOutterMsg(Raft* raft, RaftMessage* pMsg) {
-  RaftTerm term = pMsg->term;
+  SSyncTerm term = pMsg->term;
   RaftId from = pMsg->from;
   RaftMessageType msgType = pMsg->msgType;
   RaftId leader;

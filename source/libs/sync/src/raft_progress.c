@@ -24,7 +24,7 @@ static pauseProgress(RaftProgress* progress);
 int raftProgressCreate(Raft* raft) {
 
 /*
-  inflights->buffer = (RaftIndex*)malloc(sizeof(RaftIndex) * raft->maxInflightMsgs);
+  inflights->buffer = (SyncIndex*)malloc(sizeof(SyncIndex) * raft->maxInflightMsgs);
   if (inflights->buffer == NULL) {
     return RAFT_OOM;
   }
@@ -45,7 +45,7 @@ bool raftProgressIsPaused(Raft* raft, int i) {
   RaftProgress* progress = &(raft->leaderState.progress[i]);
   RaftTime now = raft->io.time(raft);
   bool needHeartbeat = now - progress->lastSend >= raft->heartbeatTimeoutMS;
-  RaftIndex lastIndex = raftLogLastIndex(raft->log);
+  SyncIndex lastIndex = raftLogLastIndex(raft->log);
 
   assert(progress->nextIndex <= lastIndex + 1);
   
@@ -80,11 +80,11 @@ bool raftProgressNeedAbortSnapshot(Raft*, int i) {
   return progress->state == PROGRESS_SNAPSHOT && progress->matchIndex >= progress->pendingSnapshotIndex;
 }
 
-RaftIndex raftProgressNextIndex(Raft* raft, int i) {
+SyncIndex raftProgressNextIndex(Raft* raft, int i) {
   return raft->leaderState.progress[i].nextIndex;
 }
 
-RaftIndex raftProgressMatchIndex(Raft* raft, int i) {
+SyncIndex raftProgressMatchIndex(Raft* raft, int i) {
   return raft->leaderState.progress[i].matchIndex;
 }
 
@@ -122,7 +122,7 @@ void raftProgressBecomeProbe(Raft* raft, int i) {
 
   if (progress->state == PROGRESS_SNAPSHOT) {
     assert(progress->pendingSnapshotIndex > 0);
-    RaftIndex pendingSnapshotIndex = progress->pendingSnapshotIndex;
+    SyncIndex pendingSnapshotIndex = progress->pendingSnapshotIndex;
     resetProgressState(progress, PROGRESS_PROBE);
     progress->nextIndex = max(progress->matchIndex + 1, pendingSnapshotIndex);
   } else {
@@ -148,11 +148,11 @@ RaftProgressState raftProgressState(Raft* raft, int i) {
 
 void raftProgressOptimisticNextIndex(Raft* raft,
                                     int i,
-                                    RaftIndex nextIndex) {
+                                    SyncIndex nextIndex) {
   raft->leaderState.progress[i].nextIndex = nextIndex + 1;
 }
 
-bool raftProgressMaybeUpdate(Raft* raft, int i, RaftIndex lastIndex) {
+bool raftProgressMaybeUpdate(Raft* raft, int i, SyncIndex lastIndex) {
   RaftProgress* progress = &(raft->leaderState.progress[i]);
   bool updated = false;
 
@@ -170,8 +170,8 @@ bool raftProgressMaybeUpdate(Raft* raft, int i, RaftIndex lastIndex) {
 
 bool raftProgressMaybeDecrTo(Raft* raft,
                             int i,
-                            RaftIndex rejected,
-                            RaftIndex lastIndex) {
+                            SyncIndex rejected,
+                            SyncIndex lastIndex) {
   RaftProgress* progress = &(raft->leaderState.progress[i]);
 
   if (progress->state == PROGRESS_REPLICATE) {
@@ -241,7 +241,7 @@ bool raftInflightFull(RaftInflights* inflights) {
   return inflights->count == inflights->size;
 }
 
-void raftInflightAdd(RaftInflights* inflights, RaftIndex inflightIndex) {
+void raftInflightAdd(RaftInflights* inflights, SyncIndex inflightIndex) {
   assert(!raftInflightFull(inflights));
 
   int next = inflights->start + inflights->count;
@@ -255,7 +255,7 @@ void raftInflightAdd(RaftInflights* inflights, RaftIndex inflightIndex) {
   inflights->count++;
 }
 
-void raftInflightFreeTo(RaftInflights* inflights, RaftIndex toIndex) {
+void raftInflightFreeTo(RaftInflights* inflights, SyncIndex toIndex) {
   if (inflights->count == 0 || toIndex < inflights->buffer[inflights->startIndex]) {
     return;
   }

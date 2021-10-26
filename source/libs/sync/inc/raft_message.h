@@ -41,26 +41,26 @@ typedef enum RaftMessageType {
 } RaftMessageType;
 
 typedef struct RaftMsgInternalProp {
-  const RaftBuffer *pBuf;
+  const SSyncBuffer *pBuf;
   RaftApplyFp applyCb;
 } RaftMsgInternalProp;
 
 typedef struct RaftMsgVote {
   // candidate's term
-  RaftTerm term;
+  SSyncTerm term;
   // candidate's id
   RaftId id;
   // candidate's last log index
-  RaftIndex lastLogIndex;
+  SyncIndex lastLogIndex;
   // candidate's last log term
-  RaftTerm lastLogTerm;
+  SSyncTerm lastLogTerm;
   // true if preVote request
   bool preVote;
 } RaftMsgVote;
 
 typedef struct RaftMessage {
   RaftMessageType msgType;
-  RaftTerm term;
+  SSyncTerm term;
   RaftId from;
   RaftId to;
 

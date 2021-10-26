@@ -27,10 +27,10 @@ typedef unsigned int RaftId;
 typedef unsigned int RaftGroupId;
 
 // buffer holding data
-typedef struct RaftBuffer {
+typedef struct SSyncBuffer {
   void* data;
   size_t len;
-} RaftBuffer;
+} SSyncBuffer;
 
 // a single server information in a cluster
 typedef struct RaftServer {
@@ -57,15 +57,15 @@ typedef struct RaftLogStore {
 
   int (*initLogStore)();
 
-  int (*commitLog)(RaftIndex index);
+  int (*commitLog)(SyncIndex index);
   
-  int (*loadLogFrom)(RaftIndex index, int limit, RaftBuffer** ppBuffer, int* n);
+  int (*loadLogFrom)(SyncIndex index, int limit, SSyncBuffer** ppBuffer, int* n);
 
-  int (*appendLog)(RaftBuffer* pBuffer, RaftIndex index);
+  int (*appendLog)(SSyncBuffer* pBuffer, SyncIndex index);
 
-  int (*removeLogBefore)(RaftIndex index);
+  int (*removeLogBefore)(SyncIndex index);
 
-  int (*removeLogAfter)(RaftIndex index);
+  int (*removeLogAfter)(SyncIndex index);
 
 } RaftLogStore;
 
@@ -76,25 +76,25 @@ typedef struct RaftFSM {
   void *data;
 
   // apply committed log, bufs will be free by raft module
-  int (*applyLog)(struct RaftFSM *fsm, RaftIndex index, const RaftBuffer *buf, void *pData);
+  int (*applyLog)(struct RaftFSM *fsm, SyncIndex index, const SSyncBuffer *buf, void *pData);
 
   // configuration commit callback 
   int (*onConfigurationCommit)(const RaftConfiguration* cluster, void *pData);
 
   // fsm return snapshot in ppBuf, bufs will be free by raft module
   // TODO: getSnapshot SHOULD be async?
-  int (*getSnapshot)(struct RaftFSM *fsm, RaftBuffer **ppBuf, int* objId, bool *isLast);
+  int (*getSnapshot)(struct RaftFSM *fsm, SSyncBuffer **ppBuf, int* objId, bool *isLast);
 
   // fsm apply snapshot with pBuf data
-  int (*applySnapshot)(struct RaftFSM *fsm, RaftBuffer *pBuf, int objId, bool isLast);
+  int (*applySnapshot)(struct RaftFSM *fsm, SSyncBuffer *pBuf, int objId, bool isLast);
 
   // call when restore snapshot and log done
   int (*onRestoreDone)(struct RaftFSM *fsm);
 
-  void (*onRollback)(struct RaftFSM *fsm, RaftIndex index, const RaftBuffer *buf);
+  void (*onRollback)(struct RaftFSM *fsm, SyncIndex index, const SSyncBuffer *buf);
 π
   // fsm send data in buf to server,buf will be free by raft module
-  int (*send)(struct RaftFSM* fsm, const RaftServer* server, const RaftBuffer *buf);
+  int (*send)(struct RaftFSM* fsm, const RaftServer* server, const SSyncBuffer *buf);
 } RaftFSM;
 
 typedef struct RaftNodeOptions {
@@ -157,15 +157,15 @@ int RaftStart(Raft* pRaft,
 int RaftStop(RaftNode* pNode);
 
 // client apply a cmd in buf
-typedef void (*RaftApplyFp)(const RaftBuffer *pBuf, int result);
+typedef void (*RaftApplyFp)(const SSyncBuffer *pBuf, int result);
 
 int RaftPropose(RaftNode *pNode,
-              const RaftBuffer *pBuf,
+              const SSyncBuffer *pBuf,
               void *pData,
               bool isWeak);
 
 // recv data from other servers in cluster,buf will be free in raft
-int RaftRecv(RaftNode *pNode, const RaftBuffer* pBuf);
+int RaftRecv(RaftNode *pNode, const SSyncBuffer* pBuf);
 
 // change cluster servers API
 typedef void (*RaftChangeFp)(const RaftServer* pServer, int result);

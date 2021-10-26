@@ -45,7 +45,7 @@ typedef struct RaftInflights {
    * buffer contains the index of the last entry
 	 * inside one message.
    **/
-  RaftIndex* buffer;
+  SyncIndex* buffer;
 } RaftInflights;
 
 /** 
@@ -74,9 +74,9 @@ typedef enum RaftProgressState {
  * progresses of all followers, and sends entries to the follower based on its progress.
  **/
 struct RaftProgress {
-  RaftIndex nextIndex;
+  SyncIndex nextIndex;
 
-  RaftIndex matchIndex;
+  SyncIndex matchIndex;
 
   RaftProgressState state;
 
@@ -93,7 +93,7 @@ struct RaftProgress {
 	 * this Progress will be paused. raft will not resend snapshot until the pending one
 	 * is reported to be failed.
    **/
-  RaftIndex pendingSnapshotIndex;
+  SyncIndex pendingSnapshotIndex;
 
   /** 
    * Timestamp of last AppendEntries RPC. 
@@ -133,9 +133,9 @@ bool raftProgressNeedAbortSnapshot(Raft*, int i);
 
 void raftProgressAbortSnapshot(Raft* raft, int i);
 
-RaftIndex raftProgressNextIndex(Raft* raft, int i);
+SyncIndex raftProgressNextIndex(Raft* raft, int i);
 
-RaftIndex raftProgressMatchIndex(Raft* raft, int i);
+SyncIndex raftProgressMatchIndex(Raft* raft, int i);
 
 void raftProgressUpdateLastSend(Raft* raft, int i);
 
@@ -159,13 +159,13 @@ RaftProgressState raftProgressState(Raft* raft, int i);
 
 void raftProgressOptimisticNextIndex(Raft* raft,
                                     int i,
-                                    RaftIndex nextIndex);
+                                    SyncIndex nextIndex);
 
 /**
  *  raftProgressMaybeUpdate returns false if the given n index comes from an outdated message.
  * Otherwise it updates the progress and returns true.
  **/
-bool raftProgressMaybeUpdate(Raft* raft, int i, RaftIndex lastIndex);
+bool raftProgressMaybeUpdate(Raft* raft, int i, SyncIndex lastIndex);
 
 /** 
  * raftProgressMaybeDecrTo returns false if the given to index comes from an out of order message.
@@ -173,14 +173,14 @@ bool raftProgressMaybeUpdate(Raft* raft, int i, RaftIndex lastIndex);
  **/
 bool raftProgressMaybeDecrTo(Raft* raft,
                             int i,
-                            RaftIndex rejected,
-                            RaftIndex lastIndex);
+                            SyncIndex rejected,
+                            SyncIndex lastIndex);
 
 
 int raftInflightReset(RaftInflights* inflights);
 bool raftInflightFull(RaftInflights* inflights);
-void raftInflightAdd(RaftInflights* inflights, RaftIndex inflightIndex);
-void raftInflightFreeTo(RaftInflights* inflights, RaftIndex toIndex);
+void raftInflightAdd(RaftInflights* inflights, SyncIndex inflightIndex);
+void raftInflightFreeTo(RaftInflights* inflights, SyncIndex toIndex);
 void raftInflightFreeFirstOne(RaftInflights* inflights);
 
 #endif /* TD_RAFT_PROGRESS_H */

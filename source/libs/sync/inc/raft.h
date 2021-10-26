@@ -43,15 +43,15 @@ typedef enum RaftCode {
 
 /* raft log entry with reference count */
 typedef struct RaftEntry {
-  RaftTerm term;
-  RaftBuffer buffer;
+  SSyncTerm term;
+  SSyncBuffer buffer;
   unsigned int refCount;
 } RaftEntry;
 
 /* meta data about snapshot */
 typedef struct RaftSnapshotMeta {
-  RaftIndex lastIndex;
-  RaftTerm  lastTerm;
+  SyncIndex lastIndex;
+  SSyncTerm  lastTerm;
 } RaftSnapshotMeta;
 
 /* in-memory raft log storage */
@@ -66,7 +66,7 @@ typedef struct RaftLog {
   int front, back;
 
   /* Index of first entry is offset + 1 */
-  RaftIndex offset;
+  SyncIndex offset;
 
   /* meta data of snapshot */
   RaftSnapshotMeta snapshot;
@@ -96,13 +96,9 @@ struct Raft {
   int maxInflightMsgs;
 
   // user define state machine
-  RaftFSM* pFSM;
-  
-  RaftIOMethods io;
+  SSyncFSM fsm;
 
-  Raft currentTerm;
-
-  RaftId votedFor;
+  SSyncServerState hardState;
 
   RaftStepFp stepFp;
 

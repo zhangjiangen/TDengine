@@ -18,8 +18,6 @@
 
 #include <stdint.h>
 
-typedef int64_t   RaftIndex;
-typedef uint64_t  RaftTerm;
 typedef int64_t   RaftTime;
 
 struct Raft;
