@@ -496,6 +496,329 @@ class TDTestCase:
         tdSql.checkRows(11)
         tdSql.checkEqual(self.queryLastC10(query_sql), 11)
 
+    def queryColMultiExpression(self, tb_name):
+        ## condition_A and condition_B or condition_C (> < >=)
+        query_sql = f'select * from {tb_name} where c1 > 2 and c2 < 4 or c3 >= 4'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 5)
+
+        ## (condition_A and condition_B) or condition_C (<= != <>)
+        query_sql = f'select * from {tb_name} where (c1 <= 1 and c2 != 2) or c4 <> 3'
+        tdSql.query(query_sql)
+        tdSql.checkRows(4)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+
+        ## condition_A and (condition_B or condition_C) (Null not Null)
+        query_sql = f'select * from {tb_name} where c1 is not Null and (c6 = 7.7 or c8 is Null)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+
+        ## condition_A or condition_B and condition_C (> < >=)
+        query_sql = f'select * from {tb_name} where c1 > 2 or c2 < 4 and c3 >= 4'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 5)
+
+        ## (condition_A or condition_B) and condition_C (<= != <>)
+        query_sql = f'select * from {tb_name} where (c1 <= 1 or c2 != 2) and c4 <> 3'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 5)
+
+        ## condition_A or (condition_B and condition_C) (Null not Null)
+        query_sql = f'select * from {tb_name} where c6 >= 7.7 or (c1 is not Null and c3 =5)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 7)
+
+        ## condition_A or (condition_B and condition_C) or condition_D (> != < Null)
+        query_sql = f'select * from {tb_name} where c1 != 1 or (c2 >2 and c3 < 1) or c7 is Null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+
+        ## condition_A and (condition_B or condition_C) and condition_D (>= = <= not Null)
+        query_sql = f'select * from {tb_name} where c4 >= 4 and (c1 = 2 or c5 <= 1.1) and c7 is not Null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 5)
+
+        ## (condition_A and condition_B) or (condition_C or condition_D) (Null >= > =)
+        query_sql = f'select * from {tb_name} where (c8 is Null and c1 >= 1) or (c3 > 3 or c4 =2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(4)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+
+        ## (condition_A or condition_B) or condition_C or (condition_D and condition_E) (>= <= = not Null <>)
+        query_sql = f'select * from {tb_name} where (c1 >= 2 or c2 <= 1) or c3 = 4 or (c7 is not Null and c6 <> 1.1)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(4)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 7)
+
+        ## condition_A or (condition_B and condition_C) or (condition_D and condition_E) and condition_F 
+        query_sql = f'select * from {tb_name} where c1 != 1 or (c2 <= 1 and c3 <4) or (c3 >= 4 or c7 is not Null) and c9 <> true'
+        tdSql.query(query_sql)
+        tdSql.checkRows(3)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 10)
+
+        ## (condition_A or (condition_B and condition_C) or (condition_D and condition_E)) and condition_F 
+        query_sql = f'select * from {tb_name} where (c1 != 1 or (c2 <= 2 and c3 >= 4) or (c3 >= 4 or c7 is not Null)) and c9 != false'
+        tdSql.query(query_sql)
+        tdSql.checkRows(9)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 9)
+
+        ## (condition_A or condition_B) or (condition_C or condition_D) and (condition_E or condition_F or condition_G) 
+        query_sql = f'select * from {tb_name} where c1 != 1 or (c2 <= 3 and c3 > 4) and c3 <= 5 and (c7 is not Null and c9 != false)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 5)
+
+    def queryTagMultiExpression(self, tb_name):
+        ## condition_A and condition_B or condition_C (> < >=)
+        query_sql = f'select * from {tb_name} where t1 > 2 and t2 < 4 or t3 >= 4'
+        tdSql.query(query_sql)
+        tdSql.checkRows(33)
+
+        ## (condition_A and condition_B) or condition_C (<= != <>)
+        query_sql = f'select * from {tb_name} where (t1 <= 1 and t2 != 2) or t4 <> 3'
+        tdSql.query(query_sql)
+        tdSql.checkRows(44)
+
+        ## condition_A and (condition_B or condition_C) (Null not Null)
+        query_sql = f'select * from {tb_name} where t1 is not Null and (t6 = 7.7 or t8 is not Null)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(55)
+
+        ## condition_A or condition_B and condition_C (> < >=)
+        query_sql = f'select * from {tb_name} where t1 > 2 or t2 < 4 and t3 >= 4'
+        tdSql.query(query_sql)
+        tdSql.checkRows(33)
+
+        ## (condition_A or condition_B) and condition_C (<= != <>)
+        query_sql = f'select * from {tb_name} where (t1 <= 1 or t2 != 2) and t4 <> 3'
+        tdSql.query(query_sql)
+        tdSql.checkRows(33)
+
+        ## condition_A or (condition_B and condition_C) (Null not Null)
+        query_sql = f'select * from {tb_name} where t6 >= 7.7 or (t1 is not Null and t3 =5)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+
+        ## condition_A or (condition_B and condition_C) or condition_D (> != < Null)
+        query_sql = f'select * from {tb_name} where t1 != 1 or (t2 >2 and t3 < 1) or t7 is Null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(44)
+
+        ## condition_A and (condition_B or condition_C) and condition_D (>= = <= not Null)
+        query_sql = f'select * from {tb_name} where t4 >= 2 and (t1 = 2 or t5 <= 1.1) and t7 is not Null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+
+        ## (condition_A and condition_B) or (condition_C or condition_D) (Null >= > =)
+        query_sql = f'select * from {tb_name} where (t8 is Null and t1 >= 1) or (t3 > 3 or t4 =2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(33)
+
+        ## (condition_A or condition_B) or condition_C or (condition_D and condition_E) (>= <= = not Null <>)
+        query_sql = f'select * from {tb_name} where (t1 >= 2 or t2 <= 1) or t3 = 4 or (t7 is not Null and t6 <> 1.1)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(55)
+
+        ## condition_A or (condition_B and condition_C) or (condition_D and condition_E) and condition_F 
+        query_sql = f'select * from {tb_name} where t1 != 1 or (t2 <= 1 and t3 <4) or (t3 >= 4 or t7 is not Null) and t9 <> true'
+        tdSql.query(query_sql)
+        tdSql.checkRows(55)
+
+        ## (condition_A or (condition_B and condition_C) or (condition_D and condition_E)) and condition_F 
+        query_sql = f'select * from {tb_name} where (t1 != 1 or (t2 <= 2 and t3 >= 4) or (t3 >= 4 or t7 is not Null)) and t9 != false'
+        tdSql.query(query_sql)
+        tdSql.checkRows(55)
+
+        ## (condition_A or condition_B) or (condition_C or condition_D) and (condition_E or condition_F or condition_G) 
+        query_sql = f'select * from {tb_name} where t1 != 1 or (t2 <= 3 and t3 > 4) and t3 <= 5 and (t7 is not Null and t9 != false)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(44)
+
+    def queryColPreCal(self, tb_name):
+        ## avg sum condition_A or/and condition_B
+        query_sql = f'select avg(c3), sum(c3) from {tb_name} where c10 = 5 or c8 is Null'
+        res = tdSql.query(query_sql, True)[0]
+        tdSql.checkEqual(int(res[0]), 3)
+        tdSql.checkEqual(int(res[1]), 6)
+        query_sql = f'select avg(c3), sum(c3) from {tb_name} where c6 = 1.1 and c8 is not Null'
+        res = tdSql.query(query_sql, True)[0]
+        tdSql.checkEqual(int(res[1]), 16)
+
+        ## avg sum condition_A or/and condition_B or/and condition_C
+        query_sql = f'select avg(c3), sum(c3) from {tb_name} where c10 = 4 or c8 is Null or c9 = false '
+        res = tdSql.query(query_sql, True)[0]
+        tdSql.checkEqual(int(res[0]), 2)
+        tdSql.checkEqual(int(res[1]), 6)
+        query_sql = f'select avg(c3), sum(c3) from {tb_name} where c6 = 1.1 and c8 is not Null and c9 = false '
+        res = tdSql.query(query_sql, True)[0]
+        tdSql.checkEqual(int(res[0]), 1)
+        tdSql.checkEqual(int(res[1]), 1)
+        query_sql = f'select avg(c3), sum(c3) from {tb_name} where c6 = 1.1 and c8 is not Null or c9 = false '
+        res = tdSql.query(query_sql, True)[0]
+        tdSql.checkEqual(int(res[1]), 17)
+        query_sql = f'select avg(c3), sum(c3) from {tb_name} where c6 = 1.1 or c8 is not Null and c9 = false '
+        res = tdSql.query(query_sql, True)[0]
+        tdSql.checkEqual(int(res[1]), 17)
+
+        ## count avg sum condition_A or/and condition_B or/and condition_C interval
+        query_sql = f'select count(*), avg(c3), sum(c3) from {tb_name} where c10 = 4 or c8 is Null or c9 = false interval(16d)'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(int(res[0][1]), 1)
+        tdSql.checkEqual(int(res[0][2]), 4)
+        tdSql.checkEqual(int(res[0][3]), 4)
+        tdSql.checkEqual(int(res[1][1]), 2)
+        tdSql.checkEqual(int(res[1][2]), 1)
+        tdSql.checkEqual(int(res[1][3]), 2)
+        query_sql = f'select count(*), avg(c3), sum(c3) from {tb_name} where c6 = 1.1 and c8 is not Null and c9 = false interval(16d)'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(int(res[0][1]), 1)
+        tdSql.checkEqual(int(res[0][2]), 1)
+        tdSql.checkEqual(int(res[0][3]), 1)
+
+        ## count avg sum condition_A or condition_B or in and like or condition_C interval
+        query_sql = f'select count(*), sum(c3) from {tb_name} where c10 = 4 or c8 is Null or c2 in (1, 2) and c7 like "binary_" or c1 <> 1 interval(16d)'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(int(res[0][1]), 2)
+        tdSql.checkEqual(int(res[0][2]), 5)
+        tdSql.checkEqual(int(res[1][1]), 2)
+        tdSql.checkEqual(int(res[1][2]), 2)
+
+    def queryTagPreCal(self, tb_name):
+        ## avg sum condition_A or/and condition_B
+        query_sql = f'select avg(c3), sum(c3) from {tb_name} where t10 = 5 or t8 is Null'
+        res = tdSql.query(query_sql, True)[0]
+        tdSql.checkEqual(int(res[0]), 1)
+        tdSql.checkEqual(int(res[1]), 18)
+        query_sql = f'select avg(c3), sum(c3) from {tb_name} where t6 = 1.1 and t8 is not Null'
+        res = tdSql.query(query_sql, True)[0]
+        tdSql.checkEqual(int(res[1]), 18)
+
+        ## avg sum condition_A or/and condition_B or/and condition_C
+        query_sql = f'select avg(c3), sum(c3) from {tb_name} where t10 = 4 or t8 is Null or t9 = true '
+        res = tdSql.query(query_sql, True)[0]
+        tdSql.checkEqual(int(res[0]), 1)
+        tdSql.checkEqual(int(res[1]), 90)
+        query_sql = f'select avg(c3), sum(c3) from {tb_name} where t6 = 1.1 and t8 is not Null and t9 = true '
+        res = tdSql.query(query_sql, True)[0]
+        tdSql.checkEqual(int(res[0]), 1)
+        tdSql.checkEqual(int(res[1]), 18)
+        query_sql = f'select avg(c3), sum(c3) from {tb_name} where t6 = 1.1 and t8 is not Null or t9 = true '
+        res = tdSql.query(query_sql, True)[0]
+        tdSql.checkEqual(int(res[1]), 90)
+        query_sql = f'select avg(c3), sum(c3) from {tb_name} where t6 = 1.1 or t8 is not Null and t9 = true '
+        res = tdSql.query(query_sql, True)[0]
+        tdSql.checkEqual(int(res[1]), 90)
+
+        ## count avg sum condition_A or/and condition_B or/and condition_C interval
+        query_sql = f'select count(*), avg(c3), sum(c3) from {tb_name} where t10 = 4 or t8 is Null or t9 = true interval(16d)'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(int(res[0][1]), 25)
+        tdSql.checkEqual(int(res[0][2]), 2)
+        tdSql.checkEqual(int(res[0][3]), 60)
+        tdSql.checkEqual(int(res[1][1]), 30)
+        tdSql.checkEqual(int(res[1][2]), 1)
+        tdSql.checkEqual(int(res[1][3]), 30)
+        query_sql = f'select count(*), avg(c3), sum(c3) from {tb_name} where t6 = 1.1 and t8 is not Null and t9 = true interval(16d)'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(int(res[0][1]), 5)
+        tdSql.checkEqual(int(res[0][2]), 2)
+        tdSql.checkEqual(int(res[0][3]), 12)
+        tdSql.checkEqual(int(res[1][1]), 6)
+        tdSql.checkEqual(int(res[1][2]), 1)
+        tdSql.checkEqual(int(res[1][3]), 6)
+
+        ## count avg sum condition_A or condition_B or in and like or condition_C interval
+        query_sql = f'select count(*), sum(c3) from {tb_name} where t10 = 4 or t8 is Null or t2 in (1, 2) and t7 like "binary_" or t1 <> 1 interval(16d)'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(int(res[0][1]), 25)
+        tdSql.checkEqual(int(res[0][2]), 60)
+        tdSql.checkEqual(int(res[1][1]), 30)
+        tdSql.checkEqual(int(res[1][2]), 30)
+
+    def queryMultiTb(self, tb_name):
+        ## select from (condition_A or condition_B)
+        query_sql = f'select c10 from (select * from {tb_name} where c1 >1 or c2 >=3)'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(3)
+        tdSql.checkEqual(int(res[2][0]), 11)
+
+        ## select from (condition_A or condition_B) where condition_A or condition_B
+        query_sql = f'select c10 from (select * from {tb_name} where c1 >1 or c2 >=3) where c1 =2 or c4 = 2'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(int(res[1][0]), 3)
+
+        ## select from (condition_A or condition_B and like and in) where condition_A or condition_B or like and in
+        query_sql = f'select c10 from (select * from {tb_name} where c1 >1 or c2 = 2 and c7 like "binar_" and c4 in (3, 5)) where c1 != 2 or c3 = 1 or c8 like "ncha_" and c9 in (true)'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(7)
+        tdSql.checkEqual(int(res[6][0]), 10)
+
+        ## select count avg sum from (condition_A or condition_B and like and in) where condition_A or condition_B or like and in interval
+        query_sql = f'select count(*), avg(c6), sum(c3) from (select * from {tb_name} where c1 >1 or c2 = 2 and c7 like "binar_" and c4 in (3, 5)) where c1 != 2 or c3 = 1 or c8 like "ncha_" and c9 in (true) interval(8d)'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(3)
+        tdSql.checkEqual(int(res[0][1]), 3)
+        tdSql.checkEqual(int(res[0][2]), 1)
+        tdSql.checkEqual(int(res[0][3]), 10)
+        tdSql.checkEqual(int(res[1][1]), 3)
+        tdSql.checkEqual(int(res[1][2]), 3)
+        tdSql.checkEqual(int(res[1][3]), 3)
+        tdSql.checkEqual(int(res[2][1]), 1)
+        tdSql.checkEqual(int(res[2][2]), 1)
+        tdSql.checkEqual(int(res[2][3]), 1)
+
+        ## cname
+        query_sql = f'select c10 from (select * from {tb_name} where c1 >1 or c2 = 2 and c7 like "binar_" and c4 in (3, 5)) a where a.c1 != 2 or a.c3 = 1 or a.c8 like "ncha_" and a.c9 in (true)'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(7)
+        tdSql.checkEqual(int(res[6][0]), 10)
+
+        ## multi cname
+        query_sql = f'select b.c10 from (select * from {tb_name} where c9 = true or c2 = 2) a, (select * from {tb_name} where c7 like "binar_" or c4 in (3, 5)) b where a.ts = b.ts'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(10)
+        tdSql.checkEqual(int(res[9][0]), 10)
+
+    def queryMultiTbWithTag(self, tb_name):
+        ## select count avg sum from (condition_A or condition_B and like and in) where condition_A or condition_B or condition_tag_C or condition_tag_D or like and in interval
+        query_sql = f'select count(*), avg(c6), sum(c3) from (select * from {tb_name} where c1 >1 or c2 = 2 and c7 like "binar_" and c4 in (3, 5)) where c1 != 2 or c3 = 1 or t1=2 or t1=3 or c8 like "ncha_" and c9 in (true) interval(8d)'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(3)
+        tdSql.checkEqual(int(res[0][1]), 17)
+        tdSql.checkEqual(int(res[0][2]), 1)
+        tdSql.checkEqual(int(res[0][3]), 38)
+        tdSql.checkEqual(int(res[1][1]), 10)
+        tdSql.checkEqual(int(res[1][2]), 2)
+        tdSql.checkEqual(int(res[1][3]), 17)
+        tdSql.checkEqual(int(res[2][1]), 8)
+        tdSql.checkEqual(int(res[2][2]), 1)
+        tdSql.checkEqual(int(res[2][3]), 15)
+
+        ## select count avg sum from (condition_A and condition_B and and line and in and ts and  condition_tag_A and  condition_tag_B and between) where condition_C orr condition_D or condition_tag_C or condition_tag_D or like and in interval
+        query_sql = f'select count(*), avg(c6), sum(c3) from (select * from {tb_name} where c1 >= 1 and c2 = 2 and c7 like "binar_" and c4 in (3, 5) and ts > "2021-01-11 12:00:00" and t1 < 2 and t1 > 0 and c6 between 0 and 7) where c1 != 2 or c3 = 1 or t1=2 or t1=3 or c8 like "ncha_" and c9 in (true) interval(8d)'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(int(res[0][1]), 2)
+        tdSql.checkEqual(int(res[0][2]), 1)
+        tdSql.checkEqual(int(res[0][3]), 2)
+        tdSql.checkEqual(int(res[1][1]), 1)
+        tdSql.checkEqual(int(res[1][2]), 1)
+        tdSql.checkEqual(int(res[1][3]), 1)
+
     def checkTbColTypeOperator(self):
         '''
             Ordinary table full column type and operator
@@ -536,18 +859,75 @@ class TDTestCase:
     def checkStbTsColTag(self):
         tb_name = self.initStb()
         self.queryTsColTag(tb_name)
+
+    def checkTbMultiExpression(self):
+        '''
+            Ordinary table multiExpression
+        '''
+        tb_name = self.initTb()
+        self.queryColMultiExpression(tb_name)
+
+    def checkStbMultiExpression(self):
+        '''
+            Super table multiExpression
+        '''
+        tb_name = self.initStb()
+        self.queryColMultiExpression(f'{tb_name}_sub_1')
+        self.queryTagMultiExpression(tb_name)
+
+    def checkTbPreCal(self):
+        '''
+            Ordinary table precal
+        '''
+        tb_name = self.initTb()
+        self.queryColPreCal(tb_name)
+
+    def checkStbPreCal(self):
+        '''
+            Super table precal
+        '''
+        tb_name = self.initStb()
+        self.queryColPreCal(f'{tb_name}_sub_1')
+        self.queryTagPreCal(tb_name)
    
+    def checkMultiTb(self):
+        '''
+            test "or" in multi ordinary table
+        '''
+        tb_name = self.initTb()
+        self.queryMultiTb(tb_name)
+
+    def checkMultiStb(self):
+        '''
+            test "or" in multi super table
+        '''
+        tb_name = self.initStb()
+        self.queryMultiTb(f'{tb_name}_sub_1')
+
+    def checkMultiTbWithTag(self):
+        '''
+            test Multi tb with tag
+        '''
+        tb_name = self.initStb()
+        self.queryMultiTbWithTag(tb_name)
+
 
     def run(self):
         tdSql.prepare()
-        # self.checkTbColTypeOperator()
-        # self.checkStbColTypeOperator()
-        # self.checkStbTagTypeOperator()
-        # self.checkTbTsCol()
-        # self.checkStbTsTol()
-        # self.checkStbTsTag()
-        # self.checkStbTsColTag()
-       
+        self.checkTbColTypeOperator()
+        self.checkStbColTypeOperator()
+        self.checkStbTagTypeOperator()
+        self.checkTbTsCol()
+        self.checkStbTsTol()
+        self.checkStbTsTag()
+        self.checkStbTsColTag()
+        self.checkTbMultiExpression()
+        self.checkStbMultiExpression()
+        self.checkTbPreCal()
+        self.checkStbPreCal()
+        self.checkMultiTb()
+        self.checkMultiStb()
+        self.checkMultiTbWithTag()
 
     def stop(self):
         tdSql.close()
