@@ -13,17 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "raft_configuration.h"
-#include "raft_impl.h"
+#include "raft.h"
 
-int RaftCreate(Raft** ppRaft) {
-  *ppRaft = (Raft*)malloc(sizeof(Raft));
-
-  return *ppRaft != NULL ? 0 : -1;
+int raftCreate(RaftNode *pNode, Raft** ppCore) {
+  return 0;
 }
 
-int RaftDestroy(Raft* pRaft) {
-  free(pRaft);
+int raftStep(Raft* pCore, RaftMessage* pMsg) {
 
-  return 0;
 }

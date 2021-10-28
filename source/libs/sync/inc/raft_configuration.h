@@ -13,22 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TD_RAFT_MESSAGE_H
-#define TD_RAFT_MESSAGE_H
+#ifndef TD_RAFT_CONFIGURATION_H
+#define TD_RAFT_CONFIGURATION_H
 
-/** 
- * below define message type which handled by Raft node thread
- * internal message, which communicate in threads, start with RaftInternalMessage_*,
- * internal message use pointer only, need not to be decode/encode
- * outter message start with RaftMessage_*, need to implement its decode/encode functions
- **/
-enum RaftMessageType {
+#include "raft.h"
+#include "raft_type.h"
 
-};
+int raftConfigurationCopy(const RaftConfiguration* cluster, RaftConfiguration** pRet);
 
-typedef struct RaftMessage {
-  int type;
+const char* raftConfigurationString(Raft* raft, int i);
 
-} RaftMessage;
-
-#endif  /* TD_RAFT_MESSAGE_H */
+#endif /* TD_RAFT_CONFIGURATION_H */
