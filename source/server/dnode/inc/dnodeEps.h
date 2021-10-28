@@ -19,23 +19,21 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "thash.h"
 #include "dnodeInt.h"
 
-typedef struct SDnEps {
-  int32_t         dnodeId;
-  int32_t         dnodeNum;
-  SDnodeEp *      dnodeList;
-  SHashObj *      dnodeHash;
-  char            file[PATH_MAX + 20];
-  pthread_mutex_t mutex;
-} SDnEps;
+int32_t dnodeInitEps();
+void    dnodeCleanupEps();
 
-int32_t dnodeInitEps(SDnEps **eps);
-void    dnodeCleanupEps(SDnEps **eps);
-void    dnodeUpdateEps(SDnEps *eps, SDnodeEps *data);
-bool    dnodeIsDnodeEpChanged(SDnEps *eps, int32_t dnodeId, char *epstr);
-void    dnodeGetDnodeEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port);
+void    dnodeUpdateCfg(SDnodeCfg *data);
+void    dnodeUpdateDnodeEps(SDnodeEps *data);
+void    dnodeUpdateMnodeEps(SRpcEpSet *pEpSet);
+int32_t dnodeGetDnodeId();
+int64_t dnodeGetClusterId();
+void    dnodeGetEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port);
+
+void dnodeGetEpSetForPeer(SRpcEpSet *epSet);
+void dnodeGetEpSetForShell(SRpcEpSet *epSet);
+void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell);
 
 #ifdef __cplusplus
 }

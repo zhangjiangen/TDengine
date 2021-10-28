@@ -24,26 +24,20 @@ extern "C" {
 
 #define TSDB__packed
 
-#ifdef TSKEY32
-#define TSKEY int32_t;
-#else
 #define TSKEY int64_t
-#endif
-
 #define TSKEY_INITIAL_VAL    INT64_MIN
 
 // Bytes for each type.
 extern const int32_t TYPE_BYTES[15];
 
 // TODO: replace and remove code below
-#define CHAR_BYTES    sizeof(char)
-#define SHORT_BYTES   sizeof(int16_t)
-#define INT_BYTES     sizeof(int32_t)
-#define LONG_BYTES    sizeof(int64_t)
-#define FLOAT_BYTES   sizeof(float)
-#define DOUBLE_BYTES  sizeof(double)
-#define POINTER_BYTES sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
-
+#define CHAR_BYTES              sizeof(char)
+#define SHORT_BYTES             sizeof(int16_t)
+#define INT_BYTES               sizeof(int32_t)
+#define LONG_BYTES              sizeof(int64_t)
+#define FLOAT_BYTES             sizeof(float)
+#define DOUBLE_BYTES            sizeof(double)
+#define POINTER_BYTES           sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
 #define TSDB_KEYSIZE            sizeof(TSKEY)
 #define TSDB_NCHAR_SIZE         sizeof(int32_t)
 
@@ -68,6 +62,7 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_DATA_NULL_STR              "NULL"
 #define TSDB_DATA_NULL_STR_L            "null"
 
+#define TSDB_NETTEST_USER               "nettestinternal"
 #define TSDB_DEFAULT_USER               "root"
 #ifdef _TD_POWER_
 #define TSDB_DEFAULT_PASS               "powerdb"
@@ -87,10 +82,11 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_ERR   -1
 
 #define TS_PATH_DELIMITER "."
+#define TS_ESCAPE_CHAR    '`'
 
-#define TSDB_TIME_PRECISION_MILLI 0
-#define TSDB_TIME_PRECISION_MICRO 1
-#define TSDB_TIME_PRECISION_NANO  2
+#define TSDB_TIME_PRECISION_MILLI      0
+#define TSDB_TIME_PRECISION_MICRO      1
+#define TSDB_TIME_PRECISION_NANO       2
 
 #define TSDB_TIME_PRECISION_MILLI_STR "ms"
 #define TSDB_TIME_PRECISION_MICRO_STR "us"
@@ -110,33 +106,6 @@ do { \
   (src) = (void *)((char *)src + sizeof(type));\
 } while(0)
 
-#define GET_INT8_VAL(x)    (*(int8_t *)(x))
-#define GET_INT16_VAL(x)   (*(int16_t *)(x))
-#define GET_INT32_VAL(x)   (*(int32_t *)(x))
-#define GET_INT64_VAL(x)   (*(int64_t *)(x))
-#define GET_UINT8_VAL(x)   (*(uint8_t*) (x))
-#define GET_UINT16_VAL(x)  (*(uint16_t *)(x))
-#define GET_UINT32_VAL(x)  (*(uint32_t *)(x))
-#define GET_UINT64_VAL(x)  (*(uint64_t *)(x))
-
-#ifdef _TD_ARM_32
-  float  taos_align_get_float(const char* pBuf);
-  double taos_align_get_double(const char* pBuf);
-
-  #define GET_FLOAT_VAL(x)       taos_align_get_float(x)
-  #define GET_DOUBLE_VAL(x)      taos_align_get_double(x)
-  #define SET_FLOAT_VAL(x, y)  { float z = (float)(y);   (*(int32_t*) x = *(int32_t*)(&z)); }
-  #define SET_DOUBLE_VAL(x, y) { double z = (double)(y); (*(int64_t*) x = *(int64_t*)(&z)); }
-  #define SET_FLOAT_PTR(x, y)  { (*(int32_t*) x = *(int32_t*)y); }
-  #define SET_DOUBLE_PTR(x, y) { (*(int64_t*) x = *(int64_t*)y); }
-#else
-  #define GET_FLOAT_VAL(x)       (*(float *)(x))
-  #define GET_DOUBLE_VAL(x)      (*(double *)(x))
-  #define SET_FLOAT_VAL(x, y)  { (*(float *)(x))  = (float)(y);       }
-  #define SET_DOUBLE_VAL(x, y) { (*(double *)(x)) = (double)(y);      }
-  #define SET_FLOAT_PTR(x, y)  { (*(float *)(x))  = (*(float *)(y));  }
-  #define SET_DOUBLE_PTR(x, y) { (*(double *)(x)) = (*(double *)(y)); }
-#endif
 
 // TODO: check if below is necessary
 #define TSDB_RELATION_INVALID     0
@@ -158,11 +127,12 @@ do { \
 #define TSDB_RELATION_MATCH       14
 #define TSDB_RELATION_NMATCH      15
 
-#define TSDB_BINARY_OP_ADD        30
-#define TSDB_BINARY_OP_SUBTRACT   31
-#define TSDB_BINARY_OP_MULTIPLY   32
-#define TSDB_BINARY_OP_DIVIDE     33
-#define TSDB_BINARY_OP_REMAINDER  34
+#define TSDB_BINARY_OP_ADD        4000
+#define TSDB_BINARY_OP_SUBTRACT   4001
+#define TSDB_BINARY_OP_MULTIPLY   4002
+#define TSDB_BINARY_OP_DIVIDE     4003
+#define TSDB_BINARY_OP_REMAINDER  4004
+#define TSDB_BINARY_OP_CONCAT     4005
 
 
 #define IS_RELATION_OPTR(op) (((op) >= TSDB_RELATION_LESS) && ((op) < TSDB_RELATION_IN))
@@ -411,44 +381,6 @@ do { \
 #define TSDB_DATA_TYPE_USMALLINT  12    // 2 bytes
 #define TSDB_DATA_TYPE_UINT       13    // 4 bytes
 #define TSDB_DATA_TYPE_UBIGINT    14    // 8 bytes
-
-// ----------------- For variable data types such as TSDB_DATA_TYPE_BINARY and TSDB_DATA_TYPE_NCHAR
-
-//typedef int32_t  VarDataOffsetT;
-//typedef int16_t  VarDataLenT;  // maxVarDataLen: 32767
-//typedef uint16_t TDRowLenT;    // not including overhead: 0 ~ 65535
-//typedef uint32_t TDRowTLenT;   // total length, including overhead
-//
-//typedef struct tstr {
-//  VarDataLenT len;
-//  char        data[];
-//} tstr;
-//
-//#pragma pack(push, 1)
-//typedef struct {
-//  VarDataLenT len;
-//  uint8_t     data;
-//} SBinaryNullT;
-//
-//typedef struct {
-//  VarDataLenT len;
-//  uint32_t    data;
-//} SNCharNullT;
-//#pragma pack(pop)
-//
-//#define VARSTR_HEADER_SIZE  sizeof(VarDataLenT)
-//
-//#define varDataLen(v)       ((VarDataLenT *)(v))[0]
-//#define varDataTLen(v)      (sizeof(VarDataLenT) + varDataLen(v))
-//#define varDataVal(v)       ((void *)((char *)v + VARSTR_HEADER_SIZE))
-//#define varDataCopy(dst, v) memcpy((dst), (void*) (v), varDataTLen(v))
-//#define varDataLenByData(v) (*(VarDataLenT *)(((char*)(v)) - VARSTR_HEADER_SIZE))
-//#define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT) (_len))
-//#define IS_VAR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_BINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
-//
-//#define varDataNetLen(v)       (htons(((VarDataLenT *)(v))[0]))
-//#define varDataNetTLen(v)      (sizeof(VarDataLenT) + varDataNetLen(v))
-
 
 #ifdef __cplusplus
 }

@@ -18,23 +18,21 @@
 
 #include "tq.h"
 
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-//implement the array index
-//implement the ring buffer
-
 //create persistent storage for meta info such as consuming offset
 //return value > 0: cgId
 //return value <= 0: error code
-int tqCreateGroup(STQ*);
+//int tqCreateTCGroup(STQ*, const char* topic, int cgId, tqBufferHandle** handle);
 //create ring buffer in memory and load consuming offset
-int tqOpenGroup(STQ*, int cgId);
+//int tqOpenTCGroup(STQ*, const char* topic, int cgId);
 //destroy ring buffer and persist consuming offset
-int tqCloseGroup(STQ*, int cgId);
+//int tqCloseTCGroup(STQ*, const char* topic, int cgId);
 //delete persistent storage for meta info
-int tqDropGroup(STQ*, int cgId);
+//int tqDropTCGroup(STQ*, const char* topic, int cgId);
 
 #ifdef __cplusplus
 }

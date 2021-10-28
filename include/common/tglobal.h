@@ -57,6 +57,7 @@ extern int32_t  tsCompressMsgSize;
 extern int32_t  tsCompressColData;
 extern int32_t  tsMaxNumOfDistinctResults;
 extern char     tsTempDir[];
+extern int64_t  tsMaxVnodeQueuedBytes;
 
 //query buffer management
 extern int32_t  tsQueryBufferSize;      // maximum allowed usage buffer size in MB for each data node during query processing
@@ -150,8 +151,6 @@ extern int8_t  tsPrintAuth;
 extern int8_t  tscEmbedded;
 extern char    tsVnodeDir[];
 extern char    tsMnodeDir[];
-extern char    tsMnodeBakDir[];
-extern char    tsMnodeTmpDir[];
 extern int64_t tsTickPerDay[3];
 extern int32_t tsTopicBianryLen;
 

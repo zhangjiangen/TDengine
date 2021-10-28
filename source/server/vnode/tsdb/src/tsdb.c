@@ -14,6 +14,16 @@
  */
 
 #include "tsdb.h"
+#include "tkv.h"
+#include "tsdbMemTable.h"
 
-int tsdbInsert(STsdb *pTsdb, SSubmitReq *pMsg) { return 0; }
+/* -------------- -------------- */
+struct STsdb {
+  STkvDb *tsdb;    // original time-series data
+  STkvDb *lrowdb;  // last row cache
+  STkvDb *lastdb;  // last cache
+  STkvDb *fivemindb;
+};
+
+int tsdbInsert(STsdb *tsdb, SSubmitReq *pReq, SSubmitRsp *pRsp) { return 0; }
 int tsdbCommit(STsdb *pTsdb) { return 0; }

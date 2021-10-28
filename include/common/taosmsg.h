@@ -41,6 +41,12 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SUBMIT, "submit" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_QUERY, "query" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_FETCH, "fetch" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_UPDATE_TAG_VAL, "update-tag-val" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_CONNECT, "mq-connect" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_DISCONNECT, "mq-disconnect" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_CONSUME, "mq-consume" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_QUERY, "mq-query" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_ACK, "mq-ack" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_RESET, "mq-reset" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY1, "dummy1" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY2, "dummy2" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY3, "dummy3" )
@@ -113,11 +119,11 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_NETWORK_TEST, "nettest" )
 // message for topic
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_TP, "create-tp" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_TP, "drop-tp" )	  
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_USE_TP, "use-tp" )	 
+//TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_USE_TP, "use-tp" )	 
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_TP, "alter-tp" )
 
 #ifndef TAOS_MESSAGE_C
-  TSDB_MSG_TYPE_MAX  // 105
+  TSDB_MSG_TYPE_MAX  // 147
 #endif
 
 };
@@ -357,6 +363,8 @@ typedef struct {
 } SConnectRsp;
 
 typedef struct {
+  char    user[TSDB_USER_LEN];
+  char    pass[TSDB_KEY_LEN];
   int32_t maxUsers;
   int32_t maxDbs;
   int32_t maxTimeSeries;
@@ -368,12 +376,6 @@ typedef struct {
   int64_t maxInbound;
   int64_t maxOutbound;
   int8_t  accessState;  // Configured only by command
-} SAcctCfg;
-
-typedef struct {
-  char     user[TSDB_USER_LEN];
-  char     pass[TSDB_KEY_LEN];
-  SAcctCfg cfg;
 } SCreateAcctMsg, SAlterAcctMsg;
 
 typedef struct {
@@ -454,7 +456,6 @@ typedef struct SColumnInfo {
 
 typedef struct STableIdInfo {
   uint64_t uid;
-  int32_t  tid;
   TSKEY    key;  // last accessed ts, for subscription
 } STableIdInfo;
 
@@ -655,15 +656,18 @@ typedef struct SVgroupAccess {
 } SVgroupAccess;
 
 typedef struct {
-  int32_t  dnodeId;
-  uint32_t moduleStatus;
-  uint32_t numOfVnodes;
-  char     clusterId[TSDB_CLUSTER_ID_LEN];
-  char     reserved[16];
+  int32_t dnodeId;
+  int8_t  dropped;
+  char    reserved[19];
+  int64_t clusterId;
+  int32_t numOfDnodes;
+  int32_t numOfVnodes;
 } SDnodeCfg;
 
 typedef struct {
   int32_t  dnodeId;
+  int8_t   isMnode;
+  int8_t   reserved;
   uint16_t dnodePort;
   char     dnodeFqdn[TSDB_FQDN_LEN];
 } SDnodeEp;
@@ -674,55 +678,29 @@ typedef struct {
 } SDnodeEps;
 
 typedef struct {
-  int32_t mnodeId;
-  char    mnodeEp[TSDB_EP_LEN];
-} SMInfo;
-
-typedef struct SMInfos {
-  int8_t inUse;
-  int8_t mnodeNum;
-  SMInfo mnodeInfos[TSDB_MAX_REPLICA];
-} SMInfos;
-
-typedef struct {
-  int32_t  numOfMnodes;               // tsNumOfMnodes
-  int32_t  mnodeEqualVnodeNum;        // tsMnodeEqualVnodeNum
-  int32_t  offlineThreshold;          // tsOfflineThreshold
-  int32_t  statusInterval;            // tsStatusInterval
-  int32_t  maxtablesPerVnode;
-  int32_t  maxVgroupsPerDb;
-  char     arbitrator[TSDB_EP_LEN];   // tsArbitrator
-  char     reserve[2];                // to solve arm32 bus error
-  char     timezone[64];              // tsTimezone
-  int64_t  checkTime;                 // 1970-01-01 00:00:00.000
-  char     locale[TSDB_LOCALE_LEN];   // tsLocale
-  char     charset[TSDB_LOCALE_LEN];  // tsCharset
-  int8_t   enableBalance;             // tsEnableBalance
-  int8_t   flowCtrl;
-  int8_t   slaveQuery;
-  int8_t   adjustMaster;
-  int8_t   reserved[4];
+  int32_t statusInterval;  // tsStatusInterval
+  int8_t  reserved[36];
+  int64_t checkTime;                 // 1970-01-01 00:00:00.000
+  char    timezone[64];              // tsTimezone
+  char    locale[TSDB_LOCALE_LEN];   // tsLocale
+  char    charset[TSDB_LOCALE_LEN];  // tsCharset
 } SClusterCfg;
 
 typedef struct SStatusMsg {
   uint32_t    version;
   int32_t     dnodeId;
+  uint32_t    lastReboot;  // time stamp for last reboot
+  int32_t     openVnodes;
+  int32_t     numOfCores;
+  float       diskAvailable;
+  int8_t      reserved[36];
   char        dnodeEp[TSDB_EP_LEN];
-  uint32_t    moduleStatus;
-  uint32_t    lastReboot;        // time stamp for last reboot
-  uint16_t    reserve1;          // from config file
-  uint16_t    openVnodes;
-  uint16_t    numOfCores;
-  float       diskAvailable;  // GB
-  char        clusterId[TSDB_CLUSTER_ID_LEN];
-  uint8_t     alternativeRole;
-  uint8_t     reserve2[15];
+  int64_t     clusterId;
   SClusterCfg clusterCfg;
   SVnodeLoad  load[];
 } SStatusMsg;
 
 typedef struct {
-  SMInfos       mnodes;
   SDnodeCfg     dnodeCfg;
   SVgroupAccess vgAccess[];
 } SStatusRsp;
@@ -858,9 +836,9 @@ typedef struct {
 } SCreateDnodeMsg, SDropDnodeMsg;
 
 typedef struct {
-  int32_t dnodeId;
-  char    dnodeEp[TSDB_EP_LEN];  // end point, hostname:port
-  SMInfos mnodes;
+  int32_t  dnodeId;
+  int32_t  mnodeNum;
+  SDnodeEp mnodeEps[];
 } SCreateMnodeMsg;
 
 typedef struct {
@@ -954,6 +932,40 @@ typedef struct {
   char    reserved2[64];
 } SStartupStep;
 
+// mq related
+typedef struct {
+
+} SMqConnectReq;
+
+typedef struct {
+
+} SMqConnectRsp;
+
+typedef struct {
+
+} SMqDisconnectReq;
+
+typedef struct {
+
+} SMqDisconnectRsp;
+
+typedef struct {
+
+} SMqAckReq;
+
+typedef struct {
+
+} SMqAckRsp;
+
+typedef struct {
+
+} SMqResetReq;
+
+typedef struct {
+
+} SMqResetRsp;
+//mq related end
+
 typedef struct {
   /* data */
 } SSubmitReq;
@@ -989,6 +1001,22 @@ typedef struct {
 typedef struct {
   /* data */
 } SAlterTableRsp;
+
+typedef struct {
+  /* data */
+} SDropStableReq;
+
+typedef struct {
+  /* data */
+} SDropStableRsp;
+
+typedef struct {
+  /* data */
+} SUpdateTagValReq;
+
+typedef struct {
+  /* data */
+} SUpdateTagValRsp;
 
 #pragma pack(pop)
 
