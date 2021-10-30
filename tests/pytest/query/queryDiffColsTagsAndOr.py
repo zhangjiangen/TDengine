@@ -55,6 +55,23 @@ class TDTestCase:
             self.insertData(f'{tb_name}_sub_{i}')
         return tb_name
 
+    def initTwoStb(self):
+        tdCom.cleanTb()
+        tb_name = tdCom.getLongName(8, "letters")
+        tb_name1 = f'{tb_name}1'
+        tb_name2 = f'{tb_name}2'
+        tdSql.execute(
+            f"CREATE TABLE {tb_name1} (ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 float, c6 double, c7 binary(100), c8 nchar(200), c9 bool, c10 int) tags (t1 tinyint, t2 smallint, t3 int, t4 bigint, t5 float, t6 double, t7 binary(100), t8 nchar(200), t9 bool, t10 int)")
+        tdSql.execute(
+            f"CREATE TABLE {tb_name2} (ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 float, c6 double, c7 binary(100), c8 nchar(200), c9 bool, c10 int) tags (t1 tinyint, t2 smallint, t3 int, t4 bigint, t5 float, t6 double, t7 binary(100), t8 nchar(200), t9 bool, t10 int)")
+        tdSql.execute(
+            f'CREATE TABLE {tb_name1}_sub using {tb_name1} tags (1, 1, 1, 1, 1.1, 1.1, "binary1", "nchar1", true, 1)')
+        tdSql.execute(
+            f'CREATE TABLE {tb_name2}_sub using {tb_name2} tags (1, 1, 1, 1, 1.1, 1.1, "binary1", "nchar1", true, 1)')
+        self.insertData(f'{tb_name1}_sub')
+        self.insertData(f'{tb_name2}_sub')
+        return tb_name
+
     def queryLastC10(self, query_sql, multi=False):
         if multi:
             res = tdSql.query(query_sql.replace('c10', 'last(*)'), True)
@@ -819,6 +836,33 @@ class TDTestCase:
         tdSql.checkEqual(int(res[1][2]), 1)
         tdSql.checkEqual(int(res[1][3]), 1)
 
+    def queryJoin(self, tb_name):
+        ## between tss tag
+        query_sql = f'select stb1.ts, stb2.ts, stb1.t1, stb1.c10 from {tb_name}1 stb1, {tb_name}2 stb2 where stb1.ts = stb2.ts and stb1.ts <= "2021-01-07 12:00:00" and stb2.ts < "2021-01-07 12:00:00" and stb1.t1 = stb2.t1'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(str(res[0][0]), "2021-01-01 12:00:00")
+        tdSql.checkEqual(str(res[1][1]), "2021-01-05 12:00:00")
+        ## between ts tag col
+        query_sql = f'select stb1.t1, stb2.t1, stb1.c1, stb2.c2 from {tb_name}1 stb1, {tb_name}2 stb2 where stb1.ts = stb2.ts and stb1.t1 = stb2.t1 and stb2.c2 <= 2 and stb1.c1 > 0'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(9)
+        ## between ts tags
+        query_sql = f'select stb1.t1, stb2.t1, stb1.c1, stb2.c2 from {tb_name}1 stb1, {tb_name}2 stb2 where stb1.ts = stb2.ts and stb1.t1 = stb2.t1 and stb1.t1 = 1 '
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(11)
+        ## between ts tag tbnames
+        query_sql = f'select stb1.t1, stb2.t1, stb1.c1, stb2.c2 from {tb_name}1 stb1, {tb_name}2 stb2 where stb1.ts = stb2.ts and stb1.t1 = stb2.t1 and stb1.tbname is not Null'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(11)
+        ## between ts col tag tbname
+        query_sql = f'select stb1.tbname, stb1.t1, stb2.t1, stb1.c1, stb2.c2 from {tb_name}1 stb1, {tb_name}2 stb2 where stb1.ts = stb2.ts and stb1.t1 = stb2.t1 and stb1.tbname is not Null and stb1.c2 = 3'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(2)
+        query_sql = f'select stb1.tbname, stb1.*, stb2.tbname, stb1.* from {tb_name}1 stb1, {tb_name}2 stb2 where stb1.ts = stb2.ts and stb1.t1 = stb2.t1 and (stb1.t2 != 1 or stb1.t3 <= 1) and (stb2.tbname like "{tb_name}%" or stb2.tbname is Null ) and stb1.tbname is not Null and stb2.c2 = 3'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(2)
+
     def checkTbColTypeOperator(self):
         '''
             Ordinary table full column type and operator
@@ -910,24 +954,32 @@ class TDTestCase:
         '''
         tb_name = self.initStb()
         self.queryMultiTbWithTag(tb_name)
-
+    
+    def checkMultiStbJoin(self):
+        '''
+            join test
+        '''
+        tb_name = self.initTwoStb()
+        self.queryJoin(tb_name)
 
     def run(self):
-        tdSql.prepare()
-        self.checkTbColTypeOperator()
-        self.checkStbColTypeOperator()
-        self.checkStbTagTypeOperator()
-        self.checkTbTsCol()
-        self.checkStbTsTol()
-        self.checkStbTsTag()
-        self.checkStbTsColTag()
-        self.checkTbMultiExpression()
-        self.checkStbMultiExpression()
-        self.checkTbPreCal()
-        self.checkStbPreCal()
-        self.checkMultiTb()
-        self.checkMultiStb()
-        self.checkMultiTbWithTag()
+        for i in range(100):
+            tdSql.prepare()
+            self.checkTbColTypeOperator()
+            self.checkStbColTypeOperator()
+            self.checkStbTagTypeOperator()
+            self.checkTbTsCol()
+            self.checkStbTsTol()
+            self.checkStbTsTag()
+            self.checkStbTsColTag()
+            self.checkTbMultiExpression()
+            self.checkStbMultiExpression()
+            self.checkTbPreCal()
+            self.checkStbPreCal()
+            self.checkMultiTb()
+            self.checkMultiStb()
+            self.checkMultiTbWithTag()
+            self.checkMultiStbJoin()
 
     def stop(self):
         tdSql.close()
