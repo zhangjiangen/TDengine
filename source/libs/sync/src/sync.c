@@ -14,6 +14,23 @@
  */
 
 #include "sync.h"
+#include "raft_message.h"
+#include "raft.h"
 
 int32_t  syncInit() {return 0;}
 void syncCleanUp() {}
+
+int32_t syncPropose(SyncNodeId nodeId, SSyncBuffer buffer, void* pData, bool isWeak) {
+  RaftMessage* pMsg = (RaftMessage*)malloc(sizeof(RaftMessage));
+  if (pMsg == NULL) {
+    return RAFT_OOM;
+  }
+
+  pMsg->msgType = RAFT_MSG_INTERNAL_PROP;
+  pMsg->from = pNode->selfId;
+
+  pMsg->propose.pBuf = pBuf;
+  pMsg->propose.applyCb = applyCb;
+
+  return sendMsg(pNode, pMsg);
+}

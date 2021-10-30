@@ -40,10 +40,11 @@ typedef enum RaftMessageType {
 
 } RaftMessageType;
 
-typedef struct RaftMsgInternalProp {
+typedef struct RaftMsgInternal_Prop {
   const SSyncBuffer *pBuf;
-  RaftApplyFp applyCb;
-} RaftMsgInternalProp;
+  bool isWeak;
+  void* pData;
+} RaftMsgInternal_Prop;
 
 typedef struct RaftMsgVote {
   // candidate's term
@@ -65,8 +66,8 @@ typedef struct RaftMessage {
   RaftId to;
 
   union {
-    RaftMsgInternalProp propose;
-    RaftMsgVote vote;
+    RaftMsgInternal_Prop *propose;
+    RaftMsgVote *vote;
   };
 } RaftMessage;
 
