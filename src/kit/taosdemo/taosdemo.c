@@ -447,6 +447,7 @@ typedef struct SpecifiedQueryInfo_S {
     uint64_t     subscribeInterval; // ms
     uint64_t     queryTimes;
     bool         subscribeRestart;
+    bool         resetCache;
     int          subscribeKeepProgress;
     char         sql[MAX_QUERY_SQL_COUNT][BUFFER_SIZE+1];
     char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN];
@@ -6176,6 +6177,22 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
             g_queryInfo.specifiedQueryInfo.subscribeKeepProgress = 0;
         }
 
+        cJSON* resetCache = cJSON_GetObjectItem(specifiedQuery, "resetCache");
+        if (resetCache
+                && resetCache->type == cJSON_String
+                && resetCache->valuestring != NULL) {
+            if (0 == strcmp("yes", resetCache->valuestring)) {
+                g_queryInfo.specifiedQueryInfo.resetCache = true;
+            } else if (0 == strcmp("no", keepProgress->valuestring)) {
+                g_queryInfo.specifiedQueryInfo.resetCache = false;
+            } else {
+                errorPrint("%s", "failed to read json, resetCache error\n");
+                goto PARSE_OVER;
+            }
+        } else {
+            g_queryInfo.specifiedQueryInfo.resetCache = false;
+        }
+
         // sqls
         cJSON* specifiedSqls = cJSON_GetObjectItem(specifiedQuery, "sqls");
         if (!specifiedSqls) {
@@ -11695,6 +11712,17 @@ static int insertTestProcess() {
     return 0;
 }
 
+static void resetQueryCache(threadInfo *pThreadInfo) {
+    TAOS_RES *res = taos_query(pThreadInfo->taos, "reset query cache");
+        if (res == NULL || taos_errno(res) != 0) {
+            errorPrint2("%s() LN%d, failed to execute sql: reset query cache, reason:%s\n",
+                    __func__, __LINE__, taos_errstr(res));
+            taos_free_result(res);
+            return;
+        }
+    return;
+}
+
 static void *specifiedTableQuery(void *sarg) {
     threadInfo *pThreadInfo = (threadInfo *)sarg;
 
@@ -11705,7 +11733,7 @@ static void *specifiedTableQuery(void *sarg) {
         taos = taos_connect(g_queryInfo.host,
                 g_queryInfo.user,
                 g_queryInfo.password,
-                NULL,
+                g_queryInfo.dbName,
                 g_queryInfo.port);
         if (taos == NULL) {
             errorPrint2("[%d] Failed to connect to TDengine, reason:%s\n",
@@ -11714,15 +11742,6 @@ static void *specifiedTableQuery(void *sarg) {
         } else {
             pThreadInfo->taos = taos;
         }
-    }
-
-    char sqlStr[TSDB_DB_NAME_LEN + 5];
-    sprintf(sqlStr, "use %s", g_queryInfo.dbName);
-    if (0 != queryDbExec(pThreadInfo->taos, sqlStr, NO_INSERT_TYPE, false)) {
-        taos_close(pThreadInfo->taos);
-        errorPrint("use database %s failed!\n\n",
-                g_queryInfo.dbName);
-        return NULL;
     }
 
     uint64_t st = 0;
@@ -11745,7 +11764,9 @@ static void *specifiedTableQuery(void *sarg) {
                 (int64_t)g_queryInfo.specifiedQueryInfo.queryInterval) {
             taosMsleep(g_queryInfo.specifiedQueryInfo.queryInterval - (et - st)); // ms
         }
-
+        if (g_queryInfo.specifiedQueryInfo.resetCache) {
+            resetQueryCache(pThreadInfo);
+        }
         st = taosGetTimestampMs();
 
         selectAndGetResult(pThreadInfo,
