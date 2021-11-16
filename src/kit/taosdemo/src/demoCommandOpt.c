@@ -1330,8 +1330,8 @@ void setParaFromArg() {
 
     tstrncpy(g_Dbs.db[0].dbName, g_args.database, TSDB_DB_NAME_LEN);
     g_Dbs.db[0].dbCfg.replica = g_args.replica;
-    tstrncpy(g_Dbs.db[0].dbCfg.precision, "ms", SMALL_BUFF_LEN);
-
+    g_Dbs.db[0].dbCfg.precision = TSDB_TIME_PRECISION_MILLI;
+    g_Dbs.db[0].dbCfg.smlTsPrecision = TSDB_SML_TIMESTAMP_MILLI_SECONDS;
     tstrncpy(g_Dbs.resultFile, g_args.output_file, MAX_FILE_NAME_LEN);
 
     g_Dbs.use_metric = g_args.use_metric;
@@ -1351,6 +1351,7 @@ void setParaFromArg() {
     }
 
     if (g_args.use_metric) {
+        g_Dbs.db[0].superTbls[0].dbCfg = &(g_Dbs.db[0].dbCfg);
         g_Dbs.db[0].superTblCount = 1;
         tstrncpy(g_Dbs.db[0].superTbls[0].stbName, "meters",
                  TSDB_TABLE_NAME_LEN);
@@ -1374,9 +1375,7 @@ void setParaFromArg() {
             g_Dbs.db[0].superTbls[0].iface = g_args.iface;
         }
         g_Dbs.db[0].superTbls[0].lineProtocol = TSDB_SML_LINE_PROTOCOL;
-        g_Dbs.db[0].superTbls[0].tsPrecision = TSDB_SML_TIMESTAMP_MILLI_SECONDS;
-        tstrncpy(g_Dbs.db[0].superTbls[0].startTimestamp,
-                 "2017-07-14 10:40:00.000", MAX_TB_NAME_SIZE);
+        g_Dbs.db[0].superTbls[0].startTime = DEFAULT_START_TIME;
         g_Dbs.db[0].superTbls[0].timeStampStep = g_args.timestamp_step;
 
         g_Dbs.db[0].superTbls[0].insertRows = g_args.insertRows;

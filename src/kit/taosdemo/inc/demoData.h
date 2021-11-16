@@ -15,7 +15,6 @@
 
 #ifndef __DEMODATA__
 #define __DEMODATA__
-#include "cJSON.h"
 #include "demo.h"
 /***** Global variables ******/
 
@@ -106,11 +105,9 @@ int     prepareSampleForStb(SSuperTable *stbInfo);
 int     prepareSampleForNtb();
 int     parseSamplefileToStmtBatch(SSuperTable *stbInfo);
 int     parseStbSampleToStmtBatchForThread(threadInfo * pThreadInfo,
-                                           SSuperTable *stbInfo, uint32_t timePrec,
-                                           uint32_t batch);
-int     parseNtbSampleToStmtBatchForThread(threadInfo *pThreadInfo,
-                                           uint32_t timePrec, uint32_t batch);
-int     prepareSampleData();
+                                           SSuperTable *stbInfo, uint32_t batch);
+int parseNtbSampleToStmtBatchForThread(threadInfo *pThreadInfo, uint32_t batch);
+int prepareSampleData();
 int32_t generateSmlConstPart(char *sml, SSuperTable *stbInfo,
                              threadInfo *pThreadInfo, int tbSeq);
 

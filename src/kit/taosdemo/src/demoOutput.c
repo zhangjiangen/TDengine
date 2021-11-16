@@ -475,17 +475,12 @@ void printfInsertMeta() {
             printf("  quorum:                \033[33m%d\033[0m\n",
                    g_Dbs.db[i].dbCfg.quorum);
         }
-        if (g_Dbs.db[i].dbCfg.precision[0] != 0) {
-            if ((0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "ms", 2)) ||
-                (0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "us", 2)) ||
-                (0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "ns", 2))) {
-                printf("  precision:             \033[33m%s\033[0m\n",
-                       g_Dbs.db[i].dbCfg.precision);
-            } else {
-                printf("\033[1m\033[40;31m  precision error:       %s\033[0m\n",
-                       g_Dbs.db[i].dbCfg.precision);
-            }
-        }
+        printf("  precision:             \033[33m%s\033[0m\n",
+               g_Dbs.db[i].dbCfg.precision == TSDB_TIME_PRECISION_MILLI   ? "ms"
+               : g_Dbs.db[i].dbCfg.precision == TSDB_TIME_PRECISION_MICRO ? "us"
+               : g_Dbs.db[i].dbCfg.precision == TSDB_TIME_PRECISION_NANO
+                   ? "ns"
+                   : "wrong precision");
 
         if (g_args.use_metric) {
             printf("  super table count:     \033[33m%" PRIu64 "\033[0m\n",
@@ -580,8 +575,8 @@ void printfInsertMeta() {
                        g_Dbs.db[i].superTbls[j].maxSqlLen);
                 printf("      timeStampStep:     \033[33m%" PRId64 "\033[0m\n",
                        g_Dbs.db[i].superTbls[j].timeStampStep);
-                printf("      startTimestamp:    \033[33m%s\033[0m\n",
-                       g_Dbs.db[i].superTbls[j].startTimestamp);
+                printf("      startTime:         \033[33m%" PRId64 "\033[0m\n",
+                       g_Dbs.db[i].superTbls[j].startTime);
                 printf("      sampleFormat:      \033[33m%s\033[0m\n",
                        g_Dbs.db[i].superTbls[j].sampleFormat);
                 printf("      sampleFile:        \033[33m%s\033[0m\n",
@@ -722,17 +717,13 @@ void printfInsertMetaToFile(FILE *fp) {
             fprintf(fp, "  quorum:                %d\n",
                     g_Dbs.db[i].dbCfg.quorum);
         }
-        if (g_Dbs.db[i].dbCfg.precision[0] != 0) {
-            if ((0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "ms", 2)) ||
-                (0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "ns", 2)) ||
-                (0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "us", 2))) {
-                fprintf(fp, "  precision:             %s\n",
-                        g_Dbs.db[i].dbCfg.precision);
-            } else {
-                fprintf(fp, "  precision error:       %s\n",
-                        g_Dbs.db[i].dbCfg.precision);
-            }
-        }
+        fprintf(fp, "  precision:             %s\n",
+                g_Dbs.db[i].dbCfg.precision == TSDB_TIME_PRECISION_MILLI ? "ms"
+                : g_Dbs.db[i].dbCfg.precision == TSDB_TIME_PRECISION_MICRO
+                    ? "us"
+                : g_Dbs.db[i].dbCfg.precision == TSDB_TIME_PRECISION_NANO
+                    ? "ns"
+                    : "wrong precision");
 
         fprintf(fp, "  super table count:     %" PRIu64 "\n",
                 g_Dbs.db[i].superTblCount);
@@ -797,8 +788,8 @@ void printfInsertMetaToFile(FILE *fp) {
 
             fprintf(fp, "      timeStampStep:     %" PRId64 "\n",
                     g_Dbs.db[i].superTbls[j].timeStampStep);
-            fprintf(fp, "      startTimestamp:    %s\n",
-                    g_Dbs.db[i].superTbls[j].startTimestamp);
+            fprintf(fp, "      startTime:         %" PRId64 "\n",
+                    g_Dbs.db[i].superTbls[j].startTime);
             fprintf(fp, "      sampleFormat:      %s\n",
                     g_Dbs.db[i].superTbls[j].sampleFormat);
             fprintf(fp, "      sampleFile:        %s\n",

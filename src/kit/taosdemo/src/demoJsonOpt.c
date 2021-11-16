@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "cJSON.h"
 #include "demo.h"
 
 int getColumnAndTagTypeFromInsertJsonFile(cJSON *      stbInfo,
@@ -536,10 +535,26 @@ int getMetaFromInsertJsonFile(cJSON *root) {
         cJSON *precision = cJSON_GetObjectItem(dbinfo, "precision");
         if (precision && precision->type == cJSON_String &&
             precision->valuestring != NULL) {
-            tstrncpy(g_Dbs.db[i].dbCfg.precision, precision->valuestring,
-                     SMALL_BUFF_LEN);
+            if (0 == strncasecmp(precision->valuestring, "ms", 2)) {
+                g_Dbs.db[i].dbCfg.precision = TSDB_TIME_PRECISION_MILLI;
+                g_Dbs.db[i].dbCfg.smlTsPrecision =
+                    TSDB_SML_TIMESTAMP_MILLI_SECONDS;
+            } else if (0 == strncasecmp(precision->valuestring, "us", 2)) {
+                g_Dbs.db[i].dbCfg.precision = TSDB_TIME_PRECISION_MICRO;
+                g_Dbs.db[i].dbCfg.smlTsPrecision =
+                    TSDB_SML_TIMESTAMP_MICRO_SECONDS;
+            } else if (0 == strncasecmp(precision->valuestring, "ns", 2)) {
+                g_Dbs.db[i].dbCfg.precision = TSDB_TIME_PRECISION_NANO;
+                g_Dbs.db[i].dbCfg.smlTsPrecision =
+                    TSDB_SML_TIMESTAMP_NANO_SECONDS;
+            } else {
+                errorPrint("unsupport time precision: %s\n",
+                           precision->valuestring);
+                goto PARSE_OVER;
+            }
         } else if (!precision) {
-            memset(g_Dbs.db[i].dbCfg.precision, 0, SMALL_BUFF_LEN);
+            g_Dbs.db[i].dbCfg.precision = TSDB_TIME_PRECISION_MILLI;
+            g_Dbs.db[i].dbCfg.smlTsPrecision = TSDB_SML_TIMESTAMP_MILLI_SECONDS;
         } else {
             errorPrint("%s", "failed to read json, precision not found\n");
             goto PARSE_OVER;
@@ -706,6 +721,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
         assert(g_Dbs.db[i].superTbls);
         g_Dbs.db[i].superTblCount = stbSize;
         for (int j = 0; j < stbSize; ++j) {
+            g_Dbs.db[i].superTbls[j].dbCfg = &(g_Dbs.db[i].dbCfg);
             cJSON *stbInfo = cJSON_GetArrayItem(stables, j);
             if (stbInfo == NULL) continue;
 
@@ -879,10 +895,14 @@ int getMetaFromInsertJsonFile(cJSON *root) {
                            strcasecmp(stbLineProtocol->valuestring, "telnet")) {
                     g_Dbs.db[i].superTbls[j].lineProtocol =
                         TSDB_SML_TELNET_PROTOCOL;
+                    g_Dbs.db[i].dbCfg.smlTsPrecision =
+                        TSDB_SML_TIMESTAMP_NOT_CONFIGURED;
                 } else if (0 ==
                            strcasecmp(stbLineProtocol->valuestring, "json")) {
                     g_Dbs.db[i].superTbls[j].lineProtocol =
                         TSDB_SML_JSON_PROTOCOL;
+                    g_Dbs.db[i].dbCfg.smlTsPrecision =
+                        TSDB_SML_TIMESTAMP_NOT_CONFIGURED;
                 } else {
                     errorPrint(
                         "failed to read json, line_protocol %s not "
@@ -935,11 +955,23 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
             cJSON *ts = cJSON_GetObjectItem(stbInfo, "start_timestamp");
             if (ts && ts->type == cJSON_String && ts->valuestring != NULL) {
-                tstrncpy(g_Dbs.db[i].superTbls[j].startTimestamp,
-                         ts->valuestring, TSDB_DB_NAME_LEN);
+                if (0 == strncasecmp(ts->valuestring, "now", 3)) {
+                    g_Dbs.db[i].superTbls[j].startTime =
+                        taosGetTimestamp(g_Dbs.db[i].dbCfg.precision);
+                } else {
+                    if (TSDB_CODE_SUCCESS !=
+                        taosParseTime(ts->valuestring,
+                                      &(g_Dbs.db[i].superTbls[j].startTime),
+                                      (int32_t)strlen(ts->valuestring),
+                                      g_Dbs.db[i].dbCfg.precision, 0)) {
+                        errorPrint("failed to parse time %s\n",
+                                   ts->valuestring);
+                        goto PARSE_OVER;
+                    }
+                }
             } else if (!ts) {
-                tstrncpy(g_Dbs.db[i].superTbls[j].startTimestamp, "now",
-                         TSDB_DB_NAME_LEN);
+                g_Dbs.db[i].superTbls[j].startTime =
+                    taosGetTimestamp(g_Dbs.db[i].dbCfg.precision);
             } else {
                 errorPrint("%s",
                            "failed to read json, start_timestamp not found\n");

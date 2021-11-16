@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "cJSON.h"
 #include "demo.h"
 #include "demoData.h"
 
@@ -738,13 +737,12 @@ int createDatabasesAndStables(char *command) {
                 dataLen += snprintf(command + dataLen, BUFFER_SIZE - dataLen,
                                     " FSYNC %d", g_Dbs.db[i].dbCfg.fsync);
             }
-            if ((0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "ms", 2)) ||
-                (0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "ns", 2)) ||
-                (0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "us", 2))) {
-                dataLen +=
-                    snprintf(command + dataLen, BUFFER_SIZE - dataLen,
-                             " precision \'%s\';", g_Dbs.db[i].dbCfg.precision);
-            }
+            dataLen += snprintf(
+                command + dataLen, BUFFER_SIZE - dataLen, " precision \'%s\';",
+                g_Dbs.db[i].dbCfg.precision == TSDB_TIME_PRECISION_MILLI ? "ms"
+                : g_Dbs.db[i].dbCfg.precision == TSDB_TIME_PRECISION_MICRO
+                    ? "us"
+                    : "ns");
 
             if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
                 taos_close(taos);
@@ -1214,7 +1212,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k) {
             res = taos_schemaless_insert(
                 pThreadInfo->taos, pThreadInfo->lines,
                 stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL ? 0 : k,
-                stbInfo->lineProtocol, stbInfo->tsPrecision);
+                stbInfo->lineProtocol, stbInfo->dbCfg->smlTsPrecision);
             code = taos_errno(res);
             affectedRows = taos_affected_rows(res);
             if (code != TSDB_CODE_SUCCESS) {
@@ -2911,93 +2909,49 @@ void *asyncWrite(void *sarg) {
     return NULL;
 }
 
-int startMultiThreadInsertData(int threads, char *db_name, char *precision,
-                               SSuperTable *stbInfo) {
-    int32_t timePrec = TSDB_TIME_PRECISION_MILLI;
-    if (stbInfo) {
-        stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_MILLI_SECONDS;
-    }
+int setUpStables() {
+    for (int i = 0; i < g_Dbs.dbCount; i++) {
+        if (g_Dbs.use_metric) {
+            for (uint64_t j = 0; j < g_Dbs.db[i].superTblCount; j++) {
+                SSuperTable *stbInfo = &g_Dbs.db[i].superTbls[j];
+                if (stbInfo->iface == SML_IFACE) {
+                    if (stbInfo->lineProtocol != TSDB_SML_LINE_PROTOCOL) {
+                        if (stbInfo->columnCount != 1) {
+                            errorPrint(
+                                "Schemaless telnet/json protocol can only "
+                                "have 1 "
+                                "column "
+                                "instead of %d\n",
+                                stbInfo->columnCount);
+                            return -1;
+                        }
+                    }
+                    if (stbInfo->lineProtocol != TSDB_SML_JSON_PROTOCOL) {
+                        calcRowLen(stbInfo);
+                    }
+                }
 
-    if (0 != precision[0]) {
-        if (0 == strncasecmp(precision, "ms", 2)) {
-            timePrec = TSDB_TIME_PRECISION_MILLI;
-            if (stbInfo) {
-                stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_MILLI_SECONDS;
-            }
-        } else if (0 == strncasecmp(precision, "us", 2)) {
-            timePrec = TSDB_TIME_PRECISION_MICRO;
-            if (stbInfo) {
-                stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_MICRO_SECONDS;
-            }
-        } else if (0 == strncasecmp(precision, "ns", 2)) {
-            timePrec = TSDB_TIME_PRECISION_NANO;
-            if (stbInfo) {
-                stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_NANO_SECONDS;
-            }
-        } else {
-            errorPrint("Not support precision: %s\n", precision);
-            return -1;
-        }
-    }
-    if (stbInfo) {
-        if (stbInfo->iface == SML_IFACE) {
-            if (stbInfo->lineProtocol != TSDB_SML_LINE_PROTOCOL) {
-                if (stbInfo->columnCount != 1) {
-                    errorPrint(
-                        "Schemaless telnet/json protocol can only have 1 "
-                        "column "
-                        "instead of %d\n",
-                        stbInfo->columnCount);
+                // read sample data from file first
+                int ret;
+                if (stbInfo && stbInfo->iface != SML_IFACE) {
+                    ret = prepareSampleForStb(stbInfo);
+                } else {
+                    ret = prepareSampleForNtb();
+                }
+
+                if (ret) {
+                    errorPrint("%s",
+                               "prepare sample data for stable failed!\n");
                     return -1;
                 }
-                stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_NOT_CONFIGURED;
-            }
-            if (stbInfo->lineProtocol != TSDB_SML_JSON_PROTOCOL) {
-                calcRowLen(stbInfo);
             }
         }
     }
+    return 0;
+}
 
-    int64_t startTime;
-    if (stbInfo) {
-        if (0 == strncasecmp(stbInfo->startTimestamp, "now", 3)) {
-            startTime = taosGetTimestamp(timePrec);
-        } else {
-            if (TSDB_CODE_SUCCESS !=
-                taosParseTime(stbInfo->startTimestamp, &startTime,
-                              (int32_t)strlen(stbInfo->startTimestamp),
-                              timePrec, 0)) {
-                errorPrint("failed to parse time %s\n",
-                           stbInfo->startTimestamp);
-                return -1;
-            }
-        }
-    } else {
-        startTime = DEFAULT_START_TIME;
-    }
-    debugPrint("%s() LN%d, startTime= %" PRId64 "\n", __func__, __LINE__,
-               startTime);
-
-    // read sample data from file first
-    int ret;
-    if (stbInfo && stbInfo->iface != SML_IFACE) {
-        ret = prepareSampleForStb(stbInfo);
-    } else {
-        ret = prepareSampleForNtb();
-    }
-
-    if (ret) {
-        errorPrint("%s", "prepare sample data for stable failed!\n");
-        return -1;
-    }
-
-    TAOS *taos0 = taos_connect(g_Dbs.host, g_Dbs.user, g_Dbs.password, db_name,
-                               g_Dbs.port);
-    if (NULL == taos0) {
-        errorPrint("connect to taosd fail , reason: %s\n", taos_errstr(NULL));
-        return -1;
-    }
-
+int startMultiThreadInsertData(int threads, char *db_name,
+                               SSuperTable *stbInfo) {
     int64_t  ntables = 0;
     uint64_t tableFrom = 0;
 
@@ -3064,10 +3018,18 @@ int startMultiThreadInsertData(int threads, char *db_name, char *precision,
             }
 
             int64_t childTblCount;
+            TAOS *  taos0 = taos_connect(g_Dbs.host, g_Dbs.user, g_Dbs.password,
+                                       db_name, g_Dbs.port);
+            if (NULL == taos0) {
+                errorPrint("connect to taosd fail , reason: %s\n",
+                           taos_errstr(NULL));
+                return -1;
+            }
             getChildNameOfSuperTableWithLimitAndOffset(
                 taos0, db_name, stbInfo->stbName, &stbInfo->childTblName,
                 &childTblCount, limit, offset, stbInfo->escapeChar);
             ntables = childTblCount;
+            taos_close(taos0);
         } else {
             ntables = stbInfo->childTblCount;
         }
@@ -3075,8 +3037,6 @@ int startMultiThreadInsertData(int threads, char *db_name, char *precision,
         ntables = g_args.ntables;
         tableFrom = 0;
     }
-
-    taos_close(taos0);
 
     int64_t a = ntables / threads;
     if (a < 1) {
@@ -3168,10 +3128,7 @@ int startMultiThreadInsertData(int threads, char *db_name, char *precision,
         pThreadInfo->threadID = i;
 
         tstrncpy(pThreadInfo->db_name, db_name, TSDB_DB_NAME_LEN);
-        pThreadInfo->time_precision = timePrec;
         pThreadInfo->stbInfo = stbInfo;
-
-        pThreadInfo->start_time = startTime;
         pThreadInfo->minDelay = UINT64_MAX;
 
         if ((NULL == stbInfo) || (stbInfo->iface != REST_IFACE)) {
@@ -3203,20 +3160,18 @@ int startMultiThreadInsertData(int threads, char *db_name, char *precision,
                     free(infos);
                     free(stmtBuffer);
                     errorPrint(
-                        "failed to execute taos_stmt_prepare. return 0x%x. "
-                        "reason: %s\n",
-                        ret, taos_stmt_errstr(pThreadInfo->stmt));
+                        "failed to execute taos_stmt_prepare. reason: %s\n",
+                        taos_stmt_errstr(pThreadInfo->stmt));
                     return -1;
                 }
                 pThreadInfo->bind_ts = malloc(sizeof(int64_t));
 
                 if (stbInfo) {
                     parseStbSampleToStmtBatchForThread(pThreadInfo, stbInfo,
-                                                       timePrec, batch);
+                                                       batch);
 
                 } else {
-                    parseNtbSampleToStmtBatchForThread(pThreadInfo, timePrec,
-                                                       batch);
+                    parseNtbSampleToStmtBatchForThread(pThreadInfo, batch);
                 }
             }
         } else {
@@ -3443,6 +3398,13 @@ int insertTestProcess() {
             goto end_insert_process;
         }
     }
+
+    // set up stables
+
+    if (setUpStables()) {
+        goto end_insert_process;
+    }
+
     // create sub threads for inserting data
     // start = taosGetTimestampMs();
     for (int i = 0; i < g_Dbs.dbCount; i++) {
@@ -3452,9 +3414,9 @@ int insertTestProcess() {
                     SSuperTable *stbInfo = &g_Dbs.db[i].superTbls[j];
 
                     if (stbInfo && (stbInfo->insertRows > 0)) {
-                        if (startMultiThreadInsertData(
-                                g_Dbs.threadCount, g_Dbs.db[i].dbName,
-                                g_Dbs.db[i].dbCfg.precision, stbInfo)) {
+                        if (startMultiThreadInsertData(g_Dbs.threadCount,
+                                                       g_Dbs.db[i].dbName,
+                                                       stbInfo)) {
                             goto end_insert_process;
                         }
                     }
@@ -3466,9 +3428,8 @@ int insertTestProcess() {
                 errorPrint("%s\n", "Schemaless insertion must include stable");
                 goto end_insert_process;
             } else {
-                if (startMultiThreadInsertData(
-                        g_Dbs.threadCount, g_Dbs.db[i].dbName,
-                        g_Dbs.db[i].dbCfg.precision, NULL)) {
+                if (startMultiThreadInsertData(g_Dbs.threadCount,
+                                               g_Dbs.db[i].dbName, NULL)) {
                     goto end_insert_process;
                 }
             }

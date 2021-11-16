@@ -1354,13 +1354,9 @@ int32_t generateStbInterlaceData(threadInfo *pThreadInfo, char *tableName,
                  pThreadInfo->threadID, __func__, __LINE__, i, batchPerTblTimes,
                  batchPerTbl);
 
-    if (0 == strncasecmp(stbInfo->startTimestamp, "now", 3)) {
-        startTime = taosGetTimestamp(pThreadInfo->time_precision);
-    }
-
-    int32_t k = generateStbDataTail(stbInfo, batchPerTbl, pstr,
-                                    *pRemainderBufLen, insertRows, 0, startTime,
-                                    &(pThreadInfo->samplePos), &dataLen);
+    int32_t k = generateStbDataTail(
+        stbInfo, batchPerTbl, pstr, *pRemainderBufLen, insertRows, 0,
+        stbInfo->startTime, &(pThreadInfo->samplePos), &dataLen);
 
     if (k == batchPerTbl) {
         pstr += dataLen;
@@ -1988,7 +1984,7 @@ int parseSamplefileToStmtBatch(SSuperTable *stbInfo) {
 
 static int parseSampleToStmtBatchForThread(threadInfo * pThreadInfo,
                                            SSuperTable *stbInfo,
-                                           uint32_t timePrec, uint32_t batch) {
+                                           uint32_t     batch) {
     uint32_t columnCount =
         (stbInfo) ? stbInfo->columnCount : g_args.columnCount;
 
@@ -2015,15 +2011,13 @@ static int parseSampleToStmtBatchForThread(threadInfo * pThreadInfo,
 }
 
 int parseStbSampleToStmtBatchForThread(threadInfo * pThreadInfo,
-                                       SSuperTable *stbInfo, uint32_t timePrec,
-                                       uint32_t batch) {
-    return parseSampleToStmtBatchForThread(pThreadInfo, stbInfo, timePrec,
-                                           batch);
+                                       SSuperTable *stbInfo, uint32_t batch) {
+    return parseSampleToStmtBatchForThread(pThreadInfo, stbInfo, batch);
 }
 
 int parseNtbSampleToStmtBatchForThread(threadInfo *pThreadInfo,
-                                       uint32_t timePrec, uint32_t batch) {
-    return parseSampleToStmtBatchForThread(pThreadInfo, NULL, timePrec, batch);
+                                       uint32_t    batch) {
+    return parseSampleToStmtBatchForThread(pThreadInfo, NULL, batch);
 }
 
 int32_t generateStbProgressiveData(SSuperTable *stbInfo, char *tableName,

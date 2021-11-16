@@ -47,6 +47,7 @@
 #include <stdlib.h>
 
 // #include "os.h"
+#include "cJSON.h"
 #include "taos.h"
 #include "taoserror.h"
 #include "tutil.h"
@@ -336,6 +337,24 @@ typedef struct SColumn_S {
     char     note[NOTE_BUFF_LEN];
 } StrColumn;
 
+typedef struct SDbCfg_S {
+    //  int       maxtablesPerVnode;
+    uint32_t minRows;  // 0 means default
+    uint32_t maxRows;  // 0 means default
+    int      comp;
+    int      walLevel;
+    int      cacheLast;
+    int      fsync;
+    int      replica;
+    int      update;
+    int      keep;
+    int      days;
+    int      cache;
+    int      blocks;
+    int      quorum;
+    int      precision;
+    int      smlTsPrecision;
+} SDbCfg;
 typedef struct SSuperTable_S {
     char     stbName[TSDB_TABLE_NAME_LEN];
     char     dataSource[SMALL_BUFF_LEN];  // rand_gen or sample
@@ -360,8 +379,7 @@ typedef struct SSuperTable_S {
                               // interval
     int64_t insertRows;
     int64_t timeStampStep;
-    int     tsPrecision;
-    char    startTimestamp[MAX_TB_NAME_SIZE];
+    int64_t startTime;
     char    sampleFormat[SMALL_BUFF_LEN];  // csv, json
     char    sampleFile[MAX_FILE_NAME_LEN];
     char    tagsFile[MAX_FILE_NAME_LEN];
@@ -390,7 +408,17 @@ typedef struct SSuperTable_S {
     // statistics
     uint64_t totalInsertRows;
     uint64_t totalAffectedRows;
+
+    SDbCfg *dbCfg;
 } SSuperTable;
+
+typedef struct SNormalTable_S {
+    char *       tbName;
+    uint64_t     tbSeq;
+    SSuperTable *stbInfo;
+    char *       smlHead;
+    cJSON *      smlJsonTags;
+} SNormalTable;
 
 typedef struct {
     char    name[TSDB_DB_NAME_LEN];
@@ -413,24 +441,6 @@ typedef struct {
     int8_t  update;
     char    status[16];
 } SDbInfo;
-
-typedef struct SDbCfg_S {
-    //  int       maxtablesPerVnode;
-    uint32_t minRows;  // 0 means default
-    uint32_t maxRows;  // 0 means default
-    int      comp;
-    int      walLevel;
-    int      cacheLast;
-    int      fsync;
-    int      replica;
-    int      update;
-    int      keep;
-    int      days;
-    int      cache;
-    int      blocks;
-    int      quorum;
-    char     precision[SMALL_BUFF_LEN];
-} SDbCfg;
 
 typedef struct SDataBase_S {
     char         dbName[TSDB_DB_NAME_LEN];
