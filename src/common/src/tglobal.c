@@ -28,6 +28,9 @@
 
 // TSDB
 bool tsdbForceKeepFile = false;
+// check and restore mode when open vnode
+uint16_t tsTsdbCheckMode = TSDB_CHECK_MODE_DEFAULT;
+
 
 // cluster
 char     tsFirst[TSDB_EP_LEN] = {0};

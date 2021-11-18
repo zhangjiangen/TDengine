@@ -142,6 +142,9 @@ extern int32_t tsMonitorInterval;
 // stream
 extern int8_t tsEnableStream;
 
+// tsdb
+extern uint16_t tsTsdbCheckMode;
+
 // internal
 extern int8_t  tsPrintAuth;
 extern int8_t  tscEmbedded;

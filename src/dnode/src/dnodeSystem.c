@@ -94,6 +94,34 @@ int32_t main(int32_t argc, char *argv[]) {
       }
     }
 #endif
+    else if (strcmp(argv[i], "--tsdb-check-mode") == 0) {
+      if (i < argc - 1) {
+        char *checkMode = argv[++i];
+        if (strspn(checkMode, "0123456789") != strlen(checkMode)) {
+          printf("invalid parameter for '--tsdb-check-mode'\n");
+          exit(EXIT_FAILURE);
+        } else {
+          switch (atoi(checkMode)) {
+            case 0: {
+              tsTsdbCheckMode = TSDB_CHECK_MODE_DEFAULT;
+              break;
+            }
+            case 1: {
+              tsTsdbCheckMode = TSDB_CHECK_MODE_CHKSUM_IF_NO_CURRENT;
+              break;
+            }
+            default: {
+              printf("invalid parameter for '--tsdb-check-mode'\n");
+              exit(EXIT_FAILURE);
+              break;
+            }
+          }
+        }
+      } else {
+        printf("'--tsdb-check-mode' requires a parameter\n");
+        exit(EXIT_FAILURE);
+      }
+    }
   }
 
   if (0 != dump_config) {
