@@ -1379,7 +1379,6 @@ void setParaFromArg() {
         g_Dbs.db[0].superTbls[0].timeStampStep = g_args.timestamp_step;
 
         g_Dbs.db[0].superTbls[0].insertRows = g_args.insertRows;
-        g_Dbs.db[0].superTbls[0].maxSqlLen = g_args.max_sql_len;
 
         g_Dbs.db[0].superTbls[0].columnCount = 0;
         for (int i = 0; i < MAX_NUM_COLUMNS; i++) {

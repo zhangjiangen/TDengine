@@ -72,9 +72,7 @@ static int calcRowLen(SSuperTable *superTbls) {
                 errorPrint("get error data type : %s\n", dataType);
                 exit(EXIT_FAILURE);
         }
-        if (superTbls->iface == SML_IFACE) {
-            lenOfOneRow += SML_LINE_SQL_SYNTAX_OFFSET;
-        }
+        lenOfOneRow += SML_LINE_SQL_SYNTAX_OFFSET;
     }
 
     superTbls->lenOfOneRow = lenOfOneRow + TIMESTAMP_BUFF_LEN;  // timestamp
@@ -126,16 +124,12 @@ static int calcRowLen(SSuperTable *superTbls) {
                 errorPrint("get error tag type : %s\n", dataType);
                 exit(EXIT_FAILURE);
         }
-        if (superTbls->iface == SML_IFACE) {
-            lenOfOneRow += SML_LINE_SQL_SYNTAX_OFFSET;
-        }
+        lenOfOneRow += SML_LINE_SQL_SYNTAX_OFFSET;
     }
 
-    if (superTbls->iface == SML_IFACE) {
-        lenOfTagOfOneRow +=
-            2 * TSDB_TABLE_NAME_LEN * 2 + SML_LINE_SQL_SYNTAX_OFFSET;
-        superTbls->lenOfOneRow += lenOfTagOfOneRow;
-    }
+    lenOfTagOfOneRow +=
+        2 * TSDB_TABLE_NAME_LEN * 2 + SML_LINE_SQL_SYNTAX_OFFSET;
+    superTbls->lenOfOneRow += lenOfTagOfOneRow;
 
     superTbls->lenOfTagOfOneRow = lenOfTagOfOneRow;
 
@@ -657,7 +651,6 @@ static int createSuperTable(TAOS *taos, char *dbName, SSuperTable *superTbl,
 
 int createDatabases(char *command, SDataBase *dbInfo) {
     TAOS *taos = NULL;
-    int   ret = 0;
     taos =
         taos_connect(g_Dbs.host, g_Dbs.user, g_Dbs.password, NULL, g_Dbs.port);
     if (taos == NULL) {
@@ -1211,8 +1204,8 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k) {
     return affectedRows;
 }
 
-static void getTableName(char *pTblName, threadInfo *pThreadInfo,
-                         uint64_t tableSeq) {
+static void __attribute__((unused))
+getTableName(char *pTblName, threadInfo *pThreadInfo, uint64_t tableSeq) {
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
     if (stbInfo) {
         if (AUTO_CREATE_SUBTBL != stbInfo->autoCreateTable) {
@@ -1595,14 +1588,14 @@ void *syncWriteInterlace(void *sarg) {
         uint64_t delay = endTs - startTs;
         performancePrint("%s() LN%d, insert execution time is %10.2f ms\n",
                          __func__, __LINE__, delay / 1000.0);
-        verbosePrint("[%d] %s() LN%d affectedRows=%d\n", pThreadInfo->threadID,
-                     __func__, __LINE__, affectedRows);
+        verbosePrint("[%d] %s() LN%d affectedRows=%" PRId64 "\n",
+                     pThreadInfo->threadID, __func__, __LINE__, affectedRows);
         if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
         if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
         pThreadInfo->cntDelay++;
         pThreadInfo->totalDelay += delay;
         if (affectedRows < 0) {
-            errorPrint("affected rows: %d\n", affectedRows);
+            errorPrint("affected rows: %" PRIu64 "\n", affectedRows);
             goto free_of_interlace;
         }
         pThreadInfo->totalAffectedRows += affectedRows;
@@ -1768,8 +1761,6 @@ int setUpStables(SDataBase *dbInfo) {
 
     for (uint64_t j = 0; j < dbInfo->superTblCount; j++) {
         SSuperTable *stbInfo = &dbInfo->superTbls[j];
-        int64_t      ntables = 0;
-        uint64_t     tableFrom = 0;
         if (dbInfo->iface == SML_IFACE) {
             if (dbInfo->lineProtocol != TSDB_SML_LINE_PROTOCOL) {
                 if (stbInfo->columnCount != 1) {
@@ -1792,87 +1783,7 @@ int setUpStables(SDataBase *dbInfo) {
             return -1;
         }
 
-        if (dbInfo->iface != SML_IFACE) {
-            int64_t  limit;
-            uint64_t offset;
-
-            if ((NULL != g_args.sqlFile) &&
-                (stbInfo->childTblExists == TBL_NO_EXISTS) &&
-                ((stbInfo->childTblOffset != 0) ||
-                 (stbInfo->childTblLimit >= 0))) {
-                printf(
-                    "WARNING: offset and limit will not be used "
-                    "since the "
-                    "child tables not exists!\n");
-            }
-
-            if (stbInfo->childTblExists == TBL_ALREADY_EXISTS) {
-                if ((stbInfo->childTblLimit < 0) ||
-                    ((stbInfo->childTblOffset + stbInfo->childTblLimit) >
-                     (stbInfo->childTblCount))) {
-                    if (stbInfo->childTblCount < stbInfo->childTblOffset) {
-                        printf(
-                            "WARNING: offset will not be used "
-                            "since the child "
-                            "tables count is less then offset!\n");
-
-                        stbInfo->childTblOffset = 0;
-                    }
-                    stbInfo->childTblLimit =
-                        stbInfo->childTblCount - stbInfo->childTblOffset;
-                }
-
-                offset = stbInfo->childTblOffset;
-                limit = stbInfo->childTblLimit;
-            } else {
-                limit = stbInfo->childTblCount;
-                offset = 0;
-            }
-
-            ntables = limit;
-            tableFrom = offset;
-
-            if ((stbInfo->childTblExists != TBL_NO_EXISTS) &&
-                ((stbInfo->childTblOffset + stbInfo->childTblLimit) >
-                 stbInfo->childTblCount)) {
-                printf(
-                    "WARNING: specified offset + limit > child "
-                    "table count!\n");
-                prompt();
-            }
-
-            if ((stbInfo->childTblExists != TBL_NO_EXISTS) &&
-                (0 == stbInfo->childTblLimit)) {
-                printf(
-                    "WARNING: specified limit = 0, which cannot "
-                    "find table "
-                    "name to insert or query! \n");
-                prompt();
-            }
-
-            stbInfo->childTblName =
-                (char *)calloc(1, limit * TSDB_TABLE_NAME_LEN);
-            if (NULL == stbInfo->childTblName) {
-                errorPrint("%s", "failed to allocate memory\n");
-                return -1;
-            }
-
-            int64_t childTblCount;
-            TAOS *  taos0 = taos_connect(g_Dbs.host, g_Dbs.user, g_Dbs.password,
-                                       dbInfo->dbName, g_Dbs.port);
-            if (NULL == taos0) {
-                errorPrint("connect to taosd fail , reason: %s\n",
-                           taos_errstr(NULL));
-                return -1;
-            }
-            getChildNameOfSuperTableWithLimitAndOffset(
-                taos0, dbInfo->dbName, stbInfo->stbName, &stbInfo->childTblName,
-                &childTblCount, limit, offset, stbInfo->escapeChar);
-            dbInfo->normalTblCount += childTblCount;
-            taos_close(taos0);
-        } else {
-            dbInfo->normalTblCount += stbInfo->childTblCount;
-        }
+        dbInfo->normalTblCount += stbInfo->childTblCount;
 
         if (dbInfo->iface == STMT_IFACE) {
             if (parseSamplefileToStmtBatch(stbInfo)) {

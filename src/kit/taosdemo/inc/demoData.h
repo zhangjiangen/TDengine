@@ -78,9 +78,6 @@ int64_t getTSRandTail(int64_t timeStampStep, int32_t seq, int disorderRatio,
                       int disorderRange);
 int32_t prepareStbStmtBindTag(char *bindArray, SSuperTable *stbInfo,
                               char *tagsVal, int32_t timePrec);
-int32_t prepareStmtWithoutStb(threadInfo *pThreadInfo, char *tableName,
-                              uint32_t batch, int64_t insertRows,
-                              int64_t recordFrom, int64_t startTime);
 int32_t generateStbInterlaceData(threadInfo *pThreadInfo, char *tableName,
                                  uint32_t batchPerTbl, uint64_t i,
                                  uint32_t batchPerTblTimes, uint64_t tableSeq,
@@ -106,12 +103,13 @@ int     parseStbSampleToStmtBatchForThread(threadInfo * pThreadInfo,
                                            SSuperTable *stbInfo, uint32_t batch);
 int parseNtbSampleToStmtBatchForThread(threadInfo *pThreadInfo, uint32_t batch);
 int prepareSampleData();
-int32_t generateSmlConstPart(char *sml, SSuperTable *stbInfo, int tbSeq,
+int32_t generateSmlConstPart(char *sml, SSuperTable *stbInfo, int64_t tbSeq,
                              int lineProtocol);
 int32_t generateSmlMutablePart(threadInfo *pThreadInfo, SNormalTable *tbInfo,
                                int64_t remainderRows, int64_t timestamp,
                                int lineProtocol);
-int32_t generateSmlJsonTags(cJSON *tagsList, SSuperTable *stbInfo, int tbSeq);
+int32_t generateSmlJsonTags(cJSON *tagsList, SSuperTable *stbInfo,
+                            int64_t tbSeq);
 int32_t generateSmlJsonCols(cJSON *array, cJSON *tag, SSuperTable *stbInfo,
                             threadInfo *pThreadInfo, int64_t timestamp);
 #endif

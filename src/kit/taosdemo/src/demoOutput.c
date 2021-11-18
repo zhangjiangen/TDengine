@@ -426,7 +426,18 @@ void printfInsertMeta() {
         } else {
             printf("  drop:                  \033[33m yes\033[0m\n");
         }
-
+        printf("  iface:                  %s\n",
+               (g_Dbs.db[i].iface == STMT_IFACE)   ? "stmt"
+               : (g_Dbs.db[i].iface == REST_IFACE) ? "rest"
+               : (g_Dbs.db[i].iface == SML_IFACE)  ? "sml"
+                                                   : "taosc");
+        if (g_Dbs.db[i].iface == SML_IFACE) {
+            printf(
+                "  lineProtocol:          %s\n",
+                g_Dbs.db[i].lineProtocol == TSDB_SML_TELNET_PROTOCOL ? "telnet"
+                : g_Dbs.db[i].lineProtocol == TSDB_SML_JSON_PROTOCOL ? "json"
+                                                                     : "line");
+        }
         if (g_Dbs.db[i].dbCfg.blocks > 0) {
             printf("  blocks:                \033[33m%d\033[0m\n",
                    g_Dbs.db[i].dbCfg.blocks);
@@ -522,23 +533,6 @@ void printfInsertMeta() {
                        g_Dbs.db[i].superTbls[j].childTblPrefix);
                 printf("      dataSource:        \033[33m%s\033[0m\n",
                        g_Dbs.db[i].superTbls[j].dataSource);
-                printf("      iface:             \033[33m%s\033[0m\n",
-                       (g_Dbs.db[i].superTbls[j].iface == TAOSC_IFACE) ? "taosc"
-                       : (g_Dbs.db[i].superTbls[j].iface == REST_IFACE) ? "rest"
-                       : (g_Dbs.db[i].superTbls[j].iface == STMT_IFACE)
-                           ? "stmt"
-                           : "sml");
-                if (g_Dbs.db[i].superTbls[j].iface == SML_IFACE) {
-                    printf("      lineProtocol:      \033[33m%s\033[0m\n",
-                           (g_Dbs.db[i].superTbls[j].lineProtocol ==
-                            TSDB_SML_LINE_PROTOCOL)
-                               ? "line"
-                           : (g_Dbs.db[i].superTbls[j].lineProtocol ==
-                              TSDB_SML_TELNET_PROTOCOL)
-                               ? "telnet"
-                               : "json");
-                }
-
                 if (g_Dbs.db[i].superTbls[j].childTblLimit > 0) {
                     printf("      childTblLimit:     \033[33m%" PRId64
                            "\033[0m\n",
@@ -571,8 +565,6 @@ void printfInsertMeta() {
                        g_Dbs.db[i].superTbls[j].disorderRange);
                 printf("      disorderRatio:     \033[33m%d\033[0m\n",
                        g_Dbs.db[i].superTbls[j].disorderRatio);
-                printf("      maxSqlLen:         \033[33m%" PRIu64 "\033[0m\n",
-                       g_Dbs.db[i].superTbls[j].maxSqlLen);
                 printf("      timeStampStep:     \033[33m%" PRId64 "\033[0m\n",
                        g_Dbs.db[i].superTbls[j].timeStampStep);
                 printf("      startTime:         \033[33m%" PRId64 "\033[0m\n",
@@ -668,7 +660,18 @@ void printfInsertMetaToFile(FILE *fp) {
         } else {
             fprintf(fp, "  drop:                  yes\n");
         }
-
+        fprintf(fp, "  iface:                  %s\n",
+                (g_Dbs.db[i].iface == STMT_IFACE)   ? "stmt"
+                : (g_Dbs.db[i].iface == REST_IFACE) ? "rest"
+                : (g_Dbs.db[i].iface == SML_IFACE)  ? "sml"
+                                                    : "taosc");
+        if (g_Dbs.db[i].iface == SML_IFACE) {
+            fprintf(
+                fp, "  lineProtocol:          %s\n",
+                g_Dbs.db[i].lineProtocol == TSDB_SML_TELNET_PROTOCOL ? "telnet"
+                : g_Dbs.db[i].lineProtocol == TSDB_SML_JSON_PROTOCOL ? "json"
+                                                                     : "line");
+        }
         if (g_Dbs.db[i].dbCfg.blocks > 0) {
             fprintf(fp, "  blocks:                %d\n",
                     g_Dbs.db[i].dbCfg.blocks);
@@ -757,11 +760,6 @@ void printfInsertMetaToFile(FILE *fp) {
                     g_Dbs.db[i].superTbls[j].childTblPrefix);
             fprintf(fp, "      dataSource:        %s\n",
                     g_Dbs.db[i].superTbls[j].dataSource);
-            fprintf(fp, "      iface:             %s\n",
-                    (g_Dbs.db[i].superTbls[j].iface == TAOSC_IFACE)  ? "taosc"
-                    : (g_Dbs.db[i].superTbls[j].iface == REST_IFACE) ? "rest"
-                    : (g_Dbs.db[i].superTbls[j].iface == STMT_IFACE) ? "stmt"
-                                                                     : "sml");
             fprintf(fp, "      insertRows:        %" PRId64 "\n",
                     g_Dbs.db[i].superTbls[j].insertRows);
             fprintf(fp, "      interlace rows:    %u\n",
@@ -783,9 +781,6 @@ void printfInsertMetaToFile(FILE *fp) {
                     g_Dbs.db[i].superTbls[j].disorderRange);
             fprintf(fp, "      disorderRatio:     %d\n",
                     g_Dbs.db[i].superTbls[j].disorderRatio);
-            fprintf(fp, "      maxSqlLen:         %" PRIu64 "\n",
-                    g_Dbs.db[i].superTbls[j].maxSqlLen);
-
             fprintf(fp, "      timeStampStep:     %" PRId64 "\n",
                     g_Dbs.db[i].superTbls[j].timeStampStep);
             fprintf(fp, "      startTime:         %" PRId64 "\n",

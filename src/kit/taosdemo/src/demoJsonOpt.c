@@ -1052,39 +1052,6 @@ int getMetaFromInsertJsonFile(cJSON *root) {
                 goto PARSE_OVER;
             }
 
-            cJSON *stbMaxSqlLen = cJSON_GetObjectItem(stbInfo, "max_sql_len");
-            if (stbMaxSqlLen && stbMaxSqlLen->type == cJSON_Number) {
-                int32_t len = (int32_t)stbMaxSqlLen->valueint;
-                if (len > TSDB_MAX_ALLOWED_SQL_LEN) {
-                    len = TSDB_MAX_ALLOWED_SQL_LEN;
-                } else if (len < 5) {
-                    len = 5;
-                }
-                g_Dbs.db[i].superTbls[j].maxSqlLen = len;
-            } else if (!maxSqlLen) {
-                g_Dbs.db[i].superTbls[j].maxSqlLen = g_args.max_sql_len;
-            } else {
-                errorPrint("%s",
-                           "failed to read json, stbMaxSqlLen input mistake\n");
-                goto PARSE_OVER;
-            }
-            /*
-               cJSON *multiThreadWriteOneTbl =
-               cJSON_GetObjectItem(stbInfo, "multi_thread_write_one_tbl"); // no
-               , yes if (multiThreadWriteOneTbl
-               && multiThreadWriteOneTbl->type == cJSON_String
-               && multiThreadWriteOneTbl->valuestring != NULL) {
-               if (0 == strncasecmp(multiThreadWriteOneTbl->valuestring, "yes",
-               3)) { g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl = 1; } else
-               { g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl = 0;
-               }
-               } else if (!multiThreadWriteOneTbl) {
-               g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl = 0;
-               } else {
-               errorPrint("%s", "failed to read json, multiThreadWriteOneTbl not
-               found\n"); goto PARSE_OVER;
-               }
-               */
             cJSON *insertRows = cJSON_GetObjectItem(stbInfo, "insert_rows");
             if (insertRows && insertRows->type == cJSON_Number) {
                 if (insertRows->valueint < 0) {

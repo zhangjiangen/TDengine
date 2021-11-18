@@ -600,13 +600,13 @@ static void getAndSetRowsFromCsvFile(SSuperTable *stbInfo) {
                    stbInfo->sampleFile, strerror(errno));
         return;
     }
-    char *buf = calloc(1, stbInfo->maxSqlLen);
+    char *buf = calloc(1, TSDB_MAX_SQL_LEN);
     if (buf == NULL) {
         errorPrint("%s", "failed to allocate memory\n");
         return;
     }
 
-    while (fgets(buf, (int)stbInfo->maxSqlLen, fp)) {
+    while (fgets(buf, TSDB_MAX_SQL_LEN, fp)) {
         line_count++;
     }
     fclose(fp);
@@ -678,9 +678,9 @@ int prepareSampleData(SDataBase *dbInfo) {
     return 0;
 }
 
-static int getRowDataFromSample(char *dataBuf, int64_t maxLen,
-                                int64_t timestamp, SSuperTable *stbInfo,
-                                int64_t *sampleUsePos) {
+static int __attribute__((unused))
+getRowDataFromSample(char *dataBuf, int64_t maxLen, int64_t timestamp,
+                     SSuperTable *stbInfo, int64_t *sampleUsePos) {
     if ((*sampleUsePos) == MAX_SAMPLES) {
         *sampleUsePos = 0;
     }
@@ -1205,56 +1205,6 @@ static int generateSQLHeadWithoutStb(char *tableName, char *dbName,
     return len;
 }
 
-int32_t generateStbInterlaceData(threadInfo *pThreadInfo, char *tableName,
-                                 uint32_t batchPerTbl, uint64_t i,
-                                 uint32_t batchPerTblTimes, uint64_t tableSeq,
-                                 char *buffer, int64_t insertRows,
-                                 int64_t   startTime,
-                                 uint64_t *pRemainderBufLen) {
-    char *pstr = buffer;
-
-    SSuperTable *stbInfo = pThreadInfo->stbInfo;
-    int          headLen =
-        generateStbSQLHead(stbInfo, tableName, tableSeq, pThreadInfo->db_name,
-                           pstr, (int)(*pRemainderBufLen));
-
-    if (headLen <= 0) {
-        return 0;
-    }
-    // generate data buffer
-    verbosePrint("[%d] %s() LN%d i=%" PRIu64 " buffer:\n%s\n",
-                 pThreadInfo->threadID, __func__, __LINE__, i, buffer);
-
-    pstr += headLen;
-    *pRemainderBufLen -= headLen;
-
-    int64_t dataLen = 0;
-
-    verbosePrint("[%d] %s() LN%d i=%" PRIu64
-                 " batchPerTblTimes=%u batchPerTbl = %u\n",
-                 pThreadInfo->threadID, __func__, __LINE__, i, batchPerTblTimes,
-                 batchPerTbl);
-
-    int32_t k = generateStbDataTail(
-        stbInfo, batchPerTbl, pstr, *pRemainderBufLen, insertRows, 0,
-        stbInfo->startTime, &(pThreadInfo->samplePos), &dataLen);
-
-    if (k == batchPerTbl) {
-        pstr += dataLen;
-        *pRemainderBufLen -= dataLen;
-    } else {
-        debugPrint(
-            "%s() LN%d, generated data tail: %u, not equal batch per table: "
-            "%u\n",
-            __func__, __LINE__, k, batchPerTbl);
-        pstr -= headLen;
-        pstr[0] = '\0';
-        k = 0;
-    }
-
-    return k;
-}
-
 int64_t generateInterlaceDataWithoutStb(char *tableName, uint32_t batch,
                                         uint64_t tableSeq, char *dbName,
                                         char *buffer, int64_t insertRows,
@@ -1570,83 +1520,6 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind, char data_type,
     return 0;
 }
 
-int32_t prepareStmtWithoutStb(threadInfo *pThreadInfo, char *tableName,
-                              uint32_t batch, int64_t insertRows,
-                              int64_t recordFrom, int64_t startTime) {
-    TAOS_STMT *stmt = pThreadInfo->stmt;
-    int        ret = taos_stmt_set_tbname(stmt, tableName);
-    if (ret != 0) {
-        errorPrint(
-            "failed to execute taos_stmt_set_tbname(%s). return 0x%x. reason: "
-            "%s\n",
-            tableName, ret, taos_stmt_errstr(stmt));
-        return ret;
-    }
-
-    char *data_type = g_args.data_type;
-
-    char *bindArray = malloc(sizeof(TAOS_BIND) * (g_args.columnCount + 1));
-    if (bindArray == NULL) {
-        errorPrint("Failed to allocate %d bind params\n",
-                   (g_args.columnCount + 1));
-        return -1;
-    }
-
-    int32_t k = 0;
-    for (k = 0; k < batch;) {
-        /* columnCount + 1 (ts) */
-
-        TAOS_BIND *bind = (TAOS_BIND *)(bindArray + 0);
-
-        int64_t *bind_ts = pThreadInfo->bind_ts;
-
-        bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-
-        if (g_args.disorderRatio) {
-            *bind_ts = startTime + getTSRandTail(g_args.timestamp_step, k,
-                                                 g_args.disorderRatio,
-                                                 g_args.disorderRange);
-        } else {
-            *bind_ts = startTime + g_args.timestamp_step * k;
-        }
-        bind->buffer_length = sizeof(int64_t);
-        bind->buffer = bind_ts;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
-
-        for (int i = 0; i < g_args.columnCount; i++) {
-            bind = (TAOS_BIND *)((char *)bindArray +
-                                 (sizeof(TAOS_BIND) * (i + 1)));
-            if (-1 ==
-                prepareStmtBindArrayByType(bind, data_type[i], g_args.binwidth,
-                                           pThreadInfo->time_precision, NULL)) {
-                free(bindArray);
-                return -1;
-            }
-        }
-        if (taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray)) {
-            errorPrint("taos_stmt_bind_param() failed! reason: %s\n",
-                       taos_stmt_errstr(stmt));
-            break;
-        }
-        // if msg > 3MB, break
-        if (taos_stmt_add_batch(stmt)) {
-            errorPrint("taos_stmt_add_batch() failed! reason: %s\n",
-                       taos_stmt_errstr(stmt));
-            break;
-        }
-
-        k++;
-        recordFrom++;
-        if (recordFrom >= insertRows) {
-            break;
-        }
-    }
-
-    free(bindArray);
-    return k;
-}
-
 int32_t prepareStbStmtBindTag(char *bindArray, SSuperTable *stbInfo,
                               char *tagsVal, int32_t timePrec) {
     TAOS_BIND *tag;
@@ -1869,21 +1742,21 @@ static int parseSampleToStmtBatchForThread(threadInfo * pThreadInfo,
     uint32_t columnCount =
         (stbInfo) ? stbInfo->columnCount : g_args.columnCount;
 
-    pThreadInfo->bind_ts_array = calloc(1, sizeof(int64_t) * batch);
-    if (NULL == pThreadInfo->bind_ts_array) {
+    stbInfo->bind_ts_array = calloc(1, sizeof(int64_t) * batch);
+    if (NULL == stbInfo->bind_ts_array) {
         errorPrint("%s", "failed to allocate memory\n");
         return -1;
     }
 
-    pThreadInfo->bindParams =
+    stbInfo->bindParams =
         calloc(1, sizeof(TAOS_MULTI_BIND) * (columnCount + 1));
-    if (NULL == pThreadInfo->bindParams) {
+    if (NULL == stbInfo->bindParams) {
         errorPrint("%s", "failed to allocate memory\n");
         return -1;
     }
 
-    pThreadInfo->is_null = calloc(1, batch);
-    if (NULL == pThreadInfo->is_null) {
+    stbInfo->is_null = calloc(1, batch);
+    if (NULL == stbInfo->is_null) {
         errorPrint("%s", "failed to allocate memory\n");
         return -1;
     }
@@ -1910,7 +1783,6 @@ int32_t generateStbProgressiveData(threadInfo *  pThreadInfo,
     char *       tableName = tbInfo->tbName;
     uint64_t     tableSeq = tbInfo->tbSeq;
     SSuperTable *stbInfo = tbInfo->stbInfo;
-    char *       pstr = pThreadInfo->buffer;
     memset(pstr, 0, remainderBufLen);
     int  headLen;
     char headBuf[HEAD_BUFF_LEN];
@@ -2009,7 +1881,7 @@ int32_t generateProgressiveDataWithoutStb(
                                       /*pSamplePos, */ &dataLen);
 }
 
-int32_t generateSmlConstPart(char *sml, SSuperTable *stbInfo, int tbSeq,
+int32_t generateSmlConstPart(char *sml, SSuperTable *stbInfo, int64_t tbSeq,
                              int lineProtocol) {
     int64_t  dataLen = 0;
     uint64_t length = stbInfo->lenOfOneRow;
@@ -2422,7 +2294,7 @@ int32_t generateSmlMutablePart(threadInfo *pThreadInfo, SNormalTable *tbInfo,
     }
 }
 
-int32_t generateSmlJsonTags(cJSON *tags, SSuperTable *stbInfo, int tbSeq) {
+int32_t generateSmlJsonTags(cJSON *tags, SSuperTable *stbInfo, int64_t tbSeq) {
     char *tbName = calloc(1, TSDB_TABLE_NAME_LEN);
     assert(tbName);
     snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64 "",
