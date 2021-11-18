@@ -503,6 +503,58 @@ int getMetaFromInsertJsonFile(cJSON *root) {
         cJSON *dbinfos = cJSON_GetArrayItem(dbs, i);
         if (dbinfos == NULL) continue;
 
+        cJSON *dbIface =
+            cJSON_GetObjectItem(dbinfos, "insert_mode");  // taosc , rest, stmt
+        if (dbIface && dbIface->type == cJSON_String &&
+            dbIface->valuestring != NULL) {
+            if (0 == strcasecmp(dbIface->valuestring, "taosc")) {
+                g_Dbs.db[i].iface = TAOSC_IFACE;
+            } else if (0 == strcasecmp(dbIface->valuestring, "rest")) {
+                g_Dbs.db[i].iface = REST_IFACE;
+            } else if (0 == strcasecmp(dbIface->valuestring, "stmt")) {
+                g_Dbs.db[i].iface = STMT_IFACE;
+            } else if (0 == strcasecmp(dbIface->valuestring, "sml")) {
+                g_Dbs.db[i].iface = SML_IFACE;
+            } else {
+                errorPrint(
+                    "failed to read json, insert_mode %s not recognized\n",
+                    dbIface->valuestring);
+                goto PARSE_OVER;
+            }
+        } else if (!dbIface) {
+            g_Dbs.db[i].iface = TAOSC_IFACE;
+        } else {
+            errorPrint("%s", "failed to read json, insert_mode not found\n");
+            goto PARSE_OVER;
+        }
+
+        cJSON *dbLineProtocol = cJSON_GetObjectItem(dbinfos, "line_protocol");
+        if (dbLineProtocol && dbLineProtocol->type == cJSON_String &&
+            dbLineProtocol->valuestring != NULL) {
+            if (0 == strcasecmp(dbLineProtocol->valuestring, "line")) {
+                g_Dbs.db[i].lineProtocol = TSDB_SML_LINE_PROTOCOL;
+            } else if (0 == strcasecmp(dbLineProtocol->valuestring, "telnet")) {
+                g_Dbs.db[i].lineProtocol = TSDB_SML_TELNET_PROTOCOL;
+                g_Dbs.db[i].dbCfg.smlTsPrecision =
+                    TSDB_SML_TIMESTAMP_NOT_CONFIGURED;
+            } else if (0 == strcasecmp(dbLineProtocol->valuestring, "json")) {
+                g_Dbs.db[i].lineProtocol = TSDB_SML_JSON_PROTOCOL;
+                g_Dbs.db[i].dbCfg.smlTsPrecision =
+                    TSDB_SML_TIMESTAMP_NOT_CONFIGURED;
+            } else {
+                errorPrint(
+                    "failed to read json, line_protocol %s not "
+                    "recognized\n",
+                    dbLineProtocol->valuestring);
+                goto PARSE_OVER;
+            }
+        } else if (!dbLineProtocol) {
+            g_Dbs.db[i].lineProtocol = TSDB_SML_LINE_PROTOCOL;
+        } else {
+            errorPrint("%s", "failed to read json, line_protocol not found\n");
+            goto PARSE_OVER;
+        }
+
         // dbinfo
         cJSON *dbinfo = cJSON_GetObjectItem(dbinfos, "dbinfo");
         if (!dbinfo || dbinfo->type != cJSON_Object) {
@@ -855,66 +907,6 @@ int getMetaFromInsertJsonFile(cJSON *root) {
             } else {
                 errorPrint("%s",
                            "failed to read json, data_source not found\n");
-                goto PARSE_OVER;
-            }
-
-            cJSON *stbIface = cJSON_GetObjectItem(
-                stbInfo, "insert_mode");  // taosc , rest, stmt
-            if (stbIface && stbIface->type == cJSON_String &&
-                stbIface->valuestring != NULL) {
-                if (0 == strcasecmp(stbIface->valuestring, "taosc")) {
-                    g_Dbs.db[i].superTbls[j].iface = TAOSC_IFACE;
-                } else if (0 == strcasecmp(stbIface->valuestring, "rest")) {
-                    g_Dbs.db[i].superTbls[j].iface = REST_IFACE;
-                } else if (0 == strcasecmp(stbIface->valuestring, "stmt")) {
-                    g_Dbs.db[i].superTbls[j].iface = STMT_IFACE;
-                } else if (0 == strcasecmp(stbIface->valuestring, "sml")) {
-                    g_Dbs.db[i].superTbls[j].iface = SML_IFACE;
-                } else {
-                    errorPrint(
-                        "failed to read json, insert_mode %s not recognized\n",
-                        stbIface->valuestring);
-                    goto PARSE_OVER;
-                }
-            } else if (!stbIface) {
-                g_Dbs.db[i].superTbls[j].iface = TAOSC_IFACE;
-            } else {
-                errorPrint("%s",
-                           "failed to read json, insert_mode not found\n");
-                goto PARSE_OVER;
-            }
-
-            cJSON *stbLineProtocol =
-                cJSON_GetObjectItem(stbInfo, "line_protocol");
-            if (stbLineProtocol && stbLineProtocol->type == cJSON_String &&
-                stbLineProtocol->valuestring != NULL) {
-                if (0 == strcasecmp(stbLineProtocol->valuestring, "line")) {
-                    g_Dbs.db[i].superTbls[j].lineProtocol =
-                        TSDB_SML_LINE_PROTOCOL;
-                } else if (0 ==
-                           strcasecmp(stbLineProtocol->valuestring, "telnet")) {
-                    g_Dbs.db[i].superTbls[j].lineProtocol =
-                        TSDB_SML_TELNET_PROTOCOL;
-                    g_Dbs.db[i].dbCfg.smlTsPrecision =
-                        TSDB_SML_TIMESTAMP_NOT_CONFIGURED;
-                } else if (0 ==
-                           strcasecmp(stbLineProtocol->valuestring, "json")) {
-                    g_Dbs.db[i].superTbls[j].lineProtocol =
-                        TSDB_SML_JSON_PROTOCOL;
-                    g_Dbs.db[i].dbCfg.smlTsPrecision =
-                        TSDB_SML_TIMESTAMP_NOT_CONFIGURED;
-                } else {
-                    errorPrint(
-                        "failed to read json, line_protocol %s not "
-                        "recognized\n",
-                        stbLineProtocol->valuestring);
-                    goto PARSE_OVER;
-                }
-            } else if (!stbLineProtocol) {
-                g_Dbs.db[i].superTbls[j].lineProtocol = TSDB_SML_LINE_PROTOCOL;
-            } else {
-                errorPrint("%s",
-                           "failed to read json, line_protocol not found\n");
                 goto PARSE_OVER;
             }
 

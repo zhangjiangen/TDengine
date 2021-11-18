@@ -91,11 +91,9 @@ int64_t generateInterlaceDataWithoutStb(char *tableName, uint32_t batch,
                                         char *buffer, int64_t insertRows,
                                         int64_t   startTime,
                                         uint64_t *pRemainderBufLen);
-int32_t generateStbProgressiveData(SSuperTable *stbInfo, char *tableName,
-                                   int64_t tableSeq, char *dbName, char *buffer,
-                                   int64_t insertRows, uint64_t recordFrom,
-                                   int64_t startTime, int64_t *pSamplePos,
-                                   int64_t *pRemainderBufLen);
+int32_t generateStbProgressiveData(threadInfo *  pThreadInfo,
+                                   SNormalTable *tbInfo, int64_t remainderRows,
+                                   int64_t startTime);
 int32_t generateProgressiveDataWithoutStb(
     char *tableName, threadInfo *pThreadInfo, char *buffer, int64_t insertRows,
     uint64_t recordFrom, int64_t startTime, int64_t *pRemainderBufLen);
@@ -108,13 +106,12 @@ int     parseStbSampleToStmtBatchForThread(threadInfo * pThreadInfo,
                                            SSuperTable *stbInfo, uint32_t batch);
 int parseNtbSampleToStmtBatchForThread(threadInfo *pThreadInfo, uint32_t batch);
 int prepareSampleData();
-int32_t generateSmlConstPart(char *sml, SSuperTable *stbInfo,
-                             threadInfo *pThreadInfo, int tbSeq);
-
-int32_t generateSmlMutablePart(char *line, char *sml, SSuperTable *stbInfo,
-                               threadInfo *pThreadInfo, int64_t timestamp);
-int32_t generateSmlJsonTags(cJSON *tagsList, SSuperTable *stbInfo,
-                            threadInfo *pThreadInfo, int tbSeq);
+int32_t generateSmlConstPart(char *sml, SSuperTable *stbInfo, int tbSeq,
+                             int lineProtocol);
+int32_t generateSmlMutablePart(threadInfo *pThreadInfo, SNormalTable *tbInfo,
+                               int64_t remainderRows, int64_t timestamp,
+                               int lineProtocol);
+int32_t generateSmlJsonTags(cJSON *tagsList, SSuperTable *stbInfo, int tbSeq);
 int32_t generateSmlJsonCols(cJSON *array, cJSON *tag, SSuperTable *stbInfo,
                             threadInfo *pThreadInfo, int64_t timestamp);
 #endif

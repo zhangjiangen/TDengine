@@ -288,7 +288,7 @@ typedef struct SArguments_S {
     uint32_t test_mode;
     char *   host;
     uint16_t port;
-    uint16_t iface;
+    uint16_t iface;  // 0: taosc, 1: rest, 2: stmt, 3: sml
     char *   user;
     char     password[SHELL_MAX_PASSWORD_LEN];
     char *   database;
@@ -359,13 +359,16 @@ typedef struct SSuperTable_S {
     char     stbName[TSDB_TABLE_NAME_LEN];
     char     dataSource[SMALL_BUFF_LEN];  // rand_gen or sample
     char     childTblPrefix[TBNAME_PREFIX_LEN];
+    int64_t *bind_ts;
+    int64_t *bind_ts_array;
+    char *   bindParams;
+    char *   is_null;
+    char *   stmtBuffer;
     uint16_t childTblExists;
     int64_t  childTblCount;
     uint64_t batchCreateTableNum;  // 0: no batch,  > 0: batch table number in
                                    // one sql
     uint8_t  autoCreateTable;  // 0: create sub table, 1: auto create sub table
-    uint16_t iface;            // 0: taosc, 1: rest, 2: stmt
-    uint16_t lineProtocol;
     int64_t  childTblLimit;
     uint64_t childTblOffset;
 
@@ -373,7 +376,6 @@ typedef struct SSuperTable_S {
     uint32_t interlaceRows;  //
     int      disorderRatio;  // 0: no disorder, >0: x%
     int      disorderRange;  // ms, us or ns. according to database precision
-    uint64_t maxSqlLen;      //
 
     uint64_t insertInterval;  // insert interval, will override global insert
                               // interval
@@ -405,9 +407,6 @@ typedef struct SSuperTable_S {
 
     // bind param batch
     char *sampleBindBatchArray;
-    // statistics
-    uint64_t totalInsertRows;
-    uint64_t totalAffectedRows;
 
     SDbCfg *dbCfg;
 } SSuperTable;
@@ -418,6 +417,8 @@ typedef struct SNormalTable_S {
     SSuperTable *stbInfo;
     char *       smlHead;
     cJSON *      smlJsonTags;
+    int64_t      rowsNeedInsert;
+    int64_t      currentTime;
 } SNormalTable;
 
 typedef struct {
@@ -443,34 +444,36 @@ typedef struct {
 } SDbInfo;
 
 typedef struct SDataBase_S {
-    char         dbName[TSDB_DB_NAME_LEN];
-    bool         drop;  // 0: use exists, 1: if exists, drop then new create
-    SDbCfg       dbCfg;
-    uint64_t     superTblCount;
-    SSuperTable *superTbls;
+    uint16_t      iface;  // 0: taosc, 1: rest, 2: stmt, 3: sml
+    uint16_t      lineProtocol;
+    char          dbName[TSDB_DB_NAME_LEN];
+    bool          drop;  // 0: use exists, 1: if exists, drop then new create
+    SDbCfg        dbCfg;
+    uint64_t      superTblCount;
+    uint64_t      normalTblCount;
+    uint64_t      totalInsertRows;
+    uint64_t      totalAffectedRows;
+    uint32_t      interlaceRows;
+    int64_t       insertRows;
+    SSuperTable * superTbls;
+    SNormalTable *normalTbls;
 } SDataBase;
 
 typedef struct SDbs_S {
     char               cfgDir[MAX_FILE_NAME_LEN];
     char               host[MAX_HOSTNAME_SIZE];
     struct sockaddr_in serv_addr;
-
-    uint16_t port;
-    char     user[MAX_USERNAME_SIZE];
-    char     password[SHELL_MAX_PASSWORD_LEN];
-    char     resultFile[MAX_FILE_NAME_LEN];
-    bool     use_metric;
-    bool     aggr_func;
-    bool     asyncMode;
-
-    uint32_t threadCount;
-    uint32_t threadCountForCreateTbl;
-    uint32_t dbCount;
-    // statistics
-    uint64_t totalInsertRows;
-    uint64_t totalAffectedRows;
-
-    SDataBase *db;
+    uint16_t           port;
+    char               user[MAX_USERNAME_SIZE];
+    char               password[SHELL_MAX_PASSWORD_LEN];
+    char               resultFile[MAX_FILE_NAME_LEN];
+    bool               use_metric;
+    bool               aggr_func;
+    bool               asyncMode;
+    uint32_t           threadCount;
+    uint32_t           threadCountForCreateTbl;
+    uint32_t           dbCount;
+    SDataBase *        db;
 } SDbs;
 
 typedef struct SpecifiedQueryInfo_S {
@@ -531,12 +534,9 @@ typedef struct SQueryMetaInfo_S {
 typedef struct SThreadInfo_S {
     TAOS *       taos;
     TAOS_STMT *  stmt;
-    int64_t *    bind_ts;
-    int64_t *    bind_ts_array;
-    char *       bindParams;
-    char *       is_null;
     int          threadID;
     char         db_name[TSDB_DB_NAME_LEN];
+    int          dbSeq;
     uint32_t     time_precision;
     char         filePath[MAX_PATH_LEN];
     FILE *       fp;

@@ -1370,11 +1370,11 @@ void setParaFromArg() {
         tstrncpy(g_Dbs.db[0].superTbls[0].dataSource, "rand", SMALL_BUFF_LEN);
 
         if (g_args.iface == INTERFACE_BUT) {
-            g_Dbs.db[0].superTbls[0].iface = TAOSC_IFACE;
+            g_Dbs.db[0].iface = TAOSC_IFACE;
         } else {
-            g_Dbs.db[0].superTbls[0].iface = g_args.iface;
+            g_Dbs.db[0].iface = g_args.iface;
         }
-        g_Dbs.db[0].superTbls[0].lineProtocol = TSDB_SML_LINE_PROTOCOL;
+        g_Dbs.db[0].lineProtocol = TSDB_SML_LINE_PROTOCOL;
         g_Dbs.db[0].superTbls[0].startTime = DEFAULT_START_TIME;
         g_Dbs.db[0].superTbls[0].timeStampStep = g_args.timestamp_step;
 
