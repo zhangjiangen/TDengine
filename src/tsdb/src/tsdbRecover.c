@@ -720,25 +720,29 @@ static int tsdbCheckBlockDataColsChkSum(SReadH *pReadH, SBlock *pBlock, SDataCol
 
   int64_t nread = tsdbReadDFile(pDFile, TSDB_READ_BUF(pReadH), pBlock->len);
   if (nread < 0) {
-    tsdbError("vgId:%d failed to load block data part while read file %s since %s, offset:%" PRId64 " len :%d",
+    tsdbError("vgId:%d failed to load block data part while read file %s since %s, offset:%" PRId64 " len :%d keyFirst:%" PRId64 ", keyLast:%" PRId64,
               TSDB_READ_REPO_ID(pReadH), TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno), (int64_t)pBlock->offset,
-              pBlock->len);
+              pBlock->len, pBlock->keyFirst, pBlock->keyLast);
     return -1;
   }
 
   if (nread < pBlock->len) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    tsdbError("vgId:%d block data part in file %s is corrupted, offset:%" PRId64
+    tsdbError("vgId:%d block data part in file %s is corrupted, keyFirst:%" PRId64 ", keyLast:%" PRId64 " offset:%" PRId64
               " expected bytes:%d read bytes: %" PRId64,
-              TSDB_READ_REPO_ID(pReadH), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, pBlock->len, nread);
+              TSDB_READ_REPO_ID(pReadH), TSDB_FILE_FULL_NAME(pDFile), pBlock->keyFirst, pBlock->keyLast,
+             
+              (int64_t)pBlock->offset, pBlock->len, nread);
     return -1;
   }
 
   uint32_t tsize = TSDB_BLOCK_STATIS_SIZE(pBlock->numOfCols);
   if (!taosCheckChecksumWhole((uint8_t *)TSDB_READ_BUF(pReadH), tsize)) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    tsdbError("vgId:%d block statis part in file %s is corrupted since wrong checksum, offset:%" PRId64 " len :%u",
-              TSDB_READ_REPO_ID(pReadH), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, tsize);
+    tsdbError("vgId:%d block statis part in file %s is corrupted since wrong checksum, keyFirst:%" PRId64
+              ", keyLast:%" PRId64 ", offset:%" PRId64 " len :%u",
+              TSDB_READ_REPO_ID(pReadH), TSDB_FILE_FULL_NAME(pDFile), pBlock->keyFirst, pBlock->keyLast,
+              (int64_t)pBlock->offset, tsize);
     return -1;
   }
 
@@ -753,8 +757,10 @@ static int tsdbCheckBlockDataColsChkSum(SReadH *pReadH, SBlock *pBlock, SDataCol
 
     if (!taosCheckChecksumWhole((uint8_t *)POINTER_SHIFT(pBlockData, tsize + toffset), tlen)) {
       terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-      tsdbError("vgId:%d file %s is broken at column %d block offset %" PRId64 " column offset %u",
-                TSDB_READ_REPO_ID(pReadH), TSDB_FILE_FULL_NAME(pDFile), tcolId, (int64_t)pBlock->offset, toffset);
+      tsdbError("vgId:%d file %s is broken at column %d block offset %" PRId64 " column offset %u, keyFirst:%" PRId64
+                ", keyLast:%" PRId64,
+                TSDB_READ_REPO_ID(pReadH), TSDB_FILE_FULL_NAME(pDFile), tcolId, (int64_t)pBlock->offset, toffset,
+                pBlock->keyFirst, pBlock->keyLast);
       return -1;
     }
   }
