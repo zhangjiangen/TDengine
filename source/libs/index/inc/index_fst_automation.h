@@ -12,30 +12,31 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef __INDEX_FST_AUTAOMATION_H__
+#define __INDEX_FST_AUTAOMATION_H__
 
-#ifndef _TD_VNODE_REQUEST_H_
-#define _TD_VNODE_REQUEST_H_
+struct AutomationCtx;
 
-#ifdef __cplusplus
-extern "C" {
+typedef struct StartWith {
+  AutomationCtx  *autoSelf;
+} StartWith;
+
+typedef struct Complement {
+  AutomationCtx *autoSelf;
+} Complement;
+
+// automation 
+typedef struct AutomationCtx {
+  void *data;
+} AutomationCtx;
+
+// automation interface
+void (*start)(AutomationCtx *ctx); 
+bool (*isMatch)(AutomationCtx *ctx);
+bool (*canMatch)(AutomationCtx *ctx, void *data);
+bool (*willAlwaysMatch)(AutomationCtx *ctx, void *state); 
+void* (*accpet)(AutomationCtx *ctx, void *state, uint8_t byte);
+void* (*accpetEof)(AutomationCtx *ctx, *state);
+
+
 #endif
-
-typedef struct SVnodeReq SVnodeReq;
-typedef struct SVnodeRsp SVnodeRsp;
-
-typedef enum {
-} EVReqT;
-
-struct SVnodeReq {
-  /* TODO */
-};
-
-struct SVnodeRsp {
-  /* TODO */
-};
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_VNODE_REQUEST_H_*/

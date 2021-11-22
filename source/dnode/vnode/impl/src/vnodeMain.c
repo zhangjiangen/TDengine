@@ -87,8 +87,7 @@ static void vnodeFree(SVnode *pVnode) {
 static int vnodeOpenImpl(SVnode *pVnode) {
   char dir[TSDB_FILENAME_LEN];
 
-  // Open allocator pool
-  if (vnodeOpenAllocatorPool(pVnode) < 0) {
+  if (vnodeOpenBufPool(pVnode) < 0) {
     // TODO: handle error
     return -1;
   }
@@ -110,6 +109,20 @@ static int vnodeOpenImpl(SVnode *pVnode) {
   }
 
   // TODO: Open TQ
+  sprintf(dir, "%s/wal", pVnode->path);
+  // pVnode->pTq = tqOpen(dir, NULL /* TODO */);
+  // if (pVnode->pTq == NULL) {
+  //   // TODO: handle error
+  //   return -1;
+  // }
+
+  // Open WAL
+  sprintf(dir, "%s/wal", pVnode->path);
+  pVnode->pWal = walOpen(dir, NULL /* TODO */);
+  if (pVnode->pWal == NULL) {
+    // TODO: handle error
+    return -1;
+  }
 
   // TODO
   return 0;
@@ -117,8 +130,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
 static void vnodeCloseImpl(SVnode *pVnode) {
   if (pVnode) {
-    vnodeCloseAllocatorPool(pVnode);
-    // TODO: Close TQ
+    vnodeCloseBufPool(pVnode);
     tsdbClose(pVnode->pTsdb);
     metaClose(pVnode->pMeta);
   }
