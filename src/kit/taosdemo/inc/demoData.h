@@ -94,13 +94,13 @@ int32_t generateStbProgressiveData(threadInfo *  pThreadInfo,
 int32_t generateProgressiveDataWithoutStb(
     char *tableName, threadInfo *pThreadInfo, char *buffer, int64_t insertRows,
     uint64_t recordFrom, int64_t startTime, int64_t *pRemainderBufLen);
-int64_t generateStbRowData(SSuperTable *stbInfo, char *recBuf,
-                           int64_t remainderBufLen, int64_t timestamp);
-int     prepareSampleForStb(SSuperTable *stbInfo);
-int     prepareSampleForNtb();
-int     parseSamplefileToStmtBatch(SSuperTable *stbInfo);
-int     parseStbSampleToStmtBatchForThread(threadInfo * pThreadInfo,
-                                           SSuperTable *stbInfo, uint32_t batch);
+int generateStbRowData(threadInfo *pThreadInfo, SSuperTable *stbInfo,
+                       int32_t len, int64_t timestamp);
+int prepareSampleForStb(SSuperTable *stbInfo);
+int prepareSampleForNtb();
+int parseSamplefileToStmtBatch(SSuperTable *stbInfo);
+int parseStbSampleToStmtBatchForThread(threadInfo * pThreadInfo,
+                                       SSuperTable *stbInfo, uint32_t batch);
 int parseNtbSampleToStmtBatchForThread(threadInfo *pThreadInfo, uint32_t batch);
 int prepareSampleData();
 int32_t generateSmlConstPart(char *sml, SSuperTable *stbInfo, int64_t tbSeq,

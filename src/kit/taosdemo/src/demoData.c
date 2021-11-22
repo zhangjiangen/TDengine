@@ -427,7 +427,8 @@ static void generateBinaryNCharTagValues(int64_t tableSeq, uint32_t len,
 int generateTagValuesForStb(SSuperTable *stbInfo, int64_t tableSeq,
                             char *tagsValBuf) {
     int dataLen = 0;
-    dataLen += snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen, "(");
+    dataLen +=
+        snprintf(tagsValBuf + dataLen, TSDB_MAX_ALLOWED_SQL_LEN - dataLen, "(");
     for (int i = 0; i < stbInfo->tagCount; i++) {
         if ((0 == strncasecmp(stbInfo->tags[i].dataType, "binary",
                               strlen("binary"))) ||
@@ -446,73 +447,76 @@ int generateTagValuesForStb(SSuperTable *stbInfo, int64_t tableSeq,
                 return -1;
             }
             generateBinaryNCharTagValues(tableSeq, tagBufLen, buf);
-            dataLen += snprintf(tagsValBuf + dataLen,
-                                TSDB_MAX_SQL_LEN - dataLen, "\'%s\',", buf);
+            dataLen +=
+                snprintf(tagsValBuf + dataLen,
+                         TSDB_MAX_ALLOWED_SQL_LEN - dataLen, "\'%s\',", buf);
             tmfree(buf);
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "int",
                                     strlen("int"))) {
             if ((g_args.demo_mode) && (i == 0)) {
-                dataLen +=
-                    snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                             "%" PRId64 ",", (tableSeq % 10) + 1);
+                dataLen += snprintf(tagsValBuf + dataLen,
+                                    TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
+                                    "%" PRId64 ",", (tableSeq % 10) + 1);
             } else {
-                dataLen +=
-                    snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                             "%" PRId64 ",", tableSeq);
+                dataLen += snprintf(tagsValBuf + dataLen,
+                                    TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
+                                    "%" PRId64 ",", tableSeq);
             }
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "bigint",
                                     strlen("bigint"))) {
-            dataLen +=
-                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                         "%" PRId64 ",", rand_bigint());
+            dataLen += snprintf(tagsValBuf + dataLen,
+                                TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
+                                "%" PRId64 ",", rand_bigint());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "float",
                                     strlen("float"))) {
-            dataLen +=
-                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                         "%f,", rand_float());
+            dataLen += snprintf(tagsValBuf + dataLen,
+                                TSDB_MAX_ALLOWED_SQL_LEN - dataLen, "%f,",
+                                rand_float());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "double",
                                     strlen("double"))) {
-            dataLen +=
-                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                         "%f,", rand_double());
+            dataLen += snprintf(tagsValBuf + dataLen,
+                                TSDB_MAX_ALLOWED_SQL_LEN - dataLen, "%f,",
+                                rand_double());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "smallint",
                                     strlen("smallint"))) {
-            dataLen +=
-                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                         "%d,", rand_smallint());
+            dataLen += snprintf(tagsValBuf + dataLen,
+                                TSDB_MAX_ALLOWED_SQL_LEN - dataLen, "%d,",
+                                rand_smallint());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "tinyint",
                                     strlen("tinyint"))) {
-            dataLen +=
-                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                         "%d,", rand_tinyint());
+            dataLen += snprintf(tagsValBuf + dataLen,
+                                TSDB_MAX_ALLOWED_SQL_LEN - dataLen, "%d,",
+                                rand_tinyint());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "bool",
                                     strlen("bool"))) {
             dataLen += snprintf(tagsValBuf + dataLen,
-                                TSDB_MAX_SQL_LEN - dataLen, "%d,", rand_bool());
+                                TSDB_MAX_ALLOWED_SQL_LEN - dataLen, "%d,",
+                                rand_bool());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "timestamp",
                                     strlen("timestamp"))) {
-            dataLen +=
-                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                         "%" PRId64 ",", rand_ubigint());
+            dataLen += snprintf(tagsValBuf + dataLen,
+                                TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
+                                "%" PRId64 ",", rand_ubigint());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "utinyint",
                                     strlen("utinyint"))) {
-            dataLen +=
-                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                         "%d,", rand_utinyint());
+            dataLen += snprintf(tagsValBuf + dataLen,
+                                TSDB_MAX_ALLOWED_SQL_LEN - dataLen, "%d,",
+                                rand_utinyint());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "usmallint",
                                     strlen("usmallint"))) {
-            dataLen +=
-                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                         "%d,", rand_usmallint());
+            dataLen += snprintf(tagsValBuf + dataLen,
+                                TSDB_MAX_ALLOWED_SQL_LEN - dataLen, "%d,",
+                                rand_usmallint());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "uint",
                                     strlen("uint"))) {
             dataLen += snprintf(tagsValBuf + dataLen,
-                                TSDB_MAX_SQL_LEN - dataLen, "%d,", rand_uint());
+                                TSDB_MAX_ALLOWED_SQL_LEN - dataLen, "%d,",
+                                rand_uint());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "ubigint",
                                     strlen("ubigint"))) {
-            dataLen +=
-                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                         "%" PRId64 ",", rand_ubigint());
+            dataLen += snprintf(tagsValBuf + dataLen,
+                                TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
+                                "%" PRId64 ",", rand_ubigint());
         } else {
             errorPrint("unsupport data type: %s\n", stbInfo->tags[i].dataType);
             return -1;
@@ -520,7 +524,8 @@ int generateTagValuesForStb(SSuperTable *stbInfo, int64_t tableSeq,
     }
 
     dataLen -= 1;
-    dataLen += snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen, ")");
+    dataLen +=
+        snprintf(tagsValBuf + dataLen, TSDB_MAX_ALLOWED_SQL_LEN - dataLen, ")");
     return 0;
 }
 
@@ -600,13 +605,13 @@ static void getAndSetRowsFromCsvFile(SSuperTable *stbInfo) {
                    stbInfo->sampleFile, strerror(errno));
         return;
     }
-    char *buf = calloc(1, TSDB_MAX_SQL_LEN);
+    char *buf = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
     if (buf == NULL) {
         errorPrint("%s", "failed to allocate memory\n");
         return;
     }
 
-    while (fgets(buf, TSDB_MAX_SQL_LEN, fp)) {
+    while (fgets(buf, TSDB_MAX_ALLOWED_SQL_LEN, fp)) {
         line_count++;
     }
     fclose(fp);
@@ -704,18 +709,16 @@ getRowDataFromSample(char *dataBuf, int64_t maxLen, int64_t timestamp,
     return dataLen;
 }
 
-int64_t generateStbRowData(SSuperTable *stbInfo, char *pstr,
-                           int64_t remainderBufLen, int64_t timestamp) {
-    int64_t dataLen = 0;
-    int64_t maxLen = MAX_DATA_SIZE;
-    int     tmpLen;
-
-    dataLen +=
-        snprintf(pstr + dataLen, maxLen - dataLen, "(%" PRId64 "", timestamp);
+int generateStbRowData(threadInfo *pThreadInfo, SSuperTable *stbInfo,
+                       int32_t bufLen, int64_t timestamp) {
+    int tmpLen;
+    int len = bufLen;
+    len += snprintf(pThreadInfo->buffer + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
+                    "(%" PRId64 "", timestamp);
 
     for (int i = 0; i < stbInfo->columnCount; i++) {
-        tstrncpy(pstr + dataLen, ",", 2);
-        dataLen += 1;
+        tstrncpy(pThreadInfo->buffer + len, ",", 2);
+        len += 1;
 
         if ((stbInfo->columns[i].data_type == TSDB_DATA_TYPE_BINARY) ||
             (stbInfo->columns[i].data_type == TSDB_DATA_TYPE_NCHAR)) {
@@ -727,7 +730,7 @@ int64_t generateStbRowData(SSuperTable *stbInfo, char *pstr,
 
             if ((stbInfo->columns[i].dataLen + 1) >
                 /* need count 3 extra chars \', \', and , */
-                (remainderBufLen - dataLen - 3)) {
+                (TSDB_MAX_ALLOWED_SQL_LEN - len - 3)) {
                 return 0;
             }
             char *buf = (char *)calloc(stbInfo->columns[i].dataLen + 1, 1);
@@ -736,8 +739,8 @@ int64_t generateStbRowData(SSuperTable *stbInfo, char *pstr,
                 return -1;
             }
             rand_string(buf, stbInfo->columns[i].dataLen);
-            dataLen +=
-                snprintf(pstr + dataLen, maxLen - dataLen, "\'%s\'", buf);
+            len += snprintf(pThreadInfo->buffer + len,
+                            TSDB_MAX_ALLOWED_SQL_LEN - len, "\'%s\'", buf);
             tmfree(buf);
 
         } else {
@@ -750,28 +753,28 @@ int64_t generateStbRowData(SSuperTable *stbInfo, char *pstr,
                         tmp = rand_int_str();
                     }
                     tmpLen = (int)strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp,
+                    tstrncpy(pThreadInfo->buffer + len, tmp,
                              min(tmpLen + 1, INT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_UINT:
                     tmp = rand_uint_str();
                     tmpLen = (int)strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp,
+                    tstrncpy(pThreadInfo->buffer + len, tmp,
                              min(tmpLen + 1, INT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_BIGINT:
                     tmp = rand_bigint_str();
                     tmpLen = (int)strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp,
+                    tstrncpy(pThreadInfo->buffer + len, tmp,
                              min(tmpLen + 1, BIGINT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_UBIGINT:
                     tmp = rand_ubigint_str();
                     tmpLen = (int)strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp,
+                    tstrncpy(pThreadInfo->buffer + len, tmp,
                              min(tmpLen + 1, BIGINT_BUFF_LEN));
                     break;
 
@@ -786,56 +789,56 @@ int64_t generateStbRowData(SSuperTable *stbInfo, char *pstr,
                         tmp = rand_float_str();
                     }
                     tmpLen = (int)strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp,
+                    tstrncpy(pThreadInfo->buffer + len, tmp,
                              min(tmpLen + 1, FLOAT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_DOUBLE:
                     tmp = rand_double_str();
                     tmpLen = (int)strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp,
+                    tstrncpy(pThreadInfo->buffer + len, tmp,
                              min(tmpLen + 1, DOUBLE_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_SMALLINT:
                     tmp = rand_smallint_str();
                     tmpLen = (int)strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp,
+                    tstrncpy(pThreadInfo->buffer + len, tmp,
                              min(tmpLen + 1, SMALLINT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_USMALLINT:
                     tmp = rand_usmallint_str();
                     tmpLen = (int)strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp,
+                    tstrncpy(pThreadInfo->buffer + len, tmp,
                              min(tmpLen + 1, SMALLINT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_TINYINT:
                     tmp = rand_tinyint_str();
                     tmpLen = (int)strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp,
+                    tstrncpy(pThreadInfo->buffer + len, tmp,
                              min(tmpLen + 1, TINYINT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_UTINYINT:
                     tmp = rand_utinyint_str();
                     tmpLen = (int)strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp,
+                    tstrncpy(pThreadInfo->buffer + len, tmp,
                              min(tmpLen + 1, TINYINT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_BOOL:
                     tmp = rand_bool_str();
                     tmpLen = (int)strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp,
+                    tstrncpy(pThreadInfo->buffer + len, tmp,
                              min(tmpLen + 1, BOOL_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_TIMESTAMP:
                     tmp = rand_bigint_str();
                     tmpLen = (int)strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp,
+                    tstrncpy(pThreadInfo->buffer + len, tmp,
                              min(tmpLen + 1, BIGINT_BUFF_LEN));
                     break;
 
@@ -848,21 +851,19 @@ int64_t generateStbRowData(SSuperTable *stbInfo, char *pstr,
                     return -1;
             }
             if (tmp) {
-                dataLen += tmpLen;
+                len += tmpLen;
             }
         }
 
-        if (dataLen > (remainderBufLen - 128)) {
+        if (len > (TSDB_MAX_ALLOWED_SQL_LEN - 128)) {
             return 0;
         }
     }
 
-    dataLen += snprintf(pstr + dataLen, 2, ")");
+    len += snprintf(pThreadInfo->buffer + len, 2, ")");
 
-    verbosePrint("%s() LN%d, dataLen:%" PRId64 "\n", __func__, __LINE__,
-                 dataLen);
-
-    return dataLen;
+    verbosePrint("%s() LN%d, dataLen:%d\n", __func__, __LINE__, len);
+    return (len - bufLen);
 }
 
 static int64_t generateData(char *recBuf, char *data_type, int64_t timestamp,
@@ -965,7 +966,7 @@ static int generateSampleFromRand(char *sampleDataBuf, uint64_t lenOfOneRow,
     char data[MAX_DATA_SIZE];
     memset(data, 0, MAX_DATA_SIZE);
 
-    char *buff = calloc(lenOfOneRow, 1);
+    char *buff = calloc(1, lenOfOneRow);
     if (NULL == buff) {
         errorPrint("%s", "failed to allocate memory\n");
         return -1;
@@ -1777,21 +1778,16 @@ int parseNtbSampleToStmtBatchForThread(threadInfo *pThreadInfo,
 int32_t generateStbProgressiveData(threadInfo *  pThreadInfo,
                                    SNormalTable *tbInfo, int64_t remainderRows,
                                    int64_t startTime) {
-    int64_t      remainderBufLen = TSDB_MAX_SQL_LEN - 2000;
-    char *       pstr = pThreadInfo->buffer;
+    int64_t      remainderBufLen = TSDB_MAX_ALLOWED_SQL_LEN;
     char *       dbName = g_Dbs.db[pThreadInfo->dbSeq].dbName;
     char *       tableName = tbInfo->tbName;
     uint64_t     tableSeq = tbInfo->tbSeq;
     SSuperTable *stbInfo = tbInfo->stbInfo;
-    memset(pstr, 0, remainderBufLen);
-    int  headLen;
-    char headBuf[HEAD_BUFF_LEN];
-    int  len =
-        snprintf(pstr, strlen(STR_INSERT_INTO) + 1, "%s", STR_INSERT_INTO);
-    pstr += len;
-    remainderBufLen -= len;
+    memset(pThreadInfo->buffer, 0, remainderBufLen);
+    int len = snprintf(pThreadInfo->buffer, strlen(STR_INSERT_INTO) + 1, "%s",
+                       STR_INSERT_INTO);
     if (AUTO_CREATE_SUBTBL == stbInfo->autoCreateTable) {
-        char *tagsValBuf = (char *)calloc(TSDB_MAX_SQL_LEN + 1, 1);
+        char *tagsValBuf = (char *)calloc(TSDB_MAX_ALLOWED_SQL_LEN + 1, 1);
         if (NULL == tagsValBuf) {
             errorPrint("%s", "failed to allocate memory\n");
             return -1;
@@ -1804,56 +1800,51 @@ int32_t generateStbProgressiveData(threadInfo *  pThreadInfo,
             }
         } else {
             snprintf(
-                tagsValBuf, TSDB_MAX_SQL_LEN, "(%s)",
+                tagsValBuf, TSDB_MAX_ALLOWED_SQL_LEN, "(%s)",
                 stbInfo->tagDataBuf + stbInfo->lenOfTagOfOneRow *
                                           (tableSeq % stbInfo->tagSampleCount));
         }
 
-        headLen =
-            snprintf(headBuf, HEAD_BUFF_LEN, "%s.%s using %s.%s TAGS%s values",
-                     dbName, tableName, dbName, stbInfo->stbName, tagsValBuf);
+        len += snprintf(pThreadInfo->buffer + len, HEAD_BUFF_LEN,
+                        "%s.%s using %s.%s TAGS%s values", dbName, tableName,
+                        dbName, stbInfo->stbName, tagsValBuf);
         tmfree(tagsValBuf);
     } else if (TBL_ALREADY_EXISTS == stbInfo->childTblExists) {
-        headLen =
-            snprintf(headBuf, HEAD_BUFF_LEN, "%s.%s values", dbName, tableName);
+        len += snprintf(pThreadInfo->buffer + len, HEAD_BUFF_LEN,
+                        "%s.%s values", dbName, tableName);
     } else {
-        headLen =
-            snprintf(headBuf, HEAD_BUFF_LEN, "%s.%s values", dbName, tableName);
+        len += snprintf(pThreadInfo->buffer + len, HEAD_BUFF_LEN,
+                        "%s.%s values", dbName, tableName);
     }
 
-    if (headLen > remainderBufLen) {
-        errorPrint("remainderBuffer (%" PRId64 ") less than headLen (%d)\n",
-                   remainderBufLen, headLen);
+    if (len > TSDB_MAX_ALLOWED_SQL_LEN) {
+        errorPrint("len is too large: %d\n", len);
         return -1;
     }
-
-    tstrncpy(pThreadInfo->buffer, headBuf, headLen + 1);
-    pstr += headLen;
-    remainderBufLen -= headLen;
 
     int32_t k;
     for (k = 0; k < remainderRows;) {
         int64_t lenOfRow = 0;
         if (stbInfo->disorderRatio > 0) {
             lenOfRow = generateStbRowData(
-                stbInfo, pstr, remainderBufLen,
+                pThreadInfo, stbInfo, len,
                 startTime + getTSRandTail(stbInfo->timeStampStep, k,
                                           stbInfo->disorderRatio,
                                           stbInfo->disorderRange));
         } else {
             lenOfRow =
-                generateStbRowData(stbInfo, pstr, remainderBufLen,
+                generateStbRowData(pThreadInfo, stbInfo, len,
                                    startTime + stbInfo->timeStampStep * k);
         }
         if (lenOfRow == 0) {
-            pstr[0] = '\0';
+            *(pThreadInfo->buffer + len) = '\0';
             break;
         }
-        if ((lenOfRow + 1) > remainderBufLen) {
+        if ((len + 1) > TSDB_MAX_ALLOWED_SQL_LEN) {
             break;
         }
+        len += lenOfRow;
         k++;
-        remainderBufLen -= lenOfRow;
     }
     return k;
 }
@@ -1982,10 +1973,15 @@ int32_t generateSmlLineTail(threadInfo *pThreadInfo, SNormalTable *tbInfo,
     SSuperTable *stbInfo = tbInfo->stbInfo;
     int64_t      i;
     for (i = 0; i < remainderRows; i++) {
+        pThreadInfo->lines[i] = calloc(1, stbInfo->lenOfOneRow);
+        if (NULL == pThreadInfo->lines[i]) {
+            errorPrint("%s", "failed to allocate memory\n");
+            return -1;
+        }
         char *line = pThreadInfo->lines[i];
         int   dataLen =
             snprintf(line, stbInfo->lenOfOneRow, "%s ", tbInfo->smlHead);
-        for (uint32_t c = 0; i < stbInfo->columnCount; c++) {
+        for (uint32_t c = 0; c < stbInfo->columnCount; c++) {
             if (c != 0) {
                 tstrncpy(line + dataLen, ",", 2);
                 dataLen += 1;
@@ -2081,6 +2077,7 @@ int32_t generateSmlLineTail(threadInfo *pThreadInfo, SNormalTable *tbInfo,
                     return -1;
             }
         }
+        timestamp += stbInfo->timeStampStep;
         dataLen += snprintf(line + dataLen, stbInfo->lenOfOneRow - dataLen,
                             " %" PRId64 "", timestamp);
     }
@@ -2092,6 +2089,12 @@ int32_t generateSmlTelnetCol(threadInfo *pThreadInfo, SNormalTable *tbInfo,
     SSuperTable *stbInfo = tbInfo->stbInfo;
     int64_t      i;
     for (i = 0; i < remainderRows; i++) {
+        timestamp = timestamp + i * stbInfo->timeStampStep;
+        pThreadInfo->lines[i] = calloc(1, stbInfo->lenOfOneRow);
+        if (NULL == pThreadInfo->lines[i]) {
+            errorPrint("%s", "failed to allocate memory\n");
+            return -1;
+        }
         char *line = pThreadInfo->lines[i];
         switch (stbInfo->columns[0].data_type) {
             case TSDB_DATA_TYPE_BOOL:
@@ -2186,11 +2189,11 @@ int32_t generateSmlJsonCol(threadInfo *pThreadInfo, SNormalTable *tbInfo,
                            int64_t remainderRows, int64_t timestamp) {
     int32_t      i;
     SSuperTable *stbInfo = tbInfo->stbInfo;
-    cJSON *      tags = cJSON_Duplicate(tbInfo->smlJsonTags, true);
     cJSON *      jsonArray = cJSON_CreateArray();
     for (i = 0; i < remainderRows; i++) {
         cJSON *record = cJSON_CreateObject();
         cJSON *ts = cJSON_CreateObject();
+        cJSON *tags = cJSON_Duplicate(tbInfo->smlJsonTags, true);
         cJSON_AddNumberToObject(ts, "value", (double)timestamp);
         if (pThreadInfo->time_precision == TSDB_TIME_PRECISION_MILLI) {
             cJSON_AddStringToObject(ts, "type", "ms");
@@ -2270,6 +2273,7 @@ int32_t generateSmlJsonCol(threadInfo *pThreadInfo, SNormalTable *tbInfo,
         cJSON_AddItemToObject(record, "tags", tags);
         cJSON_AddStringToObject(record, "metric", stbInfo->stbName);
         cJSON_AddItemToArray(jsonArray, record);
+        timestamp += stbInfo->timeStampStep;
     }
     pThreadInfo->lines[0] = cJSON_Print(jsonArray);
     cJSON_Delete(jsonArray);

@@ -70,7 +70,7 @@ static int calcRowLen(SSuperTable *superTbls) {
 
             default:
                 errorPrint("get error data type : %s\n", dataType);
-                exit(EXIT_FAILURE);
+                return -1;
         }
         lenOfOneRow += SML_LINE_SQL_SYNTAX_OFFSET;
     }
@@ -122,7 +122,7 @@ static int calcRowLen(SSuperTable *superTbls) {
                 break;
             default:
                 errorPrint("get error tag type : %s\n", dataType);
-                exit(EXIT_FAILURE);
+                return -1;
         }
         lenOfOneRow += SML_LINE_SQL_SYNTAX_OFFSET;
     }
@@ -136,257 +136,329 @@ static int calcRowLen(SSuperTable *superTbls) {
     return 0;
 }
 
-static int getSuperTableFromServer(TAOS *taos, char *dbName,
-                                   SSuperTable *superTbls) {
-    char      command[SQL_BUFF_LEN] = "\0";
-    TAOS_RES *res;
-    TAOS_ROW  row = NULL;
-    int       count = 0;
-
-    // get schema use cmd: describe superTblName;
-    snprintf(command, SQL_BUFF_LEN, "describe %s.%s", dbName,
-             superTbls->stbName);
-    res = taos_query(taos, command);
-    int32_t code = taos_errno(res);
-    if (code != 0) {
-        printf("failed to run command %s, reason: %s\n", command,
-               taos_errstr(res));
-        taos_free_result(res);
+static int getSuperTableFromServer(SDataBase *dbInfo) {
+    TAOS *taos = NULL;
+    taos = taos_connect(g_Dbs.host, g_Dbs.user, g_Dbs.password, dbInfo->dbName,
+                        g_Dbs.port);
+    if (taos == NULL) {
+        errorPrint("Failed to connect to TDengine, reason:%s\n",
+                   taos_errstr(NULL));
         return -1;
     }
 
-    int         tagIndex = 0;
-    int         columnIndex = 0;
-    TAOS_FIELD *fields = taos_fetch_fields(res);
-    while ((row = taos_fetch_row(res)) != NULL) {
-        if (0 == count) {
-            count++;
-            continue;
-        }
+    char        command[SQL_BUFF_LEN] = "\0";
+    TAOS_RES *  res;
+    TAOS_RES *  res2;
+    TAOS_ROW    row = NULL;
+    TAOS_ROW    row2 = NULL;
+    TAOS_FIELD *fields;
+    int         count = 0;
+    int32_t     code;
 
-        if (strcmp((char *)row[TSDB_DESCRIBE_METRIC_NOTE_INDEX], "TAG") == 0) {
-            tstrncpy(superTbls->tags[tagIndex].field,
-                     (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
-                     fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
-            if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                 "INT", strlen("INT"))) {
-                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_INT;
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "TINYINT", strlen("TINYINT"))) {
-                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_TINYINT;
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "SMALLINT", strlen("SMALLINT"))) {
-                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_SMALLINT;
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "BIGINT", strlen("BIGINT"))) {
-                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_BIGINT;
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "FLOAT", strlen("FLOAT"))) {
-                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_FLOAT;
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "DOUBLE", strlen("DOUBLE"))) {
-                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_DOUBLE;
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "BINARY", strlen("BINARY"))) {
-                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_BINARY;
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "NCHAR", strlen("NCHAR"))) {
-                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_NCHAR;
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "BOOL", strlen("BOOL"))) {
-                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_BOOL;
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "TIMESTAMP", strlen("TIMESTAMP"))) {
-                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_TIMESTAMP;
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "TINYINT UNSIGNED",
-                                   strlen("TINYINT UNSIGNED"))) {
-                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_UTINYINT;
-                tstrncpy(superTbls->tags[tagIndex].dataType, "UTINYINT",
-                         min(DATATYPE_BUFF_LEN,
-                             fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
-                             1);
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "SMALLINT UNSIGNED",
-                                   strlen("SMALLINT UNSIGNED"))) {
-                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_USMALLINT;
-                tstrncpy(superTbls->tags[tagIndex].dataType, "USMALLINT",
-                         min(DATATYPE_BUFF_LEN,
-                             fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
-                             1);
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "INT UNSIGNED", strlen("INT UNSIGNED"))) {
-                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_UINT;
-                tstrncpy(superTbls->tags[tagIndex].dataType, "UINT",
-                         min(DATATYPE_BUFF_LEN,
-                             fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
-                             1);
-            } else if (0 == strncasecmp(
-                                (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                "BIGINT UNSIGNED", strlen("BIGINT UNSIGNED"))) {
-                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_UBIGINT;
-                tstrncpy(superTbls->tags[tagIndex].dataType, "UBIGINT",
-                         min(DATATYPE_BUFF_LEN,
-                             fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
-                             1);
-            } else {
-                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_NULL;
-            }
-            superTbls->tags[tagIndex].dataLen =
-                *((int *)row[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
-            tstrncpy(superTbls->tags[tagIndex].note,
-                     (char *)row[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
-                     min(NOTE_BUFF_LEN,
-                         fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes) +
-                         1);
-            if (strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                       "UNSIGNED") == NULL) {
-                tstrncpy(superTbls->tags[tagIndex].dataType,
-                         (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                         min(DATATYPE_BUFF_LEN,
-                             fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
-                             1);
-            }
-            tagIndex++;
-        } else {
-            tstrncpy(superTbls->columns[columnIndex].field,
-                     (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
-                     fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
-
-            if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                 "INT", strlen("INT")) &&
-                strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                       "UNSIGNED") == NULL) {
-                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_INT;
-            } else if (0 == strncasecmp(
-                                (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                "TINYINT", strlen("TINYINT")) &&
-                       strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                              "UNSIGNED") == NULL) {
-                superTbls->columns[columnIndex].data_type =
-                    TSDB_DATA_TYPE_TINYINT;
-            } else if (0 == strncasecmp(
-                                (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                "SMALLINT", strlen("SMALLINT")) &&
-                       strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                              "UNSIGNED") == NULL) {
-                superTbls->columns[columnIndex].data_type =
-                    TSDB_DATA_TYPE_SMALLINT;
-            } else if (0 == strncasecmp(
-                                (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                "BIGINT", strlen("BIGINT")) &&
-                       strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                              "UNSIGNED") == NULL) {
-                superTbls->columns[columnIndex].data_type =
-                    TSDB_DATA_TYPE_BIGINT;
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "FLOAT", strlen("FLOAT"))) {
-                superTbls->columns[columnIndex].data_type =
-                    TSDB_DATA_TYPE_FLOAT;
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "DOUBLE", strlen("DOUBLE"))) {
-                superTbls->columns[columnIndex].data_type =
-                    TSDB_DATA_TYPE_DOUBLE;
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "BINARY", strlen("BINARY"))) {
-                superTbls->columns[columnIndex].data_type =
-                    TSDB_DATA_TYPE_BINARY;
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "NCHAR", strlen("NCHAR"))) {
-                superTbls->columns[columnIndex].data_type =
-                    TSDB_DATA_TYPE_NCHAR;
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "BOOL", strlen("BOOL"))) {
-                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_BOOL;
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "TIMESTAMP", strlen("TIMESTAMP"))) {
-                superTbls->columns[columnIndex].data_type =
-                    TSDB_DATA_TYPE_TIMESTAMP;
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "TINYINT UNSIGNED",
-                                   strlen("TINYINT UNSIGNED"))) {
-                superTbls->columns[columnIndex].data_type =
-                    TSDB_DATA_TYPE_UTINYINT;
-                tstrncpy(superTbls->columns[columnIndex].dataType, "UTINYINT",
-                         min(DATATYPE_BUFF_LEN,
-                             fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
-                             1);
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "SMALLINT UNSIGNED",
-                                   strlen("SMALLINT UNSIGNED"))) {
-                superTbls->columns[columnIndex].data_type =
-                    TSDB_DATA_TYPE_USMALLINT;
-                tstrncpy(superTbls->columns[columnIndex].dataType, "USMALLINT",
-                         min(DATATYPE_BUFF_LEN,
-                             fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
-                             1);
-            } else if (0 ==
-                       strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                   "INT UNSIGNED", strlen("INT UNSIGNED"))) {
-                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_UINT;
-                tstrncpy(superTbls->columns[columnIndex].dataType, "UINT",
-                         min(DATATYPE_BUFF_LEN,
-                             fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
-                             1);
-            } else if (0 == strncasecmp(
-                                (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                                "BIGINT UNSIGNED", strlen("BIGINT UNSIGNED"))) {
-                superTbls->columns[columnIndex].data_type =
-                    TSDB_DATA_TYPE_UBIGINT;
-                tstrncpy(superTbls->columns[columnIndex].dataType, "UBIGINT",
-                         min(DATATYPE_BUFF_LEN,
-                             fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
-                             1);
-            } else {
-                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_NULL;
-            }
-            superTbls->columns[columnIndex].dataLen =
-                *((int *)row[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
-            tstrncpy(superTbls->columns[columnIndex].note,
-                     (char *)row[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
-                     min(NOTE_BUFF_LEN,
-                         fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes) +
-                         1);
-
-            if (strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                       "UNSIGNED") == NULL) {
-                tstrncpy(superTbls->columns[columnIndex].dataType,
-                         (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                         min(DATATYPE_BUFF_LEN,
-                             fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
-                             1);
-            }
-
-            columnIndex++;
-        }
-        count++;
+    res = taos_query(taos, "show stables");
+    code = taos_errno(res);
+    if (code != 0) {
+        printf("failed to show stables, reason: %s\n", taos_errstr(res));
+        taos_free_result(res);
+        return -1;
     }
+    int stbIndex = 0;
+    while ((row = taos_fetch_row(res)) != NULL) {
+        snprintf(command, SQL_BUFF_LEN, "describe %s.%s", dbInfo->dbName,
+                 (char *)row[TSDB_SHOW_STABLES_NAME_INDEX]);
+        res2 = taos_query(taos, command);
+        code = taos_errno(res2);
+        if (code != 0) {
+            printf("failed to run command %s, reason: %s\n", command,
+                   taos_errstr(res2));
+            taos_free_result(res2);
+            return -1;
+        }
+        SSuperTable *superTbls = &(dbInfo->superTbls[stbIndex]);
 
-    superTbls->columnCount = columnIndex;
-    superTbls->tagCount = tagIndex;
-    taos_free_result(res);
+        int tagIndex = 0;
+        int columnIndex = 0;
+        fields = taos_fetch_fields(res2);
+        while ((row2 = taos_fetch_row(res2)) != NULL) {
+            if (0 == count) {
+                count++;
+                continue;
+            }
 
-    calcRowLen(superTbls);
+            if (strcmp((char *)row2[TSDB_DESCRIBE_METRIC_NOTE_INDEX], "TAG") ==
+                0) {
+                tstrncpy(superTbls->tags[tagIndex].field,
+                         (char *)row2[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
+                         fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
+                if (0 ==
+                    strncasecmp((char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                                "INT", strlen("INT"))) {
+                    superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_INT;
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "TINYINT", strlen("TINYINT"))) {
+                    superTbls->tags[tagIndex].data_type =
+                        TSDB_DATA_TYPE_TINYINT;
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "SMALLINT", strlen("SMALLINT"))) {
+                    superTbls->tags[tagIndex].data_type =
+                        TSDB_DATA_TYPE_SMALLINT;
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "BIGINT", strlen("BIGINT"))) {
+                    superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_BIGINT;
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "FLOAT", strlen("FLOAT"))) {
+                    superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_FLOAT;
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "DOUBLE", strlen("DOUBLE"))) {
+                    superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_DOUBLE;
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "BINARY", strlen("BINARY"))) {
+                    superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_BINARY;
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "NCHAR", strlen("NCHAR"))) {
+                    superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_NCHAR;
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "BOOL", strlen("BOOL"))) {
+                    superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_BOOL;
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "TIMESTAMP", strlen("TIMESTAMP"))) {
+                    superTbls->tags[tagIndex].data_type =
+                        TSDB_DATA_TYPE_TIMESTAMP;
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "TINYINT UNSIGNED",
+                               strlen("TINYINT UNSIGNED"))) {
+                    superTbls->tags[tagIndex].data_type =
+                        TSDB_DATA_TYPE_UTINYINT;
+                    tstrncpy(
+                        superTbls->tags[tagIndex].dataType, "UTINYINT",
+                        min(DATATYPE_BUFF_LEN,
+                            fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
+                            1);
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "SMALLINT UNSIGNED",
+                               strlen("SMALLINT UNSIGNED"))) {
+                    superTbls->tags[tagIndex].data_type =
+                        TSDB_DATA_TYPE_USMALLINT;
+                    tstrncpy(
+                        superTbls->tags[tagIndex].dataType, "USMALLINT",
+                        min(DATATYPE_BUFF_LEN,
+                            fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
+                            1);
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "INT UNSIGNED", strlen("INT UNSIGNED"))) {
+                    superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_UINT;
+                    tstrncpy(
+                        superTbls->tags[tagIndex].dataType, "UINT",
+                        min(DATATYPE_BUFF_LEN,
+                            fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
+                            1);
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "BIGINT UNSIGNED", strlen("BIGINT UNSIGNED"))) {
+                    superTbls->tags[tagIndex].data_type =
+                        TSDB_DATA_TYPE_UBIGINT;
+                    tstrncpy(
+                        superTbls->tags[tagIndex].dataType, "UBIGINT",
+                        min(DATATYPE_BUFF_LEN,
+                            fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
+                            1);
+                } else {
+                    superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_NULL;
+                }
+                superTbls->tags[tagIndex].dataLen =
+                    *((int *)row2[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
+                tstrncpy(superTbls->tags[tagIndex].note,
+                         (char *)row2[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
+                         min(NOTE_BUFF_LEN,
+                             fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes) +
+                             1);
+                if (strstr((char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                           "UNSIGNED") == NULL) {
+                    tstrncpy(
+                        superTbls->tags[tagIndex].dataType,
+                        (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        min(DATATYPE_BUFF_LEN,
+                            fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
+                            1);
+                }
+                tagIndex++;
+            } else {
+                tstrncpy(superTbls->columns[columnIndex].field,
+                         (char *)row2[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
+                         fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
+
+                if (0 == strncasecmp(
+                             (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                             "INT", strlen("INT")) &&
+                    strstr((char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                           "UNSIGNED") == NULL) {
+                    superTbls->columns[columnIndex].data_type =
+                        TSDB_DATA_TYPE_INT;
+                } else if (0 == strncasecmp(
+                                    (char *)
+                                        row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                                    "TINYINT", strlen("TINYINT")) &&
+                           strstr((char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                                  "UNSIGNED") == NULL) {
+                    superTbls->columns[columnIndex].data_type =
+                        TSDB_DATA_TYPE_TINYINT;
+                } else if (0 == strncasecmp(
+                                    (char *)
+                                        row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                                    "SMALLINT", strlen("SMALLINT")) &&
+                           strstr((char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                                  "UNSIGNED") == NULL) {
+                    superTbls->columns[columnIndex].data_type =
+                        TSDB_DATA_TYPE_SMALLINT;
+                } else if (0 == strncasecmp(
+                                    (char *)
+                                        row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                                    "BIGINT", strlen("BIGINT")) &&
+                           strstr((char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                                  "UNSIGNED") == NULL) {
+                    superTbls->columns[columnIndex].data_type =
+                        TSDB_DATA_TYPE_BIGINT;
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "FLOAT", strlen("FLOAT"))) {
+                    superTbls->columns[columnIndex].data_type =
+                        TSDB_DATA_TYPE_FLOAT;
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "DOUBLE", strlen("DOUBLE"))) {
+                    superTbls->columns[columnIndex].data_type =
+                        TSDB_DATA_TYPE_DOUBLE;
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "BINARY", strlen("BINARY"))) {
+                    superTbls->columns[columnIndex].data_type =
+                        TSDB_DATA_TYPE_BINARY;
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "NCHAR", strlen("NCHAR"))) {
+                    superTbls->columns[columnIndex].data_type =
+                        TSDB_DATA_TYPE_NCHAR;
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "BOOL", strlen("BOOL"))) {
+                    superTbls->columns[columnIndex].data_type =
+                        TSDB_DATA_TYPE_BOOL;
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "TIMESTAMP", strlen("TIMESTAMP"))) {
+                    superTbls->columns[columnIndex].data_type =
+                        TSDB_DATA_TYPE_TIMESTAMP;
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "TINYINT UNSIGNED",
+                               strlen("TINYINT UNSIGNED"))) {
+                    superTbls->columns[columnIndex].data_type =
+                        TSDB_DATA_TYPE_UTINYINT;
+                    tstrncpy(
+                        superTbls->columns[columnIndex].dataType, "UTINYINT",
+                        min(DATATYPE_BUFF_LEN,
+                            fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
+                            1);
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "SMALLINT UNSIGNED",
+                               strlen("SMALLINT UNSIGNED"))) {
+                    superTbls->columns[columnIndex].data_type =
+                        TSDB_DATA_TYPE_USMALLINT;
+                    tstrncpy(
+                        superTbls->columns[columnIndex].dataType, "USMALLINT",
+                        min(DATATYPE_BUFF_LEN,
+                            fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
+                            1);
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "INT UNSIGNED", strlen("INT UNSIGNED"))) {
+                    superTbls->columns[columnIndex].data_type =
+                        TSDB_DATA_TYPE_UINT;
+                    tstrncpy(
+                        superTbls->columns[columnIndex].dataType, "UINT",
+                        min(DATATYPE_BUFF_LEN,
+                            fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
+                            1);
+                } else if (0 ==
+                           strncasecmp(
+                               (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                               "BIGINT UNSIGNED", strlen("BIGINT UNSIGNED"))) {
+                    superTbls->columns[columnIndex].data_type =
+                        TSDB_DATA_TYPE_UBIGINT;
+                    tstrncpy(
+                        superTbls->columns[columnIndex].dataType, "UBIGINT",
+                        min(DATATYPE_BUFF_LEN,
+                            fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
+                            1);
+                } else {
+                    superTbls->columns[columnIndex].data_type =
+                        TSDB_DATA_TYPE_NULL;
+                }
+                superTbls->columns[columnIndex].dataLen =
+                    *((int *)row2[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
+                tstrncpy(superTbls->columns[columnIndex].note,
+                         (char *)row2[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
+                         min(NOTE_BUFF_LEN,
+                             fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes) +
+                             1);
+
+                if (strstr((char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                           "UNSIGNED") == NULL) {
+                    tstrncpy(
+                        superTbls->columns[columnIndex].dataType,
+                        (char *)row2[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        min(DATATYPE_BUFF_LEN,
+                            fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) +
+                            1);
+                }
+
+                columnIndex++;
+            }
+            count++;
+        }
+
+        superTbls->columnCount = columnIndex;
+        superTbls->tagCount = tagIndex;
+        taos_free_result(res);
+
+        calcRowLen(superTbls);
+        stbIndex++;
+    }
     return 0;
 }
 
@@ -518,7 +590,7 @@ static int createSuperTable(TAOS *taos, char *dbName, SSuperTable *superTbl,
 
     // save for creating child table
     superTbl->colsOfCreateChildTable =
-        (char *)calloc(len + TIMESTAMP_BUFF_LEN, 1);
+        (char *)calloc(1, len + TIMESTAMP_BUFF_LEN);
     if (NULL == superTbl->colsOfCreateChildTable) {
         taos_close(taos);
         errorPrint("%s", "failed to allocate memory\n");
@@ -737,7 +809,7 @@ int createDatabases(char *command, SDataBase *dbInfo) {
     return 0;
 }
 
-int createStables(char *command, SDataBase *dbInfo) {
+int createStables(SDataBase *dbInfo) {
     TAOS *taos = NULL;
     int   ret = 0;
     taos =
@@ -751,39 +823,22 @@ int createStables(char *command, SDataBase *dbInfo) {
     debugPrint("%s() LN%d supertbl count:%" PRIu64 "\n", __func__, __LINE__,
                dbInfo->superTblCount);
 
-    int validStbCount = 0;
     for (uint64_t j = 0; j < dbInfo->superTblCount; j++) {
-        sprintf(command, "describe %s.%s;", dbInfo->dbName,
-                dbInfo->superTbls[j].stbName);
-        ret = queryDbExec(taos, command, NO_INSERT_TYPE, true);
+        char *cmd = calloc(1, BUFFER_SIZE);
+        if (NULL == cmd) {
+            errorPrint("%s", "failed to allocate memory\n");
+            return -1;
+        }
+        ret =
+            createSuperTable(taos, dbInfo->dbName, &dbInfo->superTbls[j], cmd);
+        tmfree(cmd);
 
-        if ((ret != 0) || (dbInfo->drop)) {
-            char *cmd = calloc(1, BUFFER_SIZE);
-            if (NULL == cmd) {
-                errorPrint("%s", "failed to allocate memory\n");
-                return -1;
-            }
-
-            ret = createSuperTable(taos, dbInfo->dbName, &dbInfo->superTbls[j],
-                                   cmd);
-            tmfree(cmd);
-
-            if (0 != ret) {
-                errorPrint("create super table %" PRIu64 " failed!\n\n", j);
-                continue;
-            }
-        } else {
-            ret = getSuperTableFromServer(taos, dbInfo->dbName,
-                                          &dbInfo->superTbls[j]);
-            if (0 != ret) {
-                errorPrint("\nget super table %s.%s info failed!\n\n",
-                           dbInfo->dbName, dbInfo->superTbls[j].stbName);
-                continue;
-            }
+        if (0 != ret) {
+            errorPrint("create super table %s failed!\n\n",
+                       dbInfo->superTbls[j].stbName);
+            return -1;
         }
     }
-    dbInfo->superTblCount = validStbCount;
-
     taos_close(taos);
     return 0;
 }
@@ -836,7 +891,8 @@ static void *createTable(void *sarg) {
                                     "CREATE TABLE ");
                 }
 
-                char *tagsValBuf = (char *)calloc(TSDB_MAX_SQL_LEN + 1, 1);
+                char *tagsValBuf =
+                    (char *)calloc(TSDB_MAX_ALLOWED_SQL_LEN + 1, 1);
                 if (NULL == tagsValBuf) {
                     errorPrint("%s", "failed to allocate memory\n");
                     return NULL;
@@ -849,7 +905,7 @@ static void *createTable(void *sarg) {
                         exit(EXIT_FAILURE);
                     }
                 } else {
-                    snprintf(tagsValBuf, TSDB_MAX_SQL_LEN, "(%s)",
+                    snprintf(tagsValBuf, TSDB_MAX_ALLOWED_SQL_LEN, "(%s)",
                              stbInfo->tagDataBuf +
                                  stbInfo->lenOfTagOfOneRow *
                                      (i % stbInfo->tagSampleCount));
@@ -1076,15 +1132,9 @@ void postFreeResource() {
     tmfree(g_dupstr);
     for (int i = 0; i < g_Dbs.dbCount; i++) {
         for (uint64_t j = 0; j < g_Dbs.db[i].superTblCount; j++) {
-            if (0 != g_Dbs.db[i].superTbls[j].colsOfCreateChildTable) {
-                tmfree(g_Dbs.db[i].superTbls[j].colsOfCreateChildTable);
-                g_Dbs.db[i].superTbls[j].colsOfCreateChildTable = NULL;
-            }
-            if (0 != g_Dbs.db[i].superTbls[j].sampleDataBuf) {
-                tmfree(g_Dbs.db[i].superTbls[j].sampleDataBuf);
-                g_Dbs.db[i].superTbls[j].sampleDataBuf = NULL;
-            }
-
+            tmfree(g_Dbs.db[i].superTbls[j].stmtBuffer);
+            tmfree(g_Dbs.db[i].superTbls[j].colsOfCreateChildTable);
+            tmfree(g_Dbs.db[i].superTbls[j].sampleDataBuf);
             for (int c = 0; c < g_Dbs.db[i].superTbls[j].columnCount; c++) {
                 if (g_Dbs.db[i].superTbls[j].sampleBindBatchArray) {
                     tmfree((char *)((uintptr_t) *
@@ -1095,6 +1145,10 @@ void postFreeResource() {
                 }
             }
             tmfree(g_Dbs.db[i].superTbls[j].sampleBindBatchArray);
+            tmfree(g_Dbs.db[i].superTbls[j].bind_ts);
+            tmfree(g_Dbs.db[i].superTbls[j].bind_ts_array);
+            tmfree(g_Dbs.db[i].superTbls[j].bindParams);
+            tmfree(g_Dbs.db[i].superTbls[j].is_null);
 
             if (0 != g_Dbs.db[i].superTbls[j].tagDataBuf) {
                 tmfree(g_Dbs.db[i].superTbls[j].tagDataBuf);
@@ -1105,7 +1159,18 @@ void postFreeResource() {
                 g_Dbs.db[i].superTbls[j].childTblName = NULL;
             }
         }
+
+        for (uint64_t j = 0; j < g_Dbs.db[i].normalTblCount; j++) {
+            tmfree(g_Dbs.db[i].normalTbls[j].tbName);
+            tmfree(g_Dbs.db[i].normalTbls[j].smlHead);
+            if (g_Dbs.db[i].iface == SML_IFACE &&
+                g_Dbs.db[i].lineProtocol == TSDB_SML_JSON_PROTOCOL) {
+                cJSON_Delete(g_Dbs.db[i].normalTbls[j].smlJsonTags);
+            }
+        }
+
         tmfree(g_Dbs.db[i].superTbls);
+        tmfree(g_Dbs.db[i].normalTbls);
     }
     tmfree(g_Dbs.db);
     tmfree(g_randbool_buff);
@@ -1130,12 +1195,11 @@ void postFreeResource() {
 }
 
 static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k) {
-    int32_t      affectedRows;
-    SSuperTable *stbInfo = pThreadInfo->stbInfo;
-    SDataBase    dbInfo = g_Dbs.db[pThreadInfo->dbSeq];
-    TAOS_RES *   res;
-    int32_t      code;
-    uint16_t     iface = dbInfo.iface;
+    int32_t   affectedRows;
+    SDataBase dbInfo = g_Dbs.db[pThreadInfo->dbSeq];
+    TAOS_RES *res;
+    int32_t   code;
+    uint16_t  iface = dbInfo.iface;
 
     debugPrint("[%d] %s() LN%d %s\n", pThreadInfo->threadID, __func__, __LINE__,
                (iface == TAOSC_IFACE)  ? "taosc"
@@ -1185,7 +1249,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k) {
             res = taos_schemaless_insert(
                 pThreadInfo->taos, pThreadInfo->lines,
                 dbInfo.lineProtocol == TSDB_SML_JSON_PROTOCOL ? 0 : k,
-                dbInfo.lineProtocol, stbInfo->dbCfg->smlTsPrecision);
+                dbInfo.lineProtocol, dbInfo.dbCfg.smlTsPrecision);
             code = taos_errno(res);
             affectedRows = taos_affected_rows(res);
             if (code != TSDB_CODE_SUCCESS) {
@@ -1467,25 +1531,36 @@ static int execStbBindParamBatch(threadInfo *pThreadInfo, SNormalTable *tbInfo,
 int32_t prepareStbStmt(threadInfo *pThreadInfo, SNormalTable *tbInfo,
                        int64_t remainderRows, int64_t startTime) {
     SSuperTable *stbInfo = tbInfo->stbInfo;
-    TAOS_STMT *  stmt = pThreadInfo->stmt;
-    int64_t      tableSeq = tbInfo->tbSeq;
-    char *       tableName = tbInfo->tbName;
+
+    int64_t tableSeq = tbInfo->tbSeq;
+    char *  tableName = tbInfo->tbName;
 
     char *tagsArray = calloc(1, sizeof(TAOS_BIND) * stbInfo->tagCount);
     if (NULL == tagsArray) {
         errorPrint("%s", "failed to allocate memory\n");
         return -1;
     }
-    char *tagsValBuf = (char *)calloc(TSDB_MAX_SQL_LEN + 1, 1);
+    char *tagsValBuf = (char *)calloc(TSDB_MAX_ALLOWED_SQL_LEN + 1, 1);
     if (NULL == tagsValBuf) {
         tmfree(tagsArray);
         errorPrint("%s", "failed to allocate memory\n");
         return -1;
     }
 
-    if (taos_stmt_prepare(pThreadInfo->stmt, stbInfo->stmtBuffer, 0)) {
-        errorPrint("taos_stmt_prepare() failed! reason: %s\n",
-                   taos_stmt_errstr(stmt));
+    pThreadInfo->stmt = taos_stmt_init(pThreadInfo->taos);
+
+    if (NULL == pThreadInfo->stmt) {
+        errorPrint("taos_stmt_init() failed! reason: %s\n",
+                   taos_stmt_errstr(pThreadInfo->stmt));
+        return -1;
+    }
+    TAOS_STMT *stmt = pThreadInfo->stmt;
+
+    if (taos_stmt_prepare(stmt, stbInfo->stmtBuffer, 0)) {
+        tmfree(tagsArray);
+        tmfree(tagsValBuf);
+        errorPrint("taos_stmt_prepare(%s) failed! reason: %s\n",
+                   stbInfo->stmtBuffer, taos_stmt_errstr(stmt));
         return -1;
     }
 
@@ -1498,7 +1573,7 @@ int32_t prepareStbStmt(threadInfo *pThreadInfo, SNormalTable *tbInfo,
             }
         } else {
             snprintf(
-                tagsValBuf, TSDB_MAX_SQL_LEN, "(%s)",
+                tagsValBuf, TSDB_MAX_ALLOWED_SQL_LEN, "(%s)",
                 stbInfo->tagDataBuf + stbInfo->lenOfTagOfOneRow *
                                           (tableSeq % stbInfo->tagSampleCount));
         }
@@ -1625,16 +1700,9 @@ free_of_interlace:
 void *syncWriteProgressive(void *sarg) {
     threadInfo *pThreadInfo = (threadInfo *)sarg;
     SDataBase   dbInfo = g_Dbs.db[pThreadInfo->dbSeq];
-    uint64_t    maxSqlLen = g_args.max_sql_len;
+    uint64_t    lastPrintTime = taosGetTimestampMs();
+    uint64_t    startTs = taosGetTimestampMs();
 
-    pThreadInfo->buffer = calloc(maxSqlLen, 1);
-    if (NULL == pThreadInfo->buffer) {
-        errorPrint("%s", "failed to allocate memory\n");
-        return NULL;
-    }
-
-    uint64_t lastPrintTime = taosGetTimestampMs();
-    uint64_t startTs = taosGetTimestampMs();
     uint64_t endTs;
 
     pThreadInfo->totalInsertRows = 0;
@@ -1646,7 +1714,7 @@ void *syncWriteProgressive(void *sarg) {
     for (uint64_t tableSeq = pThreadInfo->start_table_from;
          tableSeq <= pThreadInfo->end_table_to; tableSeq++) {
         SNormalTable *tbInfo = &(dbInfo.normalTbls[tableSeq]);
-        int64_t       start_time = pThreadInfo->start_time;
+        int64_t       start_time = tbInfo->stbInfo->startTime;
         int64_t timeStampStep = tbInfo->stbInfo ? tbInfo->stbInfo->timeStampStep
                                                 : g_args.timestamp_step;
         uint64_t insertRows = tbInfo->stbInfo->insertRows;
@@ -1694,6 +1762,13 @@ void *syncWriteProgressive(void *sarg) {
             int32_t affectedRows = execInsert(pThreadInfo, generated);
 
             endTs = taosGetTimestampUs();
+
+            if (dbInfo.iface == SML_IFACE) {
+                tmfree(pThreadInfo->lines[0]);
+            } else if (dbInfo.iface == STMT_IFACE) {
+                taos_stmt_close(pThreadInfo->stmt);
+            }
+
             uint64_t delay = endTs - startTs;
             performancePrint("%s() LN%d, insert execution time is %10.f ms\n",
                              __func__, __LINE__, delay / 1000.0);
@@ -1709,6 +1784,13 @@ void *syncWriteProgressive(void *sarg) {
             if (affectedRows < 0) {
                 errorPrint("affected rows: %d\n", affectedRows);
                 goto free_of_progressive;
+            }
+
+            if (dbInfo.iface == SML_IFACE &&
+                dbInfo.lineProtocol != TSDB_SML_JSON_PROTOCOL) {
+                for (int index = 0; index < affectedRows; index++) {
+                    tmfree(pThreadInfo->lines[index]);
+                }
             }
 
             pThreadInfo->totalAffectedRows += affectedRows;
@@ -1773,13 +1855,12 @@ int setUpStables(SDataBase *dbInfo) {
                     return -1;
                 }
             }
-            if (dbInfo->lineProtocol != TSDB_SML_JSON_PROTOCOL) {
-                calcRowLen(stbInfo);
-            }
+        }
+        if (calcRowLen(stbInfo)) {
+            return -1;
         }
 
         if (prepareSampleForStb(stbInfo)) {
-            errorPrint("%s", "prepare sample data for stable failed!\n");
             return -1;
         }
 
@@ -1850,12 +1931,22 @@ int setUpStables(SDataBase *dbInfo) {
         return -1;
     }
 
-    int64_t childTblOffset = 0;
     for (uint64_t j = 0; j < dbInfo->normalTblCount; j++) {
+        uint64_t childTblOffset = 0;
         for (uint64_t k = 0; k < dbInfo->superTblCount; k++) {
-            if (j < dbInfo->superTbls[k].childTblCount) {
+            if ((j - childTblOffset) < dbInfo->superTbls[k].childTblCount) {
                 SSuperTable *stbInfo = &(dbInfo->superTbls[k]);
                 dbInfo->normalTbls[j].stbInfo = stbInfo;
+                dbInfo->normalTbls[j].tbSeq = j - childTblOffset;
+                dbInfo->normalTbls[j].tbName = calloc(1, TSDB_TABLE_NAME_LEN);
+                if (dbInfo->normalTbls[j].tbName == NULL) {
+                    errorPrint("%s", "failed to allocate memory\n");
+                    return -1;
+                }
+                snprintf(dbInfo->normalTbls[j].tbName, TSDB_TABLE_NAME_LEN,
+                         "%s%" PRIu64 "", stbInfo->childTblPrefix,
+                         dbInfo->normalTbls[j].tbSeq);
+
                 if (dbInfo->iface == SML_IFACE) {
                     if (dbInfo->lineProtocol == TSDB_SML_LINE_PROTOCOL ||
                         dbInfo->lineProtocol == TSDB_SML_TELNET_PROTOCOL) {
@@ -1939,13 +2030,22 @@ int startMultiThreadInsertData(uint16_t iface, int dbSeq) {
             }
         }
 
-        if (iface == STMT_IFACE) {
-            pThreadInfo->stmt = taos_stmt_init(pThreadInfo->taos);
-            if (NULL == pThreadInfo->stmt) {
-                free(pids);
-                free(infos);
-                errorPrint("taos_stmt_init() failed, reason: %s\n",
-                           taos_errstr(NULL));
+        if (iface == REST_IFACE || iface == TAOSC_IFACE) {
+            pThreadInfo->buffer = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+            if (NULL == pThreadInfo->buffer) {
+                errorPrint("%s", "failed to allocate memory\n");
+                return -1;
+            }
+        }
+
+        if (iface == SML_IFACE) {
+            if (g_Dbs.db[dbSeq].lineProtocol != TSDB_SML_JSON_PROTOCOL) {
+                pThreadInfo->lines = calloc(g_args.reqPerReq, sizeof(char *));
+            } else {
+                pThreadInfo->lines = calloc(1, sizeof(char *));
+            }
+            if (NULL == pThreadInfo->lines) {
+                errorPrint("%s", "failed to allocate memory\n");
                 return -1;
             }
         }
@@ -2002,13 +2102,10 @@ int startMultiThreadInsertData(uint16_t iface, int dbSeq) {
 
     for (int i = 0; i < g_Dbs.threadCount; i++) {
         threadInfo *pThreadInfo = infos + i;
-
+        tmfree(pThreadInfo->buffer);
+        tmfree(pThreadInfo->lines);
         tsem_destroy(&(pThreadInfo->lock_sem));
         taos_close(pThreadInfo->taos);
-
-        if (pThreadInfo->stmt) {
-            taos_stmt_close(pThreadInfo->stmt);
-        }
         if (iface == REST_IFACE) {
 #ifdef WINDOWS
             closesocket(pThreadInfo->sockfd);
@@ -2111,28 +2208,29 @@ int insertTestProcess() {
 
     for (int i = 0; i < g_Dbs.dbCount; i++) {
         SDataBase *dbInfo = &(g_Dbs.db[i]);
-        // create database
-        if (createDatabases(cmdBuffer, dbInfo)) {
-            goto end_insert_process;
-        }
-        memset(cmdBuffer, 0, BUFFER_SIZE);
-        if (SML_IFACE != dbInfo->iface) {
-            // create super tables
-            if (createStables(cmdBuffer, dbInfo)) {
+        if (dbInfo->drop) {
+            if (createDatabases(cmdBuffer, dbInfo)) {
+                goto end_insert_process;
+            }
+            memset(cmdBuffer, 0, BUFFER_SIZE);
+            if (SML_IFACE != dbInfo->iface) {
+                if (createStables(dbInfo)) {
+                    goto end_insert_process;
+                }
+            }
+            if (prepareSampleData(dbInfo)) {
+                goto end_insert_process;
+            }
+            if (SML_IFACE != dbInfo->iface) {
+                if (createChildTables(dbInfo)) {
+                    goto end_insert_process;
+                }
+            }
+        } else {
+            if (getSuperTableFromServer(dbInfo)) {
                 goto end_insert_process;
             }
         }
-        // pretreatment
-        if (prepareSampleData(dbInfo)) {
-            goto end_insert_process;
-        }
-        if (SML_IFACE != dbInfo->iface) {
-            // create child tables
-            if (createChildTables(dbInfo)) {
-                goto end_insert_process;
-            }
-        }
-
         if (setUpStables(dbInfo)) {
             goto end_insert_process;
         }

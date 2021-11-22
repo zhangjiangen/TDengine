@@ -106,21 +106,27 @@ int getColumnAndTagTypeFromInsertJsonFile(cJSON *      stbInfo,
         if (0 ==
             strncasecmp(superTbls->columns[c].dataType, "INT", strlen("INT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_INT;
+            superTbls->columns[c].dataLen = sizeof(int32_t);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType, "TINYINT",
                                     strlen("TINYINT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_TINYINT;
+            superTbls->columns[c].dataLen = sizeof(char);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType, "SMALLINT",
                                     strlen("SMALLINT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_SMALLINT;
+            superTbls->columns[c].dataLen = sizeof(int16_t);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType, "BIGINT",
                                     strlen("BIGINT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_BIGINT;
+            superTbls->columns[c].dataLen = sizeof(int64_t);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType, "FLOAT",
                                     strlen("FLOAT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_FLOAT;
+            superTbls->columns[c].dataLen = sizeof(float);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType, "DOUBLE",
                                     strlen("DOUBLE"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_DOUBLE;
+            superTbls->columns[c].dataLen = sizeof(double);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType, "BINARY",
                                     strlen("BINARY"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_BINARY;
@@ -130,21 +136,27 @@ int getColumnAndTagTypeFromInsertJsonFile(cJSON *      stbInfo,
         } else if (0 == strncasecmp(superTbls->columns[c].dataType, "BOOL",
                                     strlen("BOOL"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_BOOL;
+            superTbls->columns[c].dataLen = sizeof(char);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType, "TIMESTAMP",
                                     strlen("TIMESTAMP"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_TIMESTAMP;
+            superTbls->columns[c].dataLen = sizeof(int64_t);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType, "UTINYINT",
                                     strlen("UTINYINT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_UTINYINT;
+            superTbls->columns[c].dataLen = sizeof(char);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType, "USMALLINT",
                                     strlen("USMALLINT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_USMALLINT;
+            superTbls->columns[c].dataLen = sizeof(uint16_t);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType, "UINT",
                                     strlen("UINT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_UINT;
+            superTbls->columns[c].dataLen = sizeof(uint32_t);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType, "UBIGINT",
                                     strlen("UBIGINT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_UBIGINT;
+            superTbls->columns[c].dataLen = sizeof(uint64_t);
         } else {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_NULL;
         }
@@ -503,8 +515,15 @@ int getMetaFromInsertJsonFile(cJSON *root) {
         cJSON *dbinfos = cJSON_GetArrayItem(dbs, i);
         if (dbinfos == NULL) continue;
 
+        // dbinfo
+        cJSON *dbinfo = cJSON_GetObjectItem(dbinfos, "dbinfo");
+        if (!dbinfo || dbinfo->type != cJSON_Object) {
+            errorPrint("%s", "failed to read json, dbinfo not found\n");
+            goto PARSE_OVER;
+        }
+
         cJSON *dbIface =
-            cJSON_GetObjectItem(dbinfos, "insert_mode");  // taosc , rest, stmt
+            cJSON_GetObjectItem(dbinfo, "insert_mode");  // taosc , rest, stmt
         if (dbIface && dbIface->type == cJSON_String &&
             dbIface->valuestring != NULL) {
             if (0 == strcasecmp(dbIface->valuestring, "taosc")) {
@@ -528,7 +547,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
             goto PARSE_OVER;
         }
 
-        cJSON *dbLineProtocol = cJSON_GetObjectItem(dbinfos, "line_protocol");
+        cJSON *dbLineProtocol = cJSON_GetObjectItem(dbinfo, "line_protocol");
         if (dbLineProtocol && dbLineProtocol->type == cJSON_String &&
             dbLineProtocol->valuestring != NULL) {
             if (0 == strcasecmp(dbLineProtocol->valuestring, "line")) {
@@ -552,13 +571,6 @@ int getMetaFromInsertJsonFile(cJSON *root) {
             g_Dbs.db[i].lineProtocol = TSDB_SML_LINE_PROTOCOL;
         } else {
             errorPrint("%s", "failed to read json, line_protocol not found\n");
-            goto PARSE_OVER;
-        }
-
-        // dbinfo
-        cJSON *dbinfo = cJSON_GetObjectItem(dbinfos, "dbinfo");
-        if (!dbinfo || dbinfo->type != cJSON_Object) {
-            errorPrint("%s", "failed to read json, dbinfo not found\n");
             goto PARSE_OVER;
         }
 
