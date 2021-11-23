@@ -73,7 +73,7 @@ SyncTerm raftLogLastTerm(RaftLog* pLog);
  * return term of log with the given index, return 0 if the term of index cannot be found
  * , errCode will save the error code.
  **/
-SyncTerm raftLogTermOf(RaftLog* pLog, SyncIndex index, RaftCode* errCode);
+SyncTerm raftLogTermOf(RaftLog* pLog, SyncIndex index, ESyncRaftCode* errCode);
 
 /** 
  * Get the last index of the most recent snapshot. Return 0 if there are no *

@@ -14,8 +14,9 @@
  */
 
 #include "raft.h"
+#include "sync_const.h"
 #include "sync_raft_impl.h"
-#include "raft_log.h"
+#include "sync_raft_log.h"
 #include "sync_raft_restore.h"
 #include "raft_replication.h"
 #include "sync_raft_config_change.h"
@@ -71,7 +72,7 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   }
 
   // open raft log
-  if ((pRaft->log = syncRaftLogOpen()) == NULL) {
+  if ((pRaft->log = syncCreateRaftLog(NULL, kmaxNextEntsSize)) == NULL) {
     return -1;
   }
   // read server state

@@ -14,7 +14,7 @@
  */
 
 #include "raft.h"
-#include "raft_log.h"
+#include "sync_raft_log.h"
 #include "sync_raft_progress.h"
 #include "sync_raft_progress_tracker.h"
 #include "sync.h"

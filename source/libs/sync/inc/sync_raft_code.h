@@ -13,17 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "syncInt.h"
-#include "raft.h"
-#include "sync_raft_log.h"
-#include "raft_message.h"
+#ifndef _TD_LIBS_SYNC_RAFT_CODE_H
+#define _TD_LIBS_SYNC_RAFT_CODE_H
 
-int syncRaftHandleElectionMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  if (pRaft->preVote) {
-    syncRaftStartElection(pRaft, SYNC_RAFT_CAMPAIGN_PRE_ELECTION);
-  } else {
-    syncRaftStartElection(pRaft, SYNC_RAFT_CAMPAIGN_ELECTION);
-  }
+typedef enum ESyncRaftCode {
+  RAFT_OK = 0,
 
-  return 0;
-}
+  /**
+   * RAFT_INDEX_COMPACTED is returned when a request index is predates the last snapshot
+   **/
+  RAFT_INDEX_COMPACTED = -1,
+
+  /**
+   * RAFT_INDEX_UNAVAILABLE is returned when a request index is unavailable
+   **/
+  RAFT_INDEX_UNAVAILABLE = -2,
+} ESyncRaftCode;
+
+#endif // _TD_LIBS_SYNC_RAFT_CODE_H

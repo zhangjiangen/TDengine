@@ -38,6 +38,11 @@ typedef struct SSyncRaftProgressTracker SSyncRaftProgressTracker;
 
 typedef struct SSyncRaftChanger SSyncRaftChanger;
 
+typedef struct SSyncRaftEntry SSyncRaftEntry;
+typedef struct SSyncRaftEntryArray SSyncRaftEntryArray;
+
+typedef struct SSyncRaftStableLog SSyncRaftStableLog;
+typedef struct SSyncRaftUnstableLog SSyncRaftUnstableLog;
 typedef struct SSyncRaftLog SSyncRaftLog;
 
 typedef struct SSyncRaftEntry SSyncRaftEntry;

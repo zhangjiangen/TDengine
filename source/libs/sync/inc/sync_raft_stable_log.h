@@ -13,15 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LIBS_SYNC_CONST_H
-#define _TD_LIBS_SYNC_CONST_H
+#ifndef _TD_LIBS_SYNC_RAFT_STABLE_LOG_H
+#define _TD_LIBS_SYNC_RAFT_STABLE_LOG_H
 
 #include "sync.h"
+#include "sync_raft_code.h"
+#include "sync_type.h"
 
-static int kSyncRaftMaxInflghtMsgs = 20;
+SSyncRaftStableLog* syncRaftCreateStableLog();
 
-static SyncIndex kMaxCommitIndex = UINT64_MAX;
+SyncIndex syncRaftStableLogLastIndex(const SSyncRaftStableLog* storage);
 
-static uint64_t kmaxNextEntsSize = 100;
+// FirstIndex returns the index of the first log entry that is
+// possibly available via Entries (older entries have been incorporated
+// into the latest Snapshot; if storage only contains the dummy entry the
+// first log entry is not available).
+SyncIndex syncRaftStableLogFirstIndex(const SSyncRaftStableLog* storage);
 
-#endif  /* _TD_LIBS_SYNC_CONST_H */
+#endif // _TD_LIBS_SYNC_RAFT_STABLE_LOG_H

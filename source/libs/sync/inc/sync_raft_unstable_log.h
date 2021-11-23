@@ -13,17 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "syncInt.h"
-#include "raft.h"
-#include "sync_raft_log.h"
-#include "raft_message.h"
+#ifndef _TD_LIBS_SYNC_RAFT_UNSTABLE_LOG_H
+#define _TD_LIBS_SYNC_RAFT_UNSTABLE_LOG_H
 
-int syncRaftHandleElectionMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  if (pRaft->preVote) {
-    syncRaftStartElection(pRaft, SYNC_RAFT_CAMPAIGN_PRE_ELECTION);
-  } else {
-    syncRaftStartElection(pRaft, SYNC_RAFT_CAMPAIGN_ELECTION);
-  }
+#include "sync.h"
+#include "sync_type.h"
 
-  return 0;
-}
+SSyncRaftUnstableLog* syncRaftCreateUnstableLog(SyncIndex lastIndex);
+
+#endif // _TD_LIBS_SYNC_RAFT_UNSTABLE_LOG_H

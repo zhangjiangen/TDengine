@@ -16,7 +16,7 @@
 #include "syncInt.h"
 #include "raft.h"
 #include "sync_raft_impl.h"
-#include "raft_log.h"
+#include "sync_raft_log.h"
 #include "raft_message.h"
 
 static bool canGrantVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);

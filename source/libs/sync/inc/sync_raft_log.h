@@ -18,32 +18,17 @@
 
 #include "sync.h"
 #include "sync_type.h"
+#include "sync_raft_code.h"
 
 typedef enum ESyncRaftEntryType {
   SYNC_ENTRY_TYPE_LOG = 1,
 } ESyncRaftEntryType;
 
-struct SSyncRaftEntry {
-  SyncTerm term;
-
-  SyncIndex index;
-
-  ESyncRaftEntryType type;
-
-  SSyncBuffer buffer;
-};
-
-struct SSyncRaftLog {
-  SyncIndex uncommittedConfigIndex;
-
-  SyncIndex commitIndex;
-
-  SyncIndex appliedIndex;
-};
-
-SSyncRaftLog* syncRaftLogOpen();
+SSyncRaftLog* syncCreateRaftLog(SSyncRaftStableLog* storage, uint64_t maxNextEntsSize);
 
 SyncIndex syncRaftLogLastIndex(SSyncRaftLog* pLog);
+
+SyncIndex syncRaftLogFirstIndex(SSyncRaftLog* pLog);
 
 SyncIndex syncRaftLogSnapshotIndex(SSyncRaftLog* pLog);
 
@@ -57,7 +42,7 @@ int syncRaftLogNumOfPendingConf(SSyncRaftLog* pLog);
 
 bool syncRaftHasUnappliedLog(SSyncRaftLog* pLog);
 
-SyncTerm syncRaftLogTermOf(SSyncRaftLog* pLog, SyncIndex index);
+SyncTerm syncRaftLogTermOf(SSyncRaftLog* pLog, SyncIndex index, ESyncRaftCode* errCode);
 
 int syncRaftLogAppend(SSyncRaftLog* pLog, SSyncRaftEntry *pEntries, int n);
 

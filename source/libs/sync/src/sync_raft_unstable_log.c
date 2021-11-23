@@ -13,17 +13,30 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "syncInt.h"
-#include "raft.h"
-#include "sync_raft_log.h"
-#include "raft_message.h"
+#include "sync_raft_entry.h"
+#include "sync_raft_unstable_log.h"
 
-int syncRaftHandleElectionMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  if (pRaft->preVote) {
-    syncRaftStartElection(pRaft, SYNC_RAFT_CAMPAIGN_PRE_ELECTION);
-  } else {
-    syncRaftStartElection(pRaft, SYNC_RAFT_CAMPAIGN_ELECTION);
+struct SSyncRaftUnstableLog {
+
+  // all entries that have not yet been written to storage.
+  SSyncRaftEntryArray* entries;
+
+  SyncIndex offset;
+};
+
+SSyncRaftUnstableLog* syncRaftCreateUnstableLog(SyncIndex lastIndex) {
+  SSyncRaftUnstableLog* unstable = (SSyncRaftUnstableLog*)malloc(sizeof(SSyncRaftUnstableLog));
+  if (unstable == NULL) {
+    return NULL;
   }
 
-  return 0;
+  unstable->entries = syncRaftCreateEntryArray();
+  if (unstable->entries == NULL) {
+    free(unstable);
+    return NULL;
+  }
+
+  unstable->offset = lastIndex + 1;
+
+  return unstable;
 }
