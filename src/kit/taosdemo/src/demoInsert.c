@@ -1168,7 +1168,7 @@ void postFreeResource() {
                 cJSON_Delete(g_Dbs.db[i].normalTbls[j].smlJsonTags);
             }
         }
-
+        tmfree(g_Dbs.db[i].stmtBuffer);
         tmfree(g_Dbs.db[i].superTbls);
         tmfree(g_Dbs.db[i].normalTbls);
     }
@@ -1547,22 +1547,7 @@ int32_t prepareStbStmt(threadInfo *pThreadInfo, SNormalTable *tbInfo,
         return -1;
     }
 
-    pThreadInfo->stmt = taos_stmt_init(pThreadInfo->taos);
-
-    if (NULL == pThreadInfo->stmt) {
-        errorPrint("taos_stmt_init() failed! reason: %s\n",
-                   taos_stmt_errstr(pThreadInfo->stmt));
-        return -1;
-    }
     TAOS_STMT *stmt = pThreadInfo->stmt;
-
-    if (taos_stmt_prepare(stmt, stbInfo->stmtBuffer, 0)) {
-        tmfree(tagsArray);
-        tmfree(tagsValBuf);
-        errorPrint("taos_stmt_prepare(%s) failed! reason: %s\n",
-                   stbInfo->stmtBuffer, taos_stmt_errstr(stmt));
-        return -1;
-    }
 
     if (AUTO_CREATE_SUBTBL == stbInfo->autoCreateTable) {
         if (0 == stbInfo->tagSource) {
@@ -1587,15 +1572,15 @@ int32_t prepareStbStmt(threadInfo *pThreadInfo, SNormalTable *tbInfo,
 
         if (taos_stmt_set_tbname_tags(stmt, tableName,
                                       (TAOS_BIND *)tagsArray)) {
-            errorPrint("taos_stmt_set_tbname_tags() failed! reason: %s\n",
-                       taos_stmt_errstr(stmt));
+            errorPrint("taos_stmt_set_tbname_tags(%s) failed! reason: %s\n",
+                       tableName, taos_stmt_errstr(stmt));
             return -1;
         }
 
     } else {
         if (taos_stmt_set_tbname(stmt, tableName)) {
-            errorPrint("taos_stmt_set_tbname() failed! reason: %s\n",
-                       taos_stmt_errstr(stmt));
+            errorPrint("taos_stmt_set_tbname(%s) failed! reason: %s\n",
+                       tableName, taos_stmt_errstr(stmt));
             return -1;
         }
     }
@@ -1608,7 +1593,7 @@ void *syncWriteInterlace(void *sarg) {
     threadInfo *pThreadInfo = (threadInfo *)sarg;
     SDataBase   dbInfo = g_Dbs.db[pThreadInfo->dbSeq];
     pThreadInfo->totalInsertRows = 0;
-    pThreadInfo->totalInsertRows = 0;
+    pThreadInfo->totalAffectedRows = 0;
     int64_t  insertRows = dbInfo.insertRows;
     int64_t  interlaceRows = dbInfo.interlaceRows;
     int64_t  tableBatch = g_args.reqPerReq / dbInfo.interlaceRows;
@@ -1620,9 +1605,38 @@ void *syncWriteInterlace(void *sarg) {
     }
     int      percentComplete = 0;
     uint64_t tableSeq = pThreadInfo->start_table_from;
-    while (pThreadInfo->totalInsertRows < pThreadInfo->ntables * insertRows) {
+    while (pThreadInfo->totalInsertRows < (pThreadInfo->ntables * insertRows)) {
         // startTs = taosGetTimestampUs();
-        int32_t generated;
+        int32_t generated = 0;
+        int32_t len = 0;
+        if (dbInfo.iface == TAOSC_IFACE || dbInfo.iface == REST_IFACE) {
+            memset(pThreadInfo->buffer, 0, TSDB_MAX_ALLOWED_SQL_LEN);
+            len = snprintf(pThreadInfo->buffer, strlen(STR_INSERT_INTO) + 1,
+                           "%s", STR_INSERT_INTO);
+        }
+        if (dbInfo.iface == SML_IFACE) {
+            if (dbInfo.lineProtocol == TSDB_SML_JSON_PROTOCOL) {
+                pThreadInfo->jsonArray = cJSON_CreateArray();
+            }
+        }
+
+        if (dbInfo.iface == STMT_IFACE) {
+            pThreadInfo->stmt = taos_stmt_init(pThreadInfo->taos);
+
+            if (NULL == pThreadInfo->stmt) {
+                errorPrint("taos_stmt_init() failed! reason: %s\n",
+                           taos_stmt_errstr(pThreadInfo->stmt));
+                return NULL;
+            }
+
+            if (taos_stmt_prepare(pThreadInfo->stmt, dbInfo.stmtBuffer, 0)) {
+                errorPrint("taos_stmt_prepare(%s) failed! reason: %s\n",
+                           dbInfo.stmtBuffer,
+                           taos_stmt_errstr(pThreadInfo->stmt));
+                return NULL;
+            }
+        }
+
         for (int i = 0; i < tableBatch; i++) {
             SNormalTable *tbInfo = &(dbInfo.normalTbls[tableSeq]);
             if (tbInfo->rowsNeedInsert == 0) {
@@ -1642,25 +1656,46 @@ void *syncWriteInterlace(void *sarg) {
                                      tbInfo->currentTime);
             } else if (dbInfo.iface == SML_IFACE) {
                 tmp = generateSmlMutablePart(pThreadInfo, tbInfo, batch,
-                                             tbInfo->currentTime,
+                                             tbInfo->currentTime, generated,
                                              dbInfo.lineProtocol);
             } else {
-                tmp = generateStbProgressiveData(pThreadInfo, tbInfo, batch,
-                                                 tbInfo->currentTime);
+                tmp = generateStbData(pThreadInfo, tbInfo, batch,
+                                      tbInfo->currentTime, &len);
             }
             if (tmp < 0) {
                 return NULL;
             }
+            tbInfo->currentTime += batch * tbInfo->stbInfo->timeStampStep;
             generated += tmp;
             tableSeq++;
             if (tableSeq > pThreadInfo->end_table_to) {
                 tableSeq = pThreadInfo->start_table_from;
             }
         }
+        if (dbInfo.iface == SML_IFACE) {
+            if (dbInfo.lineProtocol == TSDB_SML_JSON_PROTOCOL) {
+                pThreadInfo->lines[0] = cJSON_Print(pThreadInfo->jsonArray);
+                cJSON_Delete(pThreadInfo->jsonArray);
+            }
+        }
+
+        pThreadInfo->totalInsertRows += generated;
         startTs = taosGetTimestampUs();
         int64_t affectedRows = execInsert(pThreadInfo, generated);
         endTs = taosGetTimestampUs();
         uint64_t delay = endTs - startTs;
+        if (dbInfo.iface == SML_IFACE) {
+            if (dbInfo.lineProtocol == TSDB_SML_JSON_PROTOCOL) {
+                tmfree(pThreadInfo->lines[0]);
+            } else {
+                for (int index = 0; index < generated; index++) {
+                    tmfree(pThreadInfo->lines[index]);
+                }
+            }
+
+        } else if (dbInfo.iface == STMT_IFACE) {
+            taos_stmt_close(pThreadInfo->stmt);
+        }
         performancePrint("%s() LN%d, insert execution time is %10.2f ms\n",
                          __func__, __LINE__, delay / 1000.0);
         verbosePrint("[%d] %s() LN%d affectedRows=%" PRId64 "\n",
@@ -1675,7 +1710,7 @@ void *syncWriteInterlace(void *sarg) {
         }
         pThreadInfo->totalAffectedRows += affectedRows;
         int currentPercent = (int)(pThreadInfo->totalAffectedRows * 100 /
-                                   insertRows * pThreadInfo->ntables);
+                                   (insertRows * pThreadInfo->ntables));
         if (currentPercent > percentComplete) {
             printf("[%d]:%d%%\n", pThreadInfo->threadID, currentPercent);
             percentComplete = currentPercent;
@@ -1718,13 +1753,33 @@ void *syncWriteProgressive(void *sarg) {
         int64_t timeStampStep = tbInfo->stbInfo ? tbInfo->stbInfo->timeStampStep
                                                 : g_args.timestamp_step;
         uint64_t insertRows = tbInfo->stbInfo->insertRows;
+        if (dbInfo.iface == SML_IFACE) {
+            if (dbInfo.lineProtocol == TSDB_SML_JSON_PROTOCOL) {
+                pThreadInfo->jsonArray = cJSON_CreateArray();
+            }
+        }
         totalRows += insertRows;
         for (uint64_t i = 0; i < insertRows;) {
             // measure prepare + insert
-            startTs = taosGetTimestampUs();
+            // startTs = taosGetTimestampUs();
 
             int32_t generated;
             if (dbInfo.iface == STMT_IFACE) {
+                pThreadInfo->stmt = taos_stmt_init(pThreadInfo->taos);
+
+                if (NULL == pThreadInfo->stmt) {
+                    errorPrint("taos_stmt_init() failed! reason: %s\n",
+                               taos_stmt_errstr(pThreadInfo->stmt));
+                    return NULL;
+                }
+
+                if (taos_stmt_prepare(pThreadInfo->stmt,
+                                      tbInfo->stbInfo->stmtBuffer, 0)) {
+                    errorPrint("taos_stmt_prepare(%s) failed! reason: %s\n",
+                               tbInfo->stbInfo->stmtBuffer,
+                               taos_stmt_errstr(pThreadInfo->stmt));
+                    return NULL;
+                }
                 generated = prepareStbStmt(pThreadInfo, tbInfo,
                                            (insertRows - i) < g_args.reqPerReq
                                                ? (insertRows - i)
@@ -1735,13 +1790,17 @@ void *syncWriteProgressive(void *sarg) {
                     pThreadInfo, tbInfo,
                     (insertRows - i) < g_args.reqPerReq ? (insertRows - i)
                                                         : g_args.reqPerReq,
-                    start_time, dbInfo.lineProtocol);
+                    0, start_time, dbInfo.lineProtocol);
             } else {
-                generated = generateStbProgressiveData(
-                    pThreadInfo, tbInfo,
-                    (insertRows - i) < g_args.reqPerReq ? (insertRows - i)
-                                                        : g_args.reqPerReq,
-                    start_time);
+                memset(pThreadInfo->buffer, 0, TSDB_MAX_ALLOWED_SQL_LEN);
+                int32_t len;
+                len = snprintf(pThreadInfo->buffer, strlen(STR_INSERT_INTO) + 1,
+                               "%s", STR_INSERT_INTO);
+                generated = generateStbData(pThreadInfo, tbInfo,
+                                            (insertRows - i) < g_args.reqPerReq
+                                                ? (insertRows - i)
+                                                : g_args.reqPerReq,
+                                            start_time, &len);
             }
 
             verbosePrint("[%d] %s() LN%d generated=%d\n", pThreadInfo->threadID,
@@ -1756,15 +1815,28 @@ void *syncWriteProgressive(void *sarg) {
             start_time += generated * timeStampStep;
             pThreadInfo->totalInsertRows += generated;
 
+            if (dbInfo.iface == SML_IFACE) {
+                if (dbInfo.lineProtocol == TSDB_SML_JSON_PROTOCOL) {
+                    pThreadInfo->lines[0] = cJSON_Print(pThreadInfo->jsonArray);
+                    cJSON_Delete(pThreadInfo->jsonArray);
+                }
+            }
             // only measure insert
-            // startTs = taosGetTimestampUs();
+            startTs = taosGetTimestampUs();
 
             int32_t affectedRows = execInsert(pThreadInfo, generated);
 
             endTs = taosGetTimestampUs();
 
             if (dbInfo.iface == SML_IFACE) {
-                tmfree(pThreadInfo->lines[0]);
+                if (dbInfo.lineProtocol == TSDB_SML_JSON_PROTOCOL) {
+                    tmfree(pThreadInfo->lines[0]);
+                } else {
+                    for (int index = 0; index < generated; index++) {
+                        tmfree(pThreadInfo->lines[index]);
+                    }
+                }
+
             } else if (dbInfo.iface == STMT_IFACE) {
                 taos_stmt_close(pThreadInfo->stmt);
             }
@@ -1784,13 +1856,6 @@ void *syncWriteProgressive(void *sarg) {
             if (affectedRows < 0) {
                 errorPrint("affected rows: %d\n", affectedRows);
                 goto free_of_progressive;
-            }
-
-            if (dbInfo.iface == SML_IFACE &&
-                dbInfo.lineProtocol != TSDB_SML_JSON_PROTOCOL) {
-                for (int index = 0; index < affectedRows; index++) {
-                    tmfree(pThreadInfo->lines[index]);
-                }
             }
 
             pThreadInfo->totalAffectedRows += affectedRows;
@@ -1832,6 +1897,7 @@ free_of_progressive:
 }
 
 int setUpStables(SDataBase *dbInfo) {
+    char *pstr;
     dbInfo->normalTblCount = 0;
     if (dbInfo->iface == REST_IFACE) {
         if (convertHostToServAddr(g_Dbs.host, g_Dbs.port, &(g_Dbs.serv_addr)) !=
@@ -1839,6 +1905,14 @@ int setUpStables(SDataBase *dbInfo) {
             errorPrint("%s", "convert host to server address\n");
             return -1;
         }
+    }
+    if (dbInfo->interlaceRows > 0) {
+        dbInfo->stmtBuffer = calloc(1, BUFFER_SIZE);
+        if (dbInfo->stmtBuffer == NULL) {
+            errorPrint("%s", "failed to allocate memory\n");
+            return -1;
+        }
+        pstr = dbInfo->stmtBuffer;
     }
 
     for (uint64_t j = 0; j < dbInfo->superTblCount; j++) {
@@ -1871,13 +1945,14 @@ int setUpStables(SDataBase *dbInfo) {
                 return -1;
             }
 
-            stbInfo->stmtBuffer = calloc(1, BUFFER_SIZE);
-            if (stbInfo->stmtBuffer == NULL) {
-                errorPrint("%s", "failed to allocate memory\n");
-                return -1;
+            if (dbInfo->interlaceRows == 0) {
+                stbInfo->stmtBuffer = calloc(1, BUFFER_SIZE);
+                if (stbInfo->stmtBuffer == NULL) {
+                    errorPrint("%s", "failed to allocate memory\n");
+                    return -1;
+                }
+                pstr = stbInfo->stmtBuffer;
             }
-
-            char *pstr = stbInfo->stmtBuffer;
 
             if (AUTO_CREATE_SUBTBL == stbInfo->autoCreateTable) {
                 pstr += sprintf(pstr, "INSERT INTO ? USING %s TAGS(?",
@@ -1939,6 +2014,10 @@ int setUpStables(SDataBase *dbInfo) {
                 dbInfo->normalTbls[j].stbInfo = stbInfo;
                 dbInfo->normalTbls[j].tbSeq = j - childTblOffset;
                 dbInfo->normalTbls[j].tbName = calloc(1, TSDB_TABLE_NAME_LEN);
+                dbInfo->normalTbls[j].currentTime = stbInfo->startTime;
+                if (dbInfo->insertRows > 0) {
+                    dbInfo->normalTbls[j].rowsNeedInsert = dbInfo->insertRows;
+                }
                 if (dbInfo->normalTbls[j].tbName == NULL) {
                     errorPrint("%s", "failed to allocate memory\n");
                     return -1;

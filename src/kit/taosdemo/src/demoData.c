@@ -1775,24 +1775,19 @@ int parseNtbSampleToStmtBatchForThread(threadInfo *pThreadInfo,
     return parseSampleToStmtBatchForThread(pThreadInfo, NULL, batch);
 }
 
-int32_t generateStbProgressiveData(threadInfo *  pThreadInfo,
-                                   SNormalTable *tbInfo, int64_t remainderRows,
-                                   int64_t startTime) {
-    int64_t      remainderBufLen = TSDB_MAX_ALLOWED_SQL_LEN;
+int32_t generateStbData(threadInfo *pThreadInfo, SNormalTable *tbInfo,
+                        int64_t remainderRows, int64_t startTime,
+                        int32_t *pLen) {
     char *       dbName = g_Dbs.db[pThreadInfo->dbSeq].dbName;
     char *       tableName = tbInfo->tbName;
     uint64_t     tableSeq = tbInfo->tbSeq;
     SSuperTable *stbInfo = tbInfo->stbInfo;
-    memset(pThreadInfo->buffer, 0, remainderBufLen);
-    int len = snprintf(pThreadInfo->buffer, strlen(STR_INSERT_INTO) + 1, "%s",
-                       STR_INSERT_INTO);
     if (AUTO_CREATE_SUBTBL == stbInfo->autoCreateTable) {
         char *tagsValBuf = (char *)calloc(TSDB_MAX_ALLOWED_SQL_LEN + 1, 1);
         if (NULL == tagsValBuf) {
             errorPrint("%s", "failed to allocate memory\n");
             return -1;
         }
-
         if (0 == stbInfo->tagSource) {
             if (generateTagValuesForStb(stbInfo, tableSeq, tagsValBuf)) {
                 tmfree(tagsValBuf);
@@ -1804,46 +1799,43 @@ int32_t generateStbProgressiveData(threadInfo *  pThreadInfo,
                 stbInfo->tagDataBuf + stbInfo->lenOfTagOfOneRow *
                                           (tableSeq % stbInfo->tagSampleCount));
         }
-
-        len += snprintf(pThreadInfo->buffer + len, HEAD_BUFF_LEN,
-                        "%s.%s using %s.%s TAGS%s values", dbName, tableName,
-                        dbName, stbInfo->stbName, tagsValBuf);
+        *pLen += snprintf(pThreadInfo->buffer + *pLen, HEAD_BUFF_LEN,
+                          "%s.%s using %s.%s TAGS%s values", dbName, tableName,
+                          dbName, stbInfo->stbName, tagsValBuf);
         tmfree(tagsValBuf);
     } else if (TBL_ALREADY_EXISTS == stbInfo->childTblExists) {
-        len += snprintf(pThreadInfo->buffer + len, HEAD_BUFF_LEN,
-                        "%s.%s values", dbName, tableName);
+        *pLen += snprintf(pThreadInfo->buffer + *pLen, HEAD_BUFF_LEN,
+                          "%s.%s values", dbName, tableName);
     } else {
-        len += snprintf(pThreadInfo->buffer + len, HEAD_BUFF_LEN,
-                        "%s.%s values", dbName, tableName);
+        *pLen += snprintf(pThreadInfo->buffer + *pLen, HEAD_BUFF_LEN,
+                          "%s.%s values", dbName, tableName);
     }
-
-    if (len > TSDB_MAX_ALLOWED_SQL_LEN) {
-        errorPrint("len is too large: %d\n", len);
+    if (*pLen > TSDB_MAX_ALLOWED_SQL_LEN) {
+        errorPrint("len is too large: %d\n", *pLen);
         return -1;
     }
-
     int32_t k;
     for (k = 0; k < remainderRows;) {
         int64_t lenOfRow = 0;
         if (stbInfo->disorderRatio > 0) {
             lenOfRow = generateStbRowData(
-                pThreadInfo, stbInfo, len,
+                pThreadInfo, stbInfo, *pLen,
                 startTime + getTSRandTail(stbInfo->timeStampStep, k,
                                           stbInfo->disorderRatio,
                                           stbInfo->disorderRange));
         } else {
             lenOfRow =
-                generateStbRowData(pThreadInfo, stbInfo, len,
+                generateStbRowData(pThreadInfo, stbInfo, *pLen,
                                    startTime + stbInfo->timeStampStep * k);
         }
         if (lenOfRow == 0) {
-            *(pThreadInfo->buffer + len) = '\0';
+            *(pThreadInfo->buffer + *pLen) = '\0';
             break;
         }
-        if ((len + 1) > TSDB_MAX_ALLOWED_SQL_LEN) {
+        if ((*pLen + 1) > TSDB_MAX_ALLOWED_SQL_LEN) {
             break;
         }
-        len += lenOfRow;
+        *pLen += lenOfRow;
         k++;
     }
     return k;
@@ -1969,10 +1961,11 @@ int32_t generateSmlConstPart(char *sml, SSuperTable *stbInfo, int64_t tbSeq,
 }
 
 int32_t generateSmlLineTail(threadInfo *pThreadInfo, SNormalTable *tbInfo,
-                            int64_t remainderRows, int64_t timestamp) {
+                            int64_t remainderRows, int64_t timestamp,
+                            int64_t offset) {
     SSuperTable *stbInfo = tbInfo->stbInfo;
     int64_t      i;
-    for (i = 0; i < remainderRows; i++) {
+    for (i = offset; i < remainderRows + offset; i++) {
         pThreadInfo->lines[i] = calloc(1, stbInfo->lenOfOneRow);
         if (NULL == pThreadInfo->lines[i]) {
             errorPrint("%s", "failed to allocate memory\n");
@@ -2081,14 +2074,15 @@ int32_t generateSmlLineTail(threadInfo *pThreadInfo, SNormalTable *tbInfo,
         dataLen += snprintf(line + dataLen, stbInfo->lenOfOneRow - dataLen,
                             " %" PRId64 "", timestamp);
     }
-    return i;
+    return (i - offset);
 }
 
 int32_t generateSmlTelnetCol(threadInfo *pThreadInfo, SNormalTable *tbInfo,
-                             int64_t remainderRows, int64_t timestamp) {
+                             int64_t remainderRows, int64_t timestamp,
+                             int64_t offset) {
     SSuperTable *stbInfo = tbInfo->stbInfo;
     int64_t      i;
-    for (i = 0; i < remainderRows; i++) {
+    for (i = offset; i < remainderRows + offset; i++) {
         timestamp = timestamp + i * stbInfo->timeStampStep;
         pThreadInfo->lines[i] = calloc(1, stbInfo->lenOfOneRow);
         if (NULL == pThreadInfo->lines[i]) {
@@ -2182,14 +2176,13 @@ int32_t generateSmlTelnetCol(threadInfo *pThreadInfo, SNormalTable *tbInfo,
                 return -1;
         }
     }
-    return i;
+    return (i - offset);
 }
 
 int32_t generateSmlJsonCol(threadInfo *pThreadInfo, SNormalTable *tbInfo,
                            int64_t remainderRows, int64_t timestamp) {
     int32_t      i;
     SSuperTable *stbInfo = tbInfo->stbInfo;
-    cJSON *      jsonArray = cJSON_CreateArray();
     for (i = 0; i < remainderRows; i++) {
         cJSON *record = cJSON_CreateObject();
         cJSON *ts = cJSON_CreateObject();
@@ -2272,23 +2265,21 @@ int32_t generateSmlJsonCol(threadInfo *pThreadInfo, SNormalTable *tbInfo,
         cJSON_AddItemToObject(record, "value", value);
         cJSON_AddItemToObject(record, "tags", tags);
         cJSON_AddStringToObject(record, "metric", stbInfo->stbName);
-        cJSON_AddItemToArray(jsonArray, record);
+        cJSON_AddItemToArray(pThreadInfo->jsonArray, record);
         timestamp += stbInfo->timeStampStep;
     }
-    pThreadInfo->lines[0] = cJSON_Print(jsonArray);
-    cJSON_Delete(jsonArray);
     return i;
 }
 
 int32_t generateSmlMutablePart(threadInfo *pThreadInfo, SNormalTable *tbInfo,
                                int64_t remainderRows, int64_t timestamp,
-                               int lineProtocol) {
+                               int64_t offset, int lineProtocol) {
     if (lineProtocol == TSDB_SML_LINE_PROTOCOL) {
         return generateSmlLineTail(pThreadInfo, tbInfo, remainderRows,
-                                   timestamp);
+                                   timestamp, offset);
     } else if (lineProtocol == TSDB_SML_TELNET_PROTOCOL) {
         return generateSmlTelnetCol(pThreadInfo, tbInfo, remainderRows,
-                                    timestamp);
+                                    timestamp, offset);
     } else if (lineProtocol == TSDB_SML_JSON_PROTOCOL) {
         return generateSmlJsonCol(pThreadInfo, tbInfo, remainderRows,
                                   timestamp);

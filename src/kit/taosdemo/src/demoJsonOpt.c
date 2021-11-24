@@ -379,42 +379,6 @@ int getMetaFromInsertJsonFile(cJSON *root) {
         goto PARSE_OVER;
     }
 
-    cJSON *interlaceRows = cJSON_GetObjectItem(root, "interlace_rows");
-    if (interlaceRows && interlaceRows->type == cJSON_Number) {
-        if (interlaceRows->valueint < 0) {
-            errorPrint("%s",
-                       "failed to read json, interlaceRows input mistake\n");
-            goto PARSE_OVER;
-        }
-        g_args.interlaceRows = (uint32_t)interlaceRows->valueint;
-    } else if (!interlaceRows) {
-        g_args.interlaceRows =
-            DEFAULT_INTERLACE_ROWS;  // 0 means progressive mode, > 0 mean
-                                     // interlace mode. max value is less or equ
-                                     // num_of_records_per_req
-    } else {
-        errorPrint("%s", "failed to read json, interlaceRows input mistake\n");
-        goto PARSE_OVER;
-    }
-
-    cJSON *maxSqlLen = cJSON_GetObjectItem(root, "max_sql_len");
-    if (maxSqlLen && maxSqlLen->type == cJSON_Number) {
-        if (maxSqlLen->valueint < 0) {
-            errorPrint(
-                "%s() LN%d, failed to read json, max_sql_len input mistake\n",
-                __func__, __LINE__);
-            goto PARSE_OVER;
-        }
-        g_args.max_sql_len = maxSqlLen->valueint;
-    } else if (!maxSqlLen) {
-        g_args.max_sql_len = TSDB_MAX_ALLOWED_SQL_LEN;
-    } else {
-        errorPrint(
-            "%s() LN%d, failed to read json, max_sql_len input mistake\n",
-            __func__, __LINE__);
-        goto PARSE_OVER;
-    }
-
     cJSON *numRecPerReq = cJSON_GetObjectItem(root, "num_of_records_per_req");
     if (numRecPerReq && numRecPerReq->type == cJSON_Number) {
         if (numRecPerReq->valueint <= 0) {
@@ -572,6 +536,43 @@ int getMetaFromInsertJsonFile(cJSON *root) {
         } else {
             errorPrint("%s", "failed to read json, line_protocol not found\n");
             goto PARSE_OVER;
+        }
+
+        cJSON *interlaceRows = cJSON_GetObjectItem(dbinfo, "interlace_rows");
+        if (interlaceRows && interlaceRows->type == cJSON_Number) {
+            if (interlaceRows->valueint < 0) {
+                errorPrint(
+                    "%s", "failed to read json, interlaceRows input mistake\n");
+                goto PARSE_OVER;
+            }
+            g_Dbs.db[i].interlaceRows = (uint32_t)interlaceRows->valueint;
+        } else if (!interlaceRows) {
+            g_Dbs.db[i].interlaceRows = DEFAULT_INTERLACE_ROWS;
+            // 0 means progressive mode, > 0 mean
+            // interlace mode. max value is less or equ
+            // num_of_records_per_req
+        } else {
+            errorPrint("%s",
+                       "failed to read json, interlaceRows input mistake\n");
+            goto PARSE_OVER;
+        }
+
+        if (g_Dbs.db[i].interlaceRows != 0) {
+            cJSON *insertRows = cJSON_GetObjectItem(dbinfo, "insert_rows");
+            if (insertRows && insertRows->type == cJSON_Number) {
+                if (insertRows->valueint < 0) {
+                    errorPrint(
+                        "%s",
+                        "failed to read json, insertRows input mistake\n");
+                    goto PARSE_OVER;
+                }
+                g_Dbs.db[i].insertRows = (uint32_t)insertRows->valueint;
+            } else {
+                errorPrint("%s",
+                           "failed to read json, interlace insert mode must "
+                           "have insertRows input mistake\n");
+                goto PARSE_OVER;
+            }
         }
 
         cJSON *dbName = cJSON_GetObjectItem(dbinfo, "name");
@@ -1064,60 +1065,24 @@ int getMetaFromInsertJsonFile(cJSON *root) {
                 goto PARSE_OVER;
             }
 
-            cJSON *insertRows = cJSON_GetObjectItem(stbInfo, "insert_rows");
-            if (insertRows && insertRows->type == cJSON_Number) {
-                if (insertRows->valueint < 0) {
+            if (g_Dbs.db[i].interlaceRows == 0) {
+                cJSON *insertRows = cJSON_GetObjectItem(stbInfo, "insert_rows");
+                if (insertRows && insertRows->type == cJSON_Number) {
+                    if (insertRows->valueint < 0) {
+                        errorPrint(
+                            "%s",
+                            "failed to read json, insert_rows input mistake\n");
+                        goto PARSE_OVER;
+                    }
+                    g_Dbs.db[i].superTbls[j].insertRows = insertRows->valueint;
+                } else if (!insertRows) {
+                    g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
+                } else {
                     errorPrint(
                         "%s",
                         "failed to read json, insert_rows input mistake\n");
                     goto PARSE_OVER;
                 }
-                g_Dbs.db[i].superTbls[j].insertRows = insertRows->valueint;
-            } else if (!insertRows) {
-                g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
-            } else {
-                errorPrint("%s",
-                           "failed to read json, insert_rows input mistake\n");
-                goto PARSE_OVER;
-            }
-
-            cJSON *stbInterlaceRows =
-                cJSON_GetObjectItem(stbInfo, "interlace_rows");
-            if (stbInterlaceRows && stbInterlaceRows->type == cJSON_Number) {
-                if (stbInterlaceRows->valueint < 0) {
-                    errorPrint(
-                        "%s",
-                        "failed to read json, interlace rows input mistake\n");
-                    goto PARSE_OVER;
-                }
-                g_Dbs.db[i].superTbls[j].interlaceRows =
-                    (uint32_t)stbInterlaceRows->valueint;
-
-                if (g_Dbs.db[i].superTbls[j].interlaceRows >
-                    g_Dbs.db[i].superTbls[j].insertRows) {
-                    printf(
-                        "NOTICE: db[%d].superTbl[%d]'s interlace rows value %u "
-                        "> insert_rows %" PRId64 "\n\n",
-                        i, j, g_Dbs.db[i].superTbls[j].interlaceRows,
-                        g_Dbs.db[i].superTbls[j].insertRows);
-                    printf(
-                        "        interlace rows value will be set to "
-                        "insert_rows %" PRId64 "\n\n",
-                        g_Dbs.db[i].superTbls[j].insertRows);
-                    prompt();
-                    g_Dbs.db[i].superTbls[j].interlaceRows =
-                        (uint32_t)g_Dbs.db[i].superTbls[j].insertRows;
-                }
-            } else if (!stbInterlaceRows) {
-                g_Dbs.db[i].superTbls[j].interlaceRows =
-                    g_args.interlaceRows;  // 0 means progressive mode, > 0 mean
-                                           // interlace mode. max value is less
-                                           // or equ num_of_records_per_req
-            } else {
-                errorPrint(
-                    "%s",
-                    "failed to read json, interlace rows input mistake\n");
-                goto PARSE_OVER;
             }
 
             cJSON *disorderRatio =

@@ -88,9 +88,9 @@ int64_t generateInterlaceDataWithoutStb(char *tableName, uint32_t batch,
                                         char *buffer, int64_t insertRows,
                                         int64_t   startTime,
                                         uint64_t *pRemainderBufLen);
-int32_t generateStbProgressiveData(threadInfo *  pThreadInfo,
-                                   SNormalTable *tbInfo, int64_t remainderRows,
-                                   int64_t startTime);
+int32_t generateStbData(threadInfo *pThreadInfo, SNormalTable *tbInfo,
+                        int64_t remainderRows, int64_t startTime,
+                        int32_t *pLen);
 int32_t generateProgressiveDataWithoutStb(
     char *tableName, threadInfo *pThreadInfo, char *buffer, int64_t insertRows,
     uint64_t recordFrom, int64_t startTime, int64_t *pRemainderBufLen);
@@ -107,7 +107,7 @@ int32_t generateSmlConstPart(char *sml, SSuperTable *stbInfo, int64_t tbSeq,
                              int lineProtocol);
 int32_t generateSmlMutablePart(threadInfo *pThreadInfo, SNormalTable *tbInfo,
                                int64_t remainderRows, int64_t timestamp,
-                               int lineProtocol);
+                               int64_t offset, int lineProtocol);
 int32_t generateSmlJsonTags(cJSON *tagsList, SSuperTable *stbInfo,
                             int64_t tbSeq);
 int32_t generateSmlJsonCols(cJSON *array, cJSON *tag, SSuperTable *stbInfo,

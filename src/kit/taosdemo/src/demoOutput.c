@@ -367,9 +367,6 @@ void printHelp() {
     printf("%s%s%s%s\n", indent, "    --usage\t", "\t\t",
            "Give a short usage message");
     printf("%s%s\n", indent, "-V, --version\t\t\tPrint program version.");
-    /*    printf("%s%s%s%s\n", indent, "-D", indent,
-          "Delete database if exists. 0: no, 1: yes, default is 1");
-          */
     printf(
         "\nMandatory or optional arguments to long options are also mandatory or optional\n\
 for any corresponding short options.\n\
@@ -426,17 +423,23 @@ void printfInsertMeta() {
         } else {
             printf("  drop:                  \033[33m yes\033[0m\n");
         }
-        printf("  iface:                  %s\n",
+        printf("  iface:                  \033[33m%s\033[0m\n",
                (g_Dbs.db[i].iface == STMT_IFACE)   ? "stmt"
                : (g_Dbs.db[i].iface == REST_IFACE) ? "rest"
                : (g_Dbs.db[i].iface == SML_IFACE)  ? "sml"
                                                    : "taosc");
         if (g_Dbs.db[i].iface == SML_IFACE) {
             printf(
-                "  lineProtocol:          %s\n",
+                "  lineProtocol:          \033[33m%s\033[0m\n",
                 g_Dbs.db[i].lineProtocol == TSDB_SML_TELNET_PROTOCOL ? "telnet"
                 : g_Dbs.db[i].lineProtocol == TSDB_SML_JSON_PROTOCOL ? "json"
                                                                      : "line");
+        }
+        if (g_Dbs.db[i].interlaceRows > 0) {
+            printf("  interlaceRows：         \033[33m%d\033[0m\n",
+                   g_Dbs.db[i].interlaceRows);
+            printf("  insertRows:             \033[33m%" PRId64 "\033[0m\n",
+                   g_Dbs.db[i].insertRows);
         }
         if (g_Dbs.db[i].dbCfg.blocks > 0) {
             printf("  blocks:                \033[33m%d\033[0m\n",
@@ -543,24 +546,11 @@ void printfInsertMeta() {
                            "\033[0m\n",
                            g_Dbs.db[i].superTbls[j].childTblOffset);
                 }
-                printf("      insertRows:        \033[33m%" PRId64 "\033[0m\n",
-                       g_Dbs.db[i].superTbls[j].insertRows);
-                /*
-                if (0 == g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl) {
-                printf("      multiThreadWriteOneTbl:  \033[33m no\033[0m\n");
-                }else {
-                printf("      multiThreadWriteOneTbl:  \033[33m yes\033[0m\n");
-                }
-                */
-                printf("      interlaceRows:     \033[33m%u\033[0m\n",
-                       g_Dbs.db[i].superTbls[j].interlaceRows);
-
-                if (g_Dbs.db[i].superTbls[j].interlaceRows > 0) {
-                    printf("      stable insert interval:   \033[33m%" PRIu64
+                if (g_Dbs.db[i].interlaceRows == 0) {
+                    printf("      insertRows:        \033[33m%" PRId64
                            "\033[0m\n",
-                           g_Dbs.db[i].superTbls[j].insertInterval);
+                           g_Dbs.db[i].superTbls[j].insertRows);
                 }
-
                 printf("      disorderRange:     \033[33m%d\033[0m\n",
                        g_Dbs.db[i].superTbls[j].disorderRange);
                 printf("      disorderRatio:     \033[33m%d\033[0m\n",
@@ -672,6 +662,13 @@ void printfInsertMetaToFile(FILE *fp) {
                 : g_Dbs.db[i].lineProtocol == TSDB_SML_JSON_PROTOCOL ? "json"
                                                                      : "line");
         }
+        if (g_Dbs.db[i].interlaceRows > 0) {
+            fprintf(fp, "  interlaceRows:         %d\n",
+                    g_Dbs.db[i].interlaceRows);
+            fprintf(fp, "  insertRows:             %" PRId64 "\n",
+                    g_Dbs.db[i].insertRows);
+        }
+
         if (g_Dbs.db[i].dbCfg.blocks > 0) {
             fprintf(fp, "  blocks:                %d\n",
                     g_Dbs.db[i].dbCfg.blocks);
@@ -760,23 +757,10 @@ void printfInsertMetaToFile(FILE *fp) {
                     g_Dbs.db[i].superTbls[j].childTblPrefix);
             fprintf(fp, "      dataSource:        %s\n",
                     g_Dbs.db[i].superTbls[j].dataSource);
-            fprintf(fp, "      insertRows:        %" PRId64 "\n",
-                    g_Dbs.db[i].superTbls[j].insertRows);
-            fprintf(fp, "      interlace rows:    %u\n",
-                    g_Dbs.db[i].superTbls[j].interlaceRows);
-            if (g_Dbs.db[i].superTbls[j].interlaceRows > 0) {
-                fprintf(fp, "      stable insert interval:   %" PRIu64 "\n",
-                        g_Dbs.db[i].superTbls[j].insertInterval);
+            if (g_Dbs.db[i].interlaceRows == 0) {
+                fprintf(fp, "      insertRows:        %" PRId64 "\n",
+                        g_Dbs.db[i].superTbls[j].insertRows);
             }
-            /*
-               if (0 == g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl) {
-               fprintf(fp, "      multiThreadWriteOneTbl:  no\n");
-               }else {
-               fprintf(fp, "      multiThreadWriteOneTbl:  yes\n");
-               }
-               */
-            fprintf(fp, "      interlaceRows:     %u\n",
-                    g_Dbs.db[i].superTbls[j].interlaceRows);
             fprintf(fp, "      disorderRange:     %d\n",
                     g_Dbs.db[i].superTbls[j].disorderRange);
             fprintf(fp, "      disorderRatio:     %d\n",

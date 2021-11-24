@@ -373,9 +373,8 @@ typedef struct SSuperTable_S {
     uint64_t childTblOffset;
 
     //  int          multiThreadWriteOneTbl;  // 0: no, 1: yes
-    uint32_t interlaceRows;  //
-    int      disorderRatio;  // 0: no disorder, >0: x%
-    int      disorderRange;  // ms, us or ns. according to database precision
+    int disorderRatio;  // 0: no disorder, >0: x%
+    int disorderRange;  // ms, us or ns. according to database precision
 
     uint64_t insertInterval;  // insert interval, will override global insert
                               // interval
@@ -457,6 +456,8 @@ typedef struct SDataBase_S {
     int64_t       insertRows;
     SSuperTable * superTbls;
     SNormalTable *normalTbls;
+    char *        stmtBuffer;
+    int           columnCount;
 } SDataBase;
 
 typedef struct SDbs_S {
@@ -578,6 +579,7 @@ typedef struct SThreadInfo_S {
 
     char **lines;
     SOCKET sockfd;
+    cJSON *jsonArray;
 } threadInfo;
 
 /* ************ Global variables ************  */
