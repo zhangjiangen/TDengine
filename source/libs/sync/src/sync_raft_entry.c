@@ -15,12 +15,7 @@
 
 #include "sync_const.h"
 #include "sync_raft_entry.h"
-
-struct SSyncRaftEntry {
-  SyncTerm term;
-  SSyncBuffer buffer;
-  unsigned int refCount;
-};
+#include "sync_raft_proto.h"
 
 struct SSyncRaftEntryArray {
   // Circular buffer of log entries
@@ -31,16 +26,18 @@ struct SSyncRaftEntryArray {
 
   // Indexes of used slots [front, back)
   int front, back;
-
-  // Index of first entry is offset + 1
-  SyncIndex offset;
 };
 
-static int locateEntryOfIndex(const SSyncRaftEntryArray*, SyncIndex index);
-static SyncIndex indexAt(const SSyncRaftEntryArray*, int i);
-static int positionAt(const SSyncRaftEntryArray*, int i);
 static const SSyncRaftEntry* entryAt(const SSyncRaftEntryArray*, int i);
-static void removePrefix(SSyncRaftEntryArray*, SyncIndex index);
+static int positionAt(const SSyncRaftEntryArray*, int i);
+
+static void removePrefix(SSyncRaftEntryArray*, int pos);
+static int numBeforePosition(const SSyncRaftEntryArray*, int pos);
+
+
+
+
+
 
 static void resetEntries(SSyncRaftEntryArray*);
 
@@ -51,7 +48,7 @@ static int sliceEntries(SSyncRaftEntryArray* ents, SyncIndex from, SyncIndex to,
 static bool decrEntry(SSyncRaftEntry *entry);
 static void incrEntry(SSyncRaftEntry *entry);
 
-SSyncRaftEntryArray* syncRaftCreateEntryArray(SyncIndex firstIndex) {
+SSyncRaftEntryArray* syncRaftCreateEntryArray() {
   SSyncRaftEntry* entries = (SSyncRaftEntry*)malloc(sizeof(SSyncRaftEntry) * kEntryArrayInitSize);
   if (entries == NULL) {
     return NULL;
@@ -65,7 +62,6 @@ SSyncRaftEntryArray* syncRaftCreateEntryArray(SyncIndex firstIndex) {
     .entries  = entries,
     .front    = 0,
     .back     = 0,
-    .offset   = firstIndex - 1,
     .size     = kEntryArrayInitSize,
   };
 
@@ -81,93 +77,17 @@ int syncRaftNumOfEntries(const SSyncRaftEntryArray* ents) {
   return ents->back - ents->front;
 }
 
-SyncIndex syncRaftLastIndexOfEntries(const SSyncRaftEntryArray* ents) {
-  return ents->offset + syncRaftNumOfEntries(ents);
+const SSyncRaftEntry* syncRaftEntryOfPosition(const SSyncRaftEntryArray* ents, int pos) {
+  return entryAt(ents, pos);
 }
 
-SyncIndex syncRaftFirstIndexOfEntries(const SSyncRaftEntryArray* ents) {
-  return ents->offset + 1;
+SyncTerm syncRaftTermOfPosition(const SSyncRaftEntryArray* ents, int pos) {
+  return entryAt(ents, pos)->term;
 }
 
-SyncTerm syncRaftTermOfEntries(const SSyncRaftEntryArray* ents, SyncIndex i) {
-  int i = locateEntryOfIndex(ents, i);
-  if (i < 0) {
-    return SYNC_NON_TERM;
-  }
-
-  return entryAt(ents, i)->term;
-}
-
-// delete all entries before the given raft index(included)
-void syncRaftRemoveLogEntriesBefore(SSyncRaftEntryArray* ents, SyncIndex i) {
-  removePrefix(ents, i);
-}
-
-void syncRaftRemoveLogEntriesAfter(SSyncRaftEntryArray* ents, SyncIndex i) {
-
-}
-
-int syncRaftAppendLogEntries(SSyncRaftEntryArray* ents, SyncIndex index, SSyncRaftEntry* entries, int n) {
-  assert(index == syncRaftLastIndexOfEntries(ents) + 1);
-
-  int ret = ensureCapacity(ents, n);
-  if (ret < 0) {
-    return ret;
-  }
-
-  SyncIndex firstIndex = syncRaftLastIndexOfEntries(ents) + 1;
-  SSyncRaftEntry* entry;
-  int i;
-  for (i = 0; i < n; ++i) {
-    entry = &ents->entries[ents->back];
-    memcpy(entry, &entries[i], sizeof(SSyncRaftEntry*));
-    ents->back = (ents->back + 1) % ents->size;
-  }
-
-  return RAFT_OK;
-}
-
-int syncRaftTruncateAndAppendLogEntries(SSyncRaftEntryArray* ents, SyncIndex index, SSyncRaftEntry* entries, int n) {
-  SyncIndex afterIndex = index;
-  SyncIndex lastIndex  = syncRaftLastIndexOfEntries(ents);
-  if (afterIndex == lastIndex + 1) {
-		// after is the next index in the u.entries
-		// directly append    
-    return syncRaftAppendLogEntries(ents, index, entries, n);
-  }
-
-  if (afterIndex <= ents->offset) {
-		// The log is being truncated to before our current offset
-		// portion, so set the offset and replace the entries
-    resetEntries(ents);
-    ents->offset = afterIndex;
-    return syncRaftAppendLogEntries(ents, index, entries, n);
-  }
-
-	// truncate to after and copy to u.entries
-	// then append
-  SSyncRaftEntry* sliceEnts;
-  int nSliceEnts;
-  sliceEntries(ents, ents->offset, afterIndex, &sliceEnts, &nSliceEnts);
-  resetEntries(ents);
-  syncRaftAppendLogEntries(ents, index, sliceEnts, nSliceEnts);
-  syncRaftAppendLogEntries(ents, index, entries, n);
-}
-
-// return the index of log entries with the given raft index
-// return -1 if not found
-static int locateEntryOfIndex(const SSyncRaftEntryArray* ents, SyncIndex index) {
-  int size = syncRaftNumOfEntries(ents);
-  if (size == 0 || index < indexAt(ents, 0) || index > indexAt(ents, size - 1)) {
-    return -1;
-  }
-
-  return positionAt(ents, (int)(index - 1 - ents->offset));
-}
-
-// return raft index of i'th entry in the log
-static SyncIndex indexAt(const SSyncRaftEntryArray* ents, int i) {
-  return ents->offset + i + 1;
+// delete all entries before the given position(included)
+void syncRaftRemoveEntriesBeforePosition(SSyncRaftEntryArray* ents, int pos) {
+  removePrefix(ents, pos);
 }
 
 // return the index of circular buffer of the i'th entry in the log
@@ -178,6 +98,76 @@ static int positionAt(const SSyncRaftEntryArray* ents, int i) {
 static const SSyncRaftEntry* entryAt(const SSyncRaftEntryArray* ents, int i) {
   return &(ents->entries[positionAt(ents, i)]);
 }
+
+// delete all entries before the given position(included)
+static void removePrefix(SSyncRaftEntryArray* ents, int pos) {
+  int i, n;
+  SSyncRaftEntry* entry;
+  bool removeFront;
+
+  assert(ents != NULL);
+
+  // Number of entries to delete
+  n = numBeforePosition(ents, pos);
+
+  for (i = 0, removeFront = true; i < n; i++) {
+    entry = &(ents->entries[ents->front]);
+    if (!decrEntry(entry)) {
+      removeFront = false;
+      continue;
+    }
+    if (!removeFront) {
+      continue;
+    }
+    if (ents->front == ents->size - 1) {
+      ents->front = 0;
+    } else {
+      ents->front++;
+    }
+  }
+}
+
+// return number before position(included)
+static int numBeforePosition(const SSyncRaftEntryArray* ents, int pos) {
+  assert(pos >= 0 && pos < ents->size);
+
+  int num = pos - ents->front + 1;
+  if (num < 0) return num + ents->size;
+  return num;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Ensure that the entries array has enough free slots for adding n new entry.
 static int ensureCapacity(SSyncRaftEntryArray* ents, int n) {
@@ -215,38 +205,11 @@ static int sliceEntries(SSyncRaftEntryArray* ents, SyncIndex from, SyncIndex to,
   return RAFT_OK;
 }
 
-// delete all entries before the given raft index(included)
-static void removePrefix(SSyncRaftEntryArray* ents, SyncIndex index) {
-  int i, n;
-  SSyncRaftEntry* entry;
-  bool removeFront;
 
-  assert(ents != NULL);
-  assert(index > 0);
-  assert(index <= syncRaftLastIndexOfEntries(ents));
-
-  // Number of entries to delete
-  n = index - indexAt(ents, 0) + 1;
-
-  for (i = 0, removeFront = true; i < n; i++) {
-    entry = &(ents->entries[ents->front]);
-    if (!decrEntry(entry)) {
-      removeFront = false;
-      continue;
-    }
-    if (!removeFront) {
-      continue;
-    }
-    if (ents->front == ents->size - 1) {
-      ents->front = 0;
-    } else {
-      ents->front++;
-    }
-    ents->offset += 1;
-  }
-}
 
 static bool decrEntry(SSyncRaftEntry *entry) {
+  return true;
+/*  
   entry->refCount -= 1;
   assert(entry->refCount >= 0);
   if (entry->refCount == 0) {
@@ -257,9 +220,12 @@ static bool decrEntry(SSyncRaftEntry *entry) {
   }
 
   return false;
+*/
 }
 
 static void incrEntry(SSyncRaftEntry *entry) {
+/*
   assert(entry->refCount >= 0);
   entry->refCount += 1;
+*/
 }

@@ -69,6 +69,13 @@ typedef struct SyncRaftSnapshot {
   RaftSnapshotMeta meta;
 } SyncRaftSnapshot;
 
+struct SSyncRaftEntry {
+  SyncTerm term;
+  SyncIndex index;
+  SSyncBuffer buffer;
+  unsigned int refCount;
+};
+
 static FORCE_INLINE bool syncRaftConfArrayIsEmpty(const SSyncConfChangeSingleArray* ary) {
   return ary->n == 0;
 }

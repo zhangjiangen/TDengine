@@ -19,24 +19,21 @@
 #include "sync.h"
 #include "sync_type.h"
 
-SSyncRaftEntryArray* syncRaftCreateEntryArray(SyncIndex offset);
+SSyncRaftEntryArray* syncRaftCreateEntryArray();
 
 int syncRaftNumOfEntries(const SSyncRaftEntryArray* ents);
 
-SyncIndex syncRaftLastIndexOfEntries(const SSyncRaftEntryArray* ents);
+const SSyncRaftEntry* syncRaftEntryOfPosition(const SSyncRaftEntryArray* ents, int pos);
 
-SyncIndex syncRaftFirstIndexOfEntries(const SSyncRaftEntryArray* ents);
+SyncTerm syncRaftTermOfPosition(const SSyncRaftEntryArray* ents, int pos);
 
-SyncTerm syncRaftTermOfEntries(const SSyncRaftEntryArray* ents, SyncIndex i);
+// delete all entries before the given position(included)
+void syncRaftRemoveEntriesBeforePosition(SSyncRaftEntryArray* ents, int pos);
 
-// delete all entries before the given raft index(included)
-void syncRaftRemoveLogEntriesBefore(SSyncRaftEntryArray* ents, SyncIndex i);
+int syncRaftAppendEntries(SSyncRaftEntryArray* ents, SSyncRaftEntry* entries, int n);
 
-// delete all entries from the given raft index(included)
-void syncRaftRemoveLogEntriesAfter(SSyncRaftEntryArray* ents, SyncIndex i);
+int syncRaftAssignEntries(SSyncRaftEntryArray* ents, SSyncRaftEntry* entries, int n);
 
-int syncRaftAppendLogEntries(SSyncRaftEntryArray* ents, SyncIndex index, SSyncRaftEntry* entries, int n);
-
-int syncRaftTruncateAndAppendLogEntries(SSyncRaftEntryArray* ents, SyncIndex index, SSyncRaftEntry* entries, int n);
+int syncRaftSliceEntries(SSyncRaftEntryArray* ents, int lo, int hi, SSyncRaftEntry** ppEntries, int* n);
 
 #endif // _TD_LIBS_SYNC_RAFT_STABLE_LOG_H

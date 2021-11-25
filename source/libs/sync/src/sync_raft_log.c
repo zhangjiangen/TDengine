@@ -17,12 +17,6 @@
 #include "sync_raft_stable_log.h"
 #include "sync_raft_unstable_log.h"
 
-struct SSyncRaftEntry {
-  SyncTerm term;
-  SSyncBuffer buffer;
-  unsigned int refCount;
-};
-
 struct SSyncRaftLog {
   // storage contains all stable entries since the last snapshot.
   SSyncRaftStableLog* storage;

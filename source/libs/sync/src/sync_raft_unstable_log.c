@@ -17,6 +17,8 @@
 #include "sync_raft_proto.h"
 #include "sync_raft_unstable_log.h"
 
+static void unstableSliceEntries(SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n);
+
 // unstable.entries[i] has raft log position i+unstable.offset.
 // Note that unstable.offset may be less than the highest log
 // position in storage; this means that the next write to storage
@@ -26,19 +28,22 @@ struct SSyncRaftUnstableLog {
 
   // all entries that have not yet been written to storage.
   SSyncRaftEntryArray* entries;
+
+  SyncIndex offset;
 };
 
-SSyncRaftUnstableLog* syncRaftCreateUnstableLog(SyncIndex offset) {
+SSyncRaftUnstableLog* syncRaftCreateUnstableLog(SyncIndex lastIndex) {
   SSyncRaftUnstableLog* unstable = (SSyncRaftUnstableLog*)malloc(sizeof(SSyncRaftUnstableLog));
   if (unstable == NULL) {
     return NULL;
   }
 
-  unstable->entries = syncRaftCreateEntryArray(offset);
+  unstable->entries = syncRaftCreateEntryArray();
   if (unstable->entries == NULL) {
     free(unstable);
     return NULL;
   }
+  unstable->offset = lastIndex + 1;
 
   return unstable;
 }
@@ -58,8 +63,9 @@ bool syncRaftUnstableLogMaybeFirstIndex(const SSyncRaftUnstableLog* unstable, Sy
 // maybeLastIndex returns the last index if it has at least one
 // unstable entry or snapshot.
 bool syncRaftUnstableLogMaybeLastIndex(const SSyncRaftUnstableLog* unstable, SyncIndex* index) {
-  if (syncRaftNumOfEntries(unstable->entries) > 0) {
-    *index = syncRaftLastIndexOfEntries(unstable->entries);
+  int num = syncRaftNumOfEntries(unstable->entries);
+  if (num > 0) {
+    *index = unstable->offset + num + 1;
     return true;
   }
   if (unstable->snapshot != NULL) {
@@ -76,7 +82,7 @@ bool syncRaftUnstableLogMaybeLastIndex(const SSyncRaftUnstableLog* unstable, Syn
 bool syncRaftUnstableLogMaybeTerm(const SSyncRaftUnstableLog* unstable, SyncIndex i, SyncTerm* term) {
   *term = SYNC_NON_TERM;
 
-  if (i < syncRaftFirstIndexOfEntries(unstable->entries)) {
+  if (i < unstable->offset) {
     if (unstable->snapshot != NULL && unstable->snapshot->meta.index == i) {
       *term = unstable->snapshot->meta.term;
       return true;
@@ -94,7 +100,7 @@ bool syncRaftUnstableLogMaybeTerm(const SSyncRaftUnstableLog* unstable, SyncInde
     return false;
   }
 
-  *term = syncRaftTermOfEntries(unstable, i);
+  *term = syncRaftTermOfPosition(unstable, i - unstable->offset);
   return true;
 }
 
@@ -108,11 +114,34 @@ void syncRaftUnstableLogStableTo(SSyncRaftUnstableLog* unstable, SyncIndex i, Sy
 	// if i < offset, term is matched with the snapshot
 	// only update the unstable entries if term is matched with
 	// an unstable entry.
-  if (gt == term) {
-    syncRaftRemoveLogEntriesBefore(unstable->entries, i);
+  if (gt == term && i >= unstable->offset) {
+    syncRaftRemoveEntriesBeforePosition(unstable->entries, i - unstable->offset);
+    unstable->offset += 1;
   }
 }
 
-void syncRaftUnstableLogTruncateAndAppend(SSyncRaftUnstableLog* unstable, SyncIndex index, SSyncRaftEntry* entries, int n) {
-  syncRaftTruncateAndAppendLogEntries(unstable->entries, index, entries, n);
+int syncRaftUnstableLogTruncateAndAppend(SSyncRaftUnstableLog* unstable, SSyncRaftEntry* entries, int n) {
+  SyncIndex afterIndex = entries[0].index;
+  int num = syncRaftNumOfEntries(unstable->entries);
+
+  if (afterIndex == unstable->offset + num) {
+    return syncRaftAppendEntries(unstable->entries, entries, n);
+  }
+
+  if (afterIndex <= unstable->offset) {
+    unstable->offset = afterIndex;
+    return syncRaftAssignEntries(unstable->entries, entries, n);
+  }
+
+  SSyncRaftEntry* sliceEnts;
+  int nSliceEnts;
+
+  unstableSliceEntries(unstable, unstable->offset, afterIndex, &sliceEnts, &nSliceEnts);
+
+  syncRaftAppendEntries(unstable->entries, sliceEnts, nSliceEnts);
+  return syncRaftAppendEntries(unstable->entries, entries, n);
+}
+
+static void unstableSliceEntries(SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n) {
+  syncRaftSliceEntries(unstable->entries, lo-unstable->offset, hi - unstable->offset, ppEntries, n);
 }

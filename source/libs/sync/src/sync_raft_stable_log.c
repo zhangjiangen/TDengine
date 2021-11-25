@@ -39,13 +39,10 @@ SSyncRaftStableLog* syncRaftCreateStableLog() {
 }
 
 SyncIndex syncRaftStableLogLastIndex(const SSyncRaftStableLog* storage) {
-  return syncRaftLastIndexOfEntries(storage->entries);
+  //return syncRaftLastIndexOfEntries(storage->entries);
 }
 
 // FirstIndex returns the index of the first log entry that is
 // possibly available via Entries (older entries have been incorporated
 // into the latest Snapshot; if storage only contains the dummy entry the
 // first log entry is not available).
-SyncIndex syncRaftStableLogFirstIndex(const SSyncRaftStableLog* storage) {
-  return syncRaftFirstIndexOfEntries(storage->entries);
-}
