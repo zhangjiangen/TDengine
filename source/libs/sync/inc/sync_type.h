@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 #include "sync.h"
+#include "sync_raft_code.h"
 #include "osMath.h"
 
 #define SYNC_NON_NODE_ID -1

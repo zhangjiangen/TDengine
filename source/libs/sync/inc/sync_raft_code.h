@@ -28,6 +28,8 @@ typedef enum ESyncRaftCode {
    * RAFT_INDEX_UNAVAILABLE is returned when a request index is unavailable
    **/
   RAFT_INDEX_UNAVAILABLE = -2,
+
+  RAFT_NO_MEM = -3,
 } ESyncRaftCode;
 
 #endif // _TD_LIBS_SYNC_RAFT_CODE_H

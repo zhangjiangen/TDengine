@@ -19,10 +19,24 @@
 #include "sync.h"
 #include "sync_type.h"
 
-SSyncRaftEntryArray* syncRaftCreateEntryArray();
+SSyncRaftEntryArray* syncRaftCreateEntryArray(SyncIndex offset);
 
-SyncIndex syncRaftLastIndexOfEntries(const SSyncRaftEntryArray* ents, int i);
+int syncRaftNumOfEntries(const SSyncRaftEntryArray* ents);
 
-SyncIndex syncRaftIndexOfEntries(const SSyncRaftEntryArray* ents, int i);
+SyncIndex syncRaftLastIndexOfEntries(const SSyncRaftEntryArray* ents);
+
+SyncIndex syncRaftFirstIndexOfEntries(const SSyncRaftEntryArray* ents);
+
+SyncTerm syncRaftTermOfEntries(const SSyncRaftEntryArray* ents, SyncIndex i);
+
+// delete all entries before the given raft index(included)
+void syncRaftRemoveLogEntriesBefore(SSyncRaftEntryArray* ents, SyncIndex i);
+
+// delete all entries from the given raft index(included)
+void syncRaftRemoveLogEntriesAfter(SSyncRaftEntryArray* ents, SyncIndex i);
+
+int syncRaftAppendLogEntries(SSyncRaftEntryArray* ents, SyncIndex index, SSyncRaftEntry* entries, int n);
+
+int syncRaftTruncateAndAppendLogEntries(SSyncRaftEntryArray* ents, SyncIndex index, SSyncRaftEntry* entries, int n);
 
 #endif // _TD_LIBS_SYNC_RAFT_STABLE_LOG_H

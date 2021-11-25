@@ -21,4 +21,20 @@
 
 SSyncRaftUnstableLog* syncRaftCreateUnstableLog(SyncIndex lastIndex);
 
+// maybeFirstIndex returns the index of the first possible entry in entries
+// if it has a snapshot.
+bool syncRaftUnstableLogMaybeFirstIndex(const SSyncRaftUnstableLog* unstable, SyncIndex* index);
+
+// maybeLastIndex returns the last index if it has at least one
+// unstable entry or snapshot.
+bool syncRaftUnstableLogMaybeLastIndex(const SSyncRaftUnstableLog* unstable, SyncIndex* index);
+
+// maybeTerm returns the term of the entry at index i, if there
+// is any.
+bool syncRaftUnstableLogMaybeTerm(const SSyncRaftUnstableLog* unstable, SyncIndex i, SyncTerm* term);
+
+void syncRaftUnstableLogStableTo(SSyncRaftUnstableLog* unstable, SyncIndex i, SyncTerm term);
+
+void syncRaftUnstableLogTruncateAndAppend(SSyncRaftUnstableLog* unstable, SyncIndex index, SSyncRaftEntry* entries, int n);
+
 #endif // _TD_LIBS_SYNC_RAFT_UNSTABLE_LOG_H

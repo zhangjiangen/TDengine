@@ -24,4 +24,6 @@ static SyncIndex kMaxCommitIndex = UINT64_MAX;
 
 static uint64_t kmaxNextEntsSize = 100;
 
+static int kEntryArrayInitSize = 256;
+
 #endif  /* _TD_LIBS_SYNC_CONST_H */

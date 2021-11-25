@@ -59,6 +59,16 @@ typedef struct SSyncConfigState {
   bool autoLeave;
 } SSyncConfigState;
 
+/* meta data about snapshot */
+typedef struct RaftSnapshotMeta {
+  SyncIndex index;
+  SyncTerm  term;
+} RaftSnapshotMeta;
+
+typedef struct SyncRaftSnapshot {
+  RaftSnapshotMeta meta;
+} SyncRaftSnapshot;
+
 static FORCE_INLINE bool syncRaftConfArrayIsEmpty(const SSyncConfChangeSingleArray* ary) {
   return ary->n == 0;
 }

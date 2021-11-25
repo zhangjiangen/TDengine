@@ -14,13 +14,8 @@
  */
 
 #include "sync_raft_entry.h"
+#include "sync_raft_proto.h"
 #include "sync_raft_stable_log.h"
-
-/* meta data about snapshot */
-typedef struct RaftSnapshotMeta {
-  SyncIndex index;
-  SyncTerm  term;
-} RaftSnapshotMeta;
 
 struct SSyncRaftStableLog {
   RaftSnapshotMeta snapshotMeta;
@@ -52,5 +47,5 @@ SyncIndex syncRaftStableLogLastIndex(const SSyncRaftStableLog* storage) {
 // into the latest Snapshot; if storage only contains the dummy entry the
 // first log entry is not available).
 SyncIndex syncRaftStableLogFirstIndex(const SSyncRaftStableLog* storage) {
-  return syncRaftIndexOfEntries(storage->entries, 0) + 1;
+  return syncRaftFirstIndexOfEntries(storage->entries);
 }
