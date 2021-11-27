@@ -27,6 +27,7 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
         self._conn = conn
         self.smlChildTableName_value = tdSql.getVariable("smlChildTableName")[0].upper()
+        self.smlTagNullName_value = tdSql.getVariable("smlTagNullName")[0]
 
     def timeTrans(self, time_value, precision):
         # TDSmlTimestampType.HOUR.value, TDSmlTimestampType.MINUTE.value, TDSmlTimestampType.SECOND.value, TDSmlTimestampType.MICRO_SECOND.value, TDSmlTimestampType.NANO_SECOND.value
@@ -136,7 +137,8 @@ class TDTestCase:
                 type_num_list.append(14)
         return type_num_list
 
-    def inputHandle(self, input_sql, precision):
+    def inputHandle(self, input_sql, precision, t_blank_tag=None):
+        tb_name = ""
         input_sql_split_list = input_sql.split(" ")
 
         stb_tag_list = input_sql_split_list[0].split(',')
@@ -161,17 +163,21 @@ class TDTestCase:
                 if "id=" in elm.lower():
                     tb_name = elm.split('=')[1]
                 else:
-                    tag_name_list.append(elm.split("=")[0].lower())
+                    tag_name_list.append(elm.split("=")[0])
                     tag_value_list.append(elm.split("=")[1])
-                    tb_name = ""
                     td_tag_value_list.append(self.getTdTypeValue(elm.split("=")[1], "tag")[1])
                     td_tag_type_list.append(self.getTdTypeValue(elm.split("=")[1], "tag")[0])
             else:
-                tag_name_list.append(elm.split("=")[0].lower())
-                tag_value_list.append(elm.split("=")[1])
-                tb_name = ""
-                td_tag_value_list.append(self.getTdTypeValue(elm.split("=")[1], "tag")[1])
-                td_tag_type_list.append(self.getTdTypeValue(elm.split("=")[1], "tag")[0])
+                if "id" == elm.split("=")[0].lower():
+                    tag_name_list.insert(0, elm.split("=")[0])
+                    tag_value_list.insert(0, elm.split("=")[1])
+                    td_tag_value_list.insert(0, self.getTdTypeValue(elm.split("=")[1], "tag")[1])
+                    td_tag_type_list.insert(0, self.getTdTypeValue(elm.split("=")[1], "tag")[0])
+                else:
+                    tag_name_list.append(elm.split("=")[0])
+                    tag_value_list.append(elm.split("=")[1])
+                    td_tag_value_list.append(self.getTdTypeValue(elm.split("=")[1], "tag")[1])
+                    td_tag_type_list.append(self.getTdTypeValue(elm.split("=")[1], "tag")[0])
         
         for elm in stb_col_list:
             col_name_list.append(elm.split("=")[0])
@@ -193,6 +199,10 @@ class TDTestCase:
         final_value_list.append(ts_value)
         final_value_list.extend(td_col_value_list)
         final_value_list.extend(td_tag_value_list)
+        if t_blank_tag is not None:
+            final_field_list.append(self.smlTagNullName_value)
+            final_value_list.append('None')
+            final_type_list.append(10)
         return final_value_list, final_field_list, final_type_list, stb_name, tb_name
 
     def genFullTypeSql(self, stb_name="", tb_name="", t0="", t1="127i8", t2="32767i16", t3="2147483647i32",
@@ -301,8 +311,8 @@ class TDTestCase:
         res_type_list = col_info[1]
         return res_row_list, res_field_list_without_ts, res_type_list
 
-    def resCmp(self, input_sql, stb_name, query_sql="select * from", ts_type=None, condition="", ts=None, none_check_tag=None, precision=None):
-        expect_list = self.inputHandle(input_sql, ts_type)
+    def resCmp(self, input_sql, stb_name, query_sql="select * from", ts_type=None, condition="", ts=None, none_check_tag=None, precision=None, t_blank_tag=None):
+        expect_list = self.inputHandle(input_sql, ts_type, t_blank_tag=t_blank_tag)
         if precision == None:
             res = tdCom.schemalessApiPost(sql=input_sql, precision=ts_type)
         else:
@@ -644,8 +654,9 @@ class TDTestCase:
             tdSql.checkEqual(res.status_code, 500)
             tdSql.checkIn("Table name too long", res.text)
             input_sql = 'Abcdffgg,T1=127i8 c0=False 1626006833639000000'
-        stb_name = input_sql.split(",")[0]
+        stb_name = f'`{input_sql.split(",")[0]}`'
         self.resCmp(input_sql, stb_name)
+        tdCom.restApiPost('drop table `Abcdffgg`')
 
     def tagValueLengthCheckCase(self):
         """
@@ -970,7 +981,7 @@ class TDTestCase:
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb(type="restful")
         stb_name = tdCom.getLongName(7, "letters")
-        input_sql = f'{stb_name},t2={tdCom.getLongName(1, "letters")} c0=f 1626006833639000000'
+        input_sql = f'{stb_name},t2=t c0=f 1626006833639000000'
         tdCom.schemalessApiPost(sql=input_sql, precision="ns")
 
         # * legal nchar could not be larger than 16374/4
@@ -987,7 +998,7 @@ class TDTestCase:
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
 
-        input_sql = f'{stb_name},t2={tdCom.getLongName(1, "letters")} c0=f,c1=L"{tdCom.getLongName(4093, "letters")}",c2=L"{tdCom.getLongName(4093, "letters")}",c3=L"{tdCom.getLongName(4093, "letters")}",c4=L"{tdCom.getLongName(4, "letters")}" 1626006833639000000'
+        input_sql = f'{stb_name},t2=f c0=f,c1=L"{tdCom.getLongName(4093, "letters")}",c2=L"{tdCom.getLongName(4093, "letters")}",c3=L"{tdCom.getLongName(4093, "letters")}",c4=L"{tdCom.getLongName(4, "letters")}" 1626006833639000000'
         res = tdCom.schemalessApiPost(sql=input_sql, precision="ns")
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(3)
@@ -1086,7 +1097,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=f
         input_sql = self.genFullTypeSql(c_blank_tag=True)[0]
         res = tdCom.schemalessApiPost(sql=input_sql, precision="ns")
         tdSql.checkEqual(res.status_code, 500)
-        tdSql.checkIn("Syntax error in Line", res.text)
+        tdSql.checkIn("internal error", res.text)
 
     def blankTagInsertCheckCase(self):
         """
@@ -1094,10 +1105,9 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=f
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb(type="restful")
-        input_sql = self.genFullTypeSql(t_blank_tag=True)[0]
-        res = tdCom.schemalessApiPost(sql=input_sql, precision="ns")
-        tdSql.checkEqual(res.status_code, 500)
-        tdSql.checkIn("Table does not exist", res.text)
+        input_sql, stb_name = self.genFullTypeSql(t_blank_tag=True)
+        tdCom.schemalessApiPost(sql=input_sql, precision="ns")
+        self.resCmp(input_sql, stb_name, t_blank_tag=True)
     
     def chineseCheckCase(self):
         """
@@ -1144,20 +1154,20 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=f
         if self.smlChildTableName_value == "ID":
             input_sql = 'rFa$sta,id=rFas$ta_1,Tt!0=true,tT@1=127i8,t#2=32767i16,\"t$3\"=2147483647i32,t%4=9223372036854775807i64,t^5=11.12345f32,t&6=22.123456789f64,t*7=\"ddzhiksj\",t!@#$%^&*()_+[];:<>?,9=L\"ncharTagValue\" C)0=True,c{1=127i8,c[2=32767i16,c;3=2147483647i32,c:4=9223372036854775807i64,c<5=11.12345f32,c>6=22.123456789f64,c?7=\"bnhwlgvj\",c.8=L\"ncharTagValue\",c!@#$%^&*()_+[];:<>?,=7u64 1626006933640000000'
             tdCom.schemalessApiPost(sql=input_sql, precision="ns")
-            query_sql = 'select * from `rfa$sta`'
+            query_sql = 'select * from `rFa$sta`'
             query_res = tdSql.query(query_sql, True)
             tdSql.checkEqual(query_res, [(datetime.datetime(2021, 7, 11, 20, 35, 33, 640000), True, 127, 32767, 2147483647, 9223372036854775807, 11.12345027923584, 22.123456789, 'bnhwlgvj', 'ncharTagValue', 7, 'true', '127i8', '32767i16', '2147483647i32', '9223372036854775807i64', '11.12345f32', '22.123456789f64', '"ddzhiksj"', 'L"ncharTagValue"')])
             col_tag_res = tdSql.getColNameList(query_sql)
-            tdSql.checkEqual(col_tag_res, ['_ts', 'c)0', 'c{1', 'c[2', 'c;3', 'c:4', 'c<5', 'c>6', 'c?7', 'c.8', 'c!@#$%^&*()_+[];:<>?,', 'tt!0', 'tt@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
+            tdSql.checkEqual(col_tag_res, ['ts', 'c)0', 'c{1', 'c[2', 'c;3', 'c:4', 'c<5', 'c>6', 'c?7', 'c.8', 'c!@#$%^&*()_+[];:<>?,', 'tt!0', 'tt@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
         else:
             input_sql = 'rFa$sta,Tt!0=true,tT@1=127i8,t#2=32767i16,\"t$3\"=2147483647i32,t%4=9223372036854775807i64,t^5=11.12345f32,t&6=22.123456789f64,t*7=\"ddzhiksj\",t!@#$%^&*()_+[];:<>?,9=L\"ncharTagValue\" C)0=True,c{1=127i8,c[2=32767i16,c;3=2147483647i32,c:4=9223372036854775807i64,c<5=11.12345f32,c>6=22.123456789f64,c?7=\"bnhwlgvj\",c.8=L\"ncharTagValue\",c!@#$%^&*()_+[];:<>?,=7u64 1626006933640000000'
             tdCom.schemalessApiPost(sql=input_sql, precision="ns")
-            query_sql = 'select * from `rfa$sta`'
+            query_sql = 'select * from `rFa$sta`'
             query_res = tdSql.query(query_sql, True)
-            tdSql.checkEqual(query_res, [(datetime.datetime(2021, 7, 11, 20, 35, 33, 640000), True, 127, 32767, 2147483647, 9223372036854775807, 11.12345027923584, 22.123456789, 'bnhwlgvj', 'ncharTagValue', 7, 'true', '127i8', '32767i16', '2147483647i32', '9223372036854775807i64', '11.12345f32', '22.123456789f64', '"ddzhiksj"', 'L"ncharTagValue"')])
+            tdSql.checkEqual(query_res, [(datetime.datetime(2021, 7, 11, 20, 35, 33, 640000), True, 127, 32767, 2147483647, 9223372036854775807, 11.12345027923584, 22.123456789, 'bnhwlgvj', 'ncharTagValue', 7, '2147483647i32', 'L"ncharTagValue"', '32767i16', '9223372036854775807i64', '22.123456789f64', '"ddzhiksj"', '11.12345f32', 'true', '127i8')])
             col_tag_res = tdSql.getColNameList(query_sql)
-            tdSql.checkEqual(col_tag_res, ['_ts', 'c)0', 'c{1', 'c[2', 'c;3', 'c:4', 'c<5', 'c>6', 'c?7', 'c.8', 'c!@#$%^&*()_+[];:<>?,', 'tt!0', 'tt@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
-        tdCom.restApiPost('drop table `rfa$sta`')
+            tdSql.checkEqual(col_tag_res, ['ts', 'C)0', 'c{1', 'c[2', 'c;3', 'c:4', 'c<5', 'c>6', 'c?7', 'c.8', 'c!@#$%^&*()_+[];:<>?,', '"t$3"', 't!@#$%^&*()_+[];:<>?,9', 't#2', 't%4', 't&6', 't*7', 't^5', 'Tt!0', 'tT@1'])
+        tdCom.restApiPost('drop table `rFa$sta`')
 
     def genSqlList(self, count=5, stb_name="", tb_name=""):
         """
@@ -1349,10 +1359,9 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=f
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_d_ts_list))
         tdSql.query(f"show tables;")
         tdSql.checkRows(1) if self.smlChildTableName_value == "ID" else tdSql.checkRows(6)
-        # ! Small probability bug ---> temporarily delete it
-        # tdSql.query(f"select * from {stb_name}")
-        # tdSql.checkRows(6)
-
+        tdSql.query(f"select * from {stb_name}")
+        tdSql.checkRows(6)
+        
     def sStbStbDdataDtsAcMtInsertMultiThreadCheckCase(self):
         """
             thread input same stb tb, different ts, add col, mul tag
@@ -1362,7 +1371,12 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=f
         tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
         self.resCmp(input_sql, stb_name)
-        s_stb_s_tb_d_ts_a_col_m_tag_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[8]
+        # s_stb_s_tb_d_ts_a_col_m_tag_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[8]
+        s_stb_s_tb_d_ts_a_col_m_tag_list = [(f'{stb_name},id={tb_name},t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="evaricro",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 0', 'fzgarb'), 
+                                            (f'{stb_name},id={tb_name},t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="clalaexj",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 0', 'fzgarb'), 
+                                            (f'{stb_name},id={tb_name},t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="ydvbrqet",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 0', 'fzgarb'), 
+                                            (f'{stb_name},id={tb_name},t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="bafbbybp",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 0', 'fzgarb'), 
+                                            (f'{stb_name},id={tb_name},t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="eywvknbz",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 0', 'fzgarb')]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_d_ts_a_col_m_tag_list))
         tdSql.query(f"show tables;")
         tdSql.checkRows(1) if self.smlChildTableName_value == "ID" else tdSql.checkRows(2)
@@ -1452,8 +1466,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=f
         self.zeroTsCheckCase()
         self.influxTsCheckCase()
         self.iuCheckCase()
-        #! bug
-        # self.idSeqCheckCase()
+        self.idSeqCheckCase()
         self.idLetterCheckCase()
         self.noIdCheckCase()
         self.maxColTagCheckCase()
@@ -1485,8 +1498,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=f
         self.chineseCheckCase()
         self.spellCheckCase()
         self.defaultTypeCheckCase()
-        #! bug
-        # self.tbnameTagsColsNameCheckCase()
+        self.tbnameTagsColsNameCheckCase()
 
         # MultiThreads
         self.stbInsertMultiThreadCheckCase()
@@ -1506,9 +1518,6 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=f
         print("running {}".format(__file__))
         tdCom.createDb(api_type="restful")
         try:
-            # self.tagColNcharMaxLengthCheckCase()
-            # self.initCheckCase()
-            # self.test()
             self.runAll()
         except Exception as err:
             print(''.join(traceback.format_exception(None, err, err.__traceback__)))
