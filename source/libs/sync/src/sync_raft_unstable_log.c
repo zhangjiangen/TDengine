@@ -19,6 +19,7 @@
 #include "sync_raft_unstable_log.h"
 
 static void unstableSliceEntries(SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n);
+static void mustCheckOutOfBounds(SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi);
 
 // unstable.entries[i] has raft log position i+unstable.offset.
 // Note that unstable.offset may be less than the highest log
@@ -156,21 +157,28 @@ int syncRaftUnstableLogTruncateAndAppend(SSyncRaftUnstableLog* unstable, SSyncRa
   return syncRaftAppendEntries(unstable->entries, entries, n);
 }
 
-int syncRaftUnstableLogNumOfPendingConf(const SSyncRaftUnstableLog* unstable, SyncIndex appliedIndex, SyncIndex commitIndex) {
-  int n = 0;
-  
-  if (appliedIndex < unstable->offset) {
-    SyncIndex lastIndex = MIN(commitIndex, unstable->offset);
-    while (appliedIndex < lastIndex) {
-      const SSyncRaftEntry* entry = &unstable->entries[];
-      if (syncRaftIsConfEntry(entry)) n+=1;
-      appliedIndex += 1;
-    }
+// visit entries in [lo, hi - 1]
+void syncRaftUnstableLogVisit(const SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi, visitEntryFp visit, void* arg) {
+  mustCheckOutOfBounds(unstable, lo, hi);
+  while (lo < hi) {
+    const SSyncRaftEntry* entry = syncRaftEntryOfPosition(unstable->entries, lo - unstable->offset);
+    visit(entry, arg);
   }
+  return;
+}
 
-  return n;
+SyncIndex syncRaftUnstableLogOffset(const SSyncRaftUnstableLog* unstable) {
+  return unstable->offset;
 }
 
 static void unstableSliceEntries(SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n) {
   syncRaftSliceEntries(unstable->entries, lo - unstable->offset, hi - unstable->offset, ppEntries, n);
+}
+
+static void mustCheckOutOfBounds(SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi) {
+  if (lo > hi) {
+
+  }
+
+
 }

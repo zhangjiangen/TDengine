@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include "sync.h"
 #include "sync_raft_code.h"
+#include "sync_raft_proto.h"
 #include "osMath.h"
 
 #define SYNC_NON_NODE_ID -1
@@ -91,6 +92,8 @@ typedef enum {
 } ESyncRaftVoteType;
 
 typedef void (*visitProgressFp)(SSyncRaftProgress* progress, void* arg);
+
+typedef void (*visitEntryFp)(const SSyncRaftEntry* entry, void* arg);
 
 typedef void (*matchAckIndexerFp)(SyncNodeId id, void* arg, SyncIndex* index);
 

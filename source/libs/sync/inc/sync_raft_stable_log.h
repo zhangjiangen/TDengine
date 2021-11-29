@@ -34,4 +34,6 @@ SyncIndex syncRaftStableLogFirstIndex(const SSyncRaftStableLog* storage);
 
 int syncRaftStableAppendEntries(SSyncRaftStableLog* storage, SSyncRaftEntry* entries, int n);
 
+void syncRaftStableLogVisit(const SSyncRaftStableLog* storage, SyncIndex lo, SyncIndex hi, visitEntryFp visit, void* arg);
+
 #endif // _TD_LIBS_SYNC_RAFT_STABLE_LOG_H

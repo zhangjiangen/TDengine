@@ -104,3 +104,25 @@ int syncRaftStableAppendEntries(SSyncRaftStableLog* storage, SSyncRaftEntry* ent
   
   return RAFT_OK;
 }
+
+// visit entries in [lo, hi - 1]
+void syncRaftStableLogVisit(const SSyncRaftStableLog* storage, SyncIndex lo, SyncIndex hi, visitEntryFp visit, void* arg) {
+  SyncIndex offsetIndex = syncRaftEntryOfPosition(storage->entries, 0)->index;
+  if (lo <= offsetIndex) {
+    return;
+  }
+
+  SyncIndex lastIndex = syncRaftStableLogLastIndex(storage);
+  if (hi > lastIndex + 1) {
+    return;
+  }
+
+  if (syncRaftNumOfEntries(storage->entries) == 1) {
+    return;
+  }
+
+  while (lo < hi) {
+    const SSyncRaftEntry* entry = syncRaftEntryOfPosition(storage->entries, lo - offsetIndex);
+    visit(entry, arg);
+  }
+}

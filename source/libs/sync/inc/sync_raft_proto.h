@@ -69,16 +69,21 @@ typedef struct SyncRaftSnapshot {
   RaftSnapshotMeta meta;
 } SyncRaftSnapshot;
 
+typedef enum ESyncRaftEntryType {
+  SYNC_ENTRY_TYPE_LOG = 1,
+  SYNC_ENTRY_TYPE_CONF_CHANGE = 2,
+} ESyncRaftEntryType;
+
 struct SSyncRaftEntry {
   SyncTerm term;
   SyncIndex index;
-  int type;
+  ESyncRaftEntryType type;
   SSyncBuffer buffer;
   unsigned int refCount;
 };
 
 static FORCE_INLINE bool syncRaftIsConfEntry(const SSyncRaftEntry* entry) {
-  return false;
+  return entry->type == SYNC_ENTRY_TYPE_CONF_CHANGE;
 }
 
 static FORCE_INLINE bool syncRaftConfArrayIsEmpty(const SSyncConfChangeSingleArray* ary) {

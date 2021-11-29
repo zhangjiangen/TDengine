@@ -241,6 +241,12 @@ void syncRaftLogSlice(SSyncRaftLog* log, SyncIndex lo, SyncIndex hi, SSyncRaftEn
 
 }
 
+static visitNumOfPendingConf(const SSyncRaftEntry* entry, void* arg) {
+  int* n = (int*)arg;
+  if (syncRaftIsConfEntry(entry)) *n = *n + 1;
+}
+
+// return number of pending config entries
 int syncRaftLogNumOfPendingConf(SSyncRaftLog* log) {
   SyncIndex lo = log->appliedIndex + 1;
   SyncIndex hi = log->committedIndex + 1;
@@ -248,7 +254,16 @@ int syncRaftLogNumOfPendingConf(SSyncRaftLog* log) {
     return 0;
   }
 
+  SyncIndex unstableOffset = syncRaftUnstableLogOffset(log->unstable);
+  int n = 0;
+  if (lo < unstableOffset) {
+    syncRaftStableLogVisit(log->storage, lo, MIN(hi, unstableOffset), visitNumOfPendingConf, &n);
+  }
+  if (hi > unstableOffset) {
+    syncRaftUnstableLogVisit(log->unstable, MAX(lo, unstableOffset), hi, visitNumOfPendingConf, &n);
+  }
   
+  return n;
 }
 
 bool syncRaftLogIsCommitted(SSyncRaftLog* log, SyncIndex index) {

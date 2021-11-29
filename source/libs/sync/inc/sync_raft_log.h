@@ -20,10 +20,6 @@
 #include "sync_type.h"
 #include "sync_raft_code.h"
 
-typedef enum ESyncRaftEntryType {
-  SYNC_ENTRY_TYPE_LOG = 1,
-} ESyncRaftEntryType;
-
 SSyncRaftLog* syncCreateRaftLog(SSyncRaftStableLog* storage, uint64_t maxNextEntsSize);
 
 bool syncRaftLogMaybeAppend(SSyncRaftLog* log, SyncIndex index, SyncTerm logTerm, 

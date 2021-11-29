@@ -37,6 +37,10 @@ void syncRaftUnstableLogStableTo(SSyncRaftUnstableLog* unstable, SyncIndex i, Sy
 
 int syncRaftUnstableLogTruncateAndAppend(SSyncRaftUnstableLog* unstable, SSyncRaftEntry* entries, int n);
 
-int syncRaftUnstableLogNumOfPendingConf(const SSyncRaftUnstableLog* unstable, SyncIndex appliedIndex, SyncIndex commitIndex);
+int syncRaftUnstableLogNumOfPendingConf(const SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi);
+
+void syncRaftUnstableLogVisit(const SSyncRaftUnstableLog* storage, SyncIndex lo, SyncIndex hi, visitEntryFp visit, void* arg);
+
+SyncIndex syncRaftUnstableLogOffset(const SSyncRaftUnstableLog* unstable);
 
 #endif // _TD_LIBS_SYNC_RAFT_UNSTABLE_LOG_H
