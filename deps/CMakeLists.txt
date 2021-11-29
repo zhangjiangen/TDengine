@@ -69,6 +69,24 @@ IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
   INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
 ENDIF ()
 
+IF (CUNIT)
+  MESSAGE("")
+  MESSAGE("${Green} ENABLE CUNIT ${ColorReset}")
+  MESSAGE("")
+  MESSAGE("current source dir: " ${CMAKE_CURRENT_SOURCE_DIR})
+  MESSAGE("binary dir: " ${CMAKE_BINARY_DIR})
+  include(ExternalProject)
+  ExternalProject_Add(
+          Cunit
+          PREFIX    "Cunit"
+          SOURCE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/CUnit-2.1-3
+          BUILD_IN_SOURCE   1
+          CONFIGURE_COMMAND
+            COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/
+          BUILD_COMMAND ${MAKE}
+  )
+ENDIF ()
+
 IF (${TSZ_ENABLED} MATCHES "true")
   ADD_SUBDIRECTORY(TSZ)
 ENDIF()
