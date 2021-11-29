@@ -26,25 +26,38 @@ typedef enum ESyncRaftEntryType {
 
 SSyncRaftLog* syncCreateRaftLog(SSyncRaftStableLog* storage, uint64_t maxNextEntsSize);
 
-SyncIndex syncRaftLogLastIndex(SSyncRaftLog* pLog);
+bool syncRaftLogMaybeAppend(SSyncRaftLog* log, SyncIndex index, SyncTerm logTerm, 
+                            SyncIndex committedIndex, const SSyncRaftEntry* entries, int n, SyncIndex* lastNewIndex);
 
-SyncIndex syncRaftLogFirstIndex(SSyncRaftLog* pLog);
+SyncIndex syncRaftLogAppend(SSyncRaftLog*, const SSyncRaftEntry* entries, int n);
 
-SyncIndex syncRaftLogSnapshotIndex(SSyncRaftLog* pLog);
+bool syncRaftLogMatchTerm(SSyncRaftLog* log, SyncIndex index, SyncTerm logTerm);
 
-SyncTerm syncRaftLogLastTerm(SSyncRaftLog* pLog);
+bool syncRaftLogCommitTo(SSyncRaftLog* log, SyncIndex toCommit);
+
+SyncIndex syncRaftLogLastIndex(const SSyncRaftLog* log);
+
+SyncTerm syncRaftLogTermOf(SSyncRaftLog* log, SyncIndex index, ESyncRaftCode* errCode);
+
+SyncIndex syncRaftLogFirstIndex(SSyncRaftLog* log);
+
+SyncIndex syncRaftLogFindConflictByTerm(const SSyncRaftLog* log, SyncIndex index, SyncTerm term);
+
+SyncTerm syncRaftLogLastTerm(const SSyncRaftLog* pLog);
 
 void syncRaftLogAppliedTo(SSyncRaftLog* pLog, SyncIndex appliedIndex);
 
-bool syncRaftLogIsUptodate(SSyncRaftLog* pLog, SyncIndex index, SyncTerm term);
+bool syncRaftLogIsUptodate(const SSyncRaftLog* pLog, SyncIndex index, SyncTerm term);
+
+bool syncRaftHasUnappliedLog(const SSyncRaftLog* pLog);
+
+void syncRaftLogSlice(SSyncRaftLog* pLog, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n, int limit);
 
 int syncRaftLogNumOfPendingConf(SSyncRaftLog* pLog);
 
-bool syncRaftHasUnappliedLog(SSyncRaftLog* pLog);
 
-SyncTerm syncRaftLogTermOf(SSyncRaftLog* pLog, SyncIndex index, ESyncRaftCode* errCode);
 
-int syncRaftLogAppend(SSyncRaftLog* pLog, SSyncRaftEntry *pEntries, int n);
+
 
 int syncRaftLogAcquire(SSyncRaftLog* pLog, SyncIndex index, int maxMsgSize,
                       SSyncRaftEntry **ppEntries, int *n);
@@ -52,10 +65,5 @@ int syncRaftLogAcquire(SSyncRaftLog* pLog, SyncIndex index, int maxMsgSize,
 void syncRaftLogRelease(SSyncRaftLog* pLog, SyncIndex index,
                       SSyncRaftEntry *pEntries, int n);
 
-bool syncRaftLogMatchTerm();
-
-static FORCE_INLINE bool syncRaftLogIsCommitted(SSyncRaftLog* pLog, SyncIndex index) {
-  return pLog->commitIndex > index;
-}
 
 #endif  /* _TD_LIBS_SYNC_RAFT_LOG_H */

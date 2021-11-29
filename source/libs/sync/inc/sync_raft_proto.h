@@ -72,9 +72,14 @@ typedef struct SyncRaftSnapshot {
 struct SSyncRaftEntry {
   SyncTerm term;
   SyncIndex index;
+  int type;
   SSyncBuffer buffer;
   unsigned int refCount;
 };
+
+static FORCE_INLINE bool syncRaftIsConfEntry(const SSyncRaftEntry* entry) {
+  return false;
+}
 
 static FORCE_INLINE bool syncRaftConfArrayIsEmpty(const SSyncConfChangeSingleArray* ary) {
   return ary->n == 0;

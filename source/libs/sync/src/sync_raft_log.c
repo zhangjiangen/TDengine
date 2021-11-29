@@ -13,11 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "syncInt.h"
 #include "sync_raft_log.h"
+#include "sync_raft_proto.h"
 #include "sync_raft_stable_log.h"
 #include "sync_raft_unstable_log.h"
 
+static SyncIndex findConflict(SSyncRaftLog*, const SSyncRaftEntry*, int n);
+
 struct SSyncRaftLog {
+  // owner Raft
+  SSyncRaft* pRaft;
+
   // storage contains all stable entries since the last snapshot.
   SSyncRaftStableLog* storage;
 
@@ -51,158 +58,199 @@ SSyncRaftLog* syncCreateRaftLog(SSyncRaftStableLog* storage, uint64_t maxNextEnt
   SyncIndex firstIndex = syncRaftStableLogFirstIndex(storage);
   SyncIndex lastIndex = syncRaftStableLogLastIndex(storage);
 
+  SSyncRaftUnstableLog* unstable = syncRaftCreateUnstableLog(lastIndex);
+  if (unstable == NULL) {
+    free(log);
+    return NULL;
+  }
+  log->unstable = unstable;
+
   // Initialize our committed and applied pointers to the time of the last compaction.
   log->committedIndex = firstIndex - 1;
   log->committedIndex = firstIndex - 1;
   return log;
 }
 
-#if 0
-static int raftLogNumEntries(const SSyncRaftLog* pLog);
-static int locateEntry(SSyncRaftLog* pLog, SyncIndex index);
-
-/* raft log entry with reference count */
-struct SSyncRaftEntry {
-  SyncTerm term;
-  SSyncBuffer buffer;
-  unsigned int refCount;
-};
-
-/* meta data about snapshot */
-typedef struct RaftSnapshotMeta {
-  SyncIndex lastIndex;
-  SyncTerm  lastTerm;
-} RaftSnapshotMeta;
-
-/* in-memory raft log storage */
-struct SSyncRaftLog {
-  /* Circular buffer of log entries */
-  SSyncRaftEntry *entries;
-
-  /* size of Circular buffer */
-  int size;
-
-  /* Indexes of used slots [front, back) */
-  int front, back;
-
-  /* Index of first entry is offset + 1 */
-  SyncIndex offset;
-
-  /* meta data of snapshot */
-  RaftSnapshotMeta snapshot;
-
-  SyncIndex uncommittedConfigIndex;
-
-  SyncIndex commitIndex;
-
-  SyncIndex appliedIndex;
-};
-
-SSyncRaftLog* syncCreateRaftLog() {
-  SSyncRaftLog* log = (SSyncRaftLog*)malloc(sizeof(SSyncRaftLog));
-  if (log == NULL) {
-    return NULL;
+// maybeAppend returns (0, false) if the entries cannot be appended. Otherwise,
+// it returns (last index of new entries, true).
+bool syncRaftLogMaybeAppend(SSyncRaftLog* log, SyncIndex index, SyncTerm logTerm, 
+                            SyncIndex committedIndex, const SSyncRaftEntry* entries, int n, SyncIndex* lastNewIndex) {
+  if (!syncRaftLogMatchTerm(log, index, logTerm)) {
+    return false;
   }
 
-  return log;
-}
-
-SyncIndex syncRaftLogLastIndex(SSyncRaftLog* pLog) {
-  /**
-   * if there are no entries and there is a snapshot,
-   * check that the last index of snapshot is not smaller than log offset
-   **/
-  if (raftLogNumEntries(pLog) && pLog->snapshot.lastIndex != 0) {
-    assert(pLog->offset <= pLog->snapshot.lastIndex);
+  *lastNewIndex = index + n;
+  SyncIndex ci = findConflict(log, entries, n);
+  if (ci <= log->committedIndex) {
+    syncFatal("[%d:%d]entry %d conflict with committed entry [committed(%d)]", 
+      log->pRaft->selfGroupId, log->pRaft->selfId, ci, log->committedIndex);
+    return false;
   }
 
-  return pLog->offset + raftLogNumEntries(pLog);
-}
-
-SyncIndex syncRaftLogFirstIndex(SSyncRaftLog* pLog) {
-  return pLog->offset - 1;
-}
-
-SyncIndex syncRaftLogSnapshotIndex(SSyncRaftLog* pLog) {
-  return pLog->snapshot.lastIndex;
-}
-
-SyncTerm syncRaftLogLastTerm(SSyncRaftLog* pLog) {
-  SyncIndex lastIndex;
-
-  lastIndex = syncRaftLogLastIndex(pLog);
-
-  if (lastIndex > 0) {
-    return syncRaftLogTermOf(pLog, lastIndex, NULL);
+  if (ci == 0) {
+    syncRaftLogCommitTo(log, MIN(committedIndex, *lastNewIndex));
+    return true;
   }
-
-  return SYNC_NON_TERM;
-}
-
-void syncRaftLogAppliedTo(SSyncRaftLog* pLog, SyncIndex appliedIndex) {
-
-}
-
-bool syncRaftLogIsUptodate(SSyncRaftLog* pLog, SyncIndex index, SyncTerm term) {
+  SyncIndex offset = index + 1;
+  syncRaftLogAppend(log, &entries[ci-offset], n - (ci - offset));
+  syncRaftLogCommitTo(log, MIN(committedIndex, *lastNewIndex));
   return true;
 }
 
-int syncRaftLogNumOfPendingConf(SSyncRaftLog* pLog) {
-  return 0;
+SyncIndex syncRaftLogAppend(SSyncRaftLog* log, const SSyncRaftEntry* entries, int n) {
+  if (n == 0) {
+    return syncRaftLogLastIndex(log);
+  }
+  SyncIndex afterIndex = entries[0].index - 1;
+  if (afterIndex < log->committedIndex) {
+    return 0;
+  }
+  syncRaftUnstableLogTruncateAndAppend(log->unstable, entries, n);
+  return syncRaftLogLastIndex(log);
 }
 
-bool syncRaftHasUnappliedLog(SSyncRaftLog* pLog) {
-  return pLog->commitIndex > pLog->appliedIndex;
+bool syncRaftLogMatchTerm(SSyncRaftLog* log, SyncIndex index, SyncTerm logTerm) {
+
+}
+
+bool syncRaftLogCommitTo(SSyncRaftLog* log, SyncIndex toCommit) {
+  // never decrease commit
+  if (log->committedIndex < toCommit) {
+    SyncIndex lastIndex = syncRaftLogLastIndex(log);
+    if (lastIndex < toCommit) {
+      syncFatal("[%d:%d]entry %d conflict with committed entry [committed(%d)]",
+        log->pRaft->selfGroupId, log->pRaft->selfId, ci, log->committedIndex);
+    }
+    log->committedIndex = toCommit;
+  }
+}
+
+SyncIndex syncRaftLogLastIndex(const SSyncRaftLog* log) {
+
 }
 
 SyncTerm syncRaftLogTermOf(SSyncRaftLog* pLog, SyncIndex index, ESyncRaftCode* errCode) {
+  // the valid term range is [index of dummy entry, last index]
+
+}
+
+SyncIndex syncRaftLogFirstIndex(SSyncRaftLog* log) {
+  SyncIndex firstIndex;
+  if (syncRaftUnstableLogMaybeFirstIndex(log->unstable, &firstIndex)) {
+    return firstIndex;
+  }
+  return syncRaftStableLogFirstIndex(log->storage);
+}
+
+// findConflict finds the index of the conflict.
+// It returns the first pair of conflicting entries between the existing
+// entries and the given entries, if there are any.
+// If there is no conflicting entries, and the existing entries contains
+// all the given entries, zero will be returned.
+// If there is no conflicting entries, but the given entries contains new
+// entries, the index of the first new entry will be returned.
+// An entry is considered to be conflicting if it has the same index but
+// a different term.
+// The index of the given entries MUST be continuously increasing.
+static SyncIndex findConflict(SSyncRaftLog* log, const SSyncRaftEntry* entries, int n) {
   int i;
-
-  assert(index > 0);
-  assert(pLog->offset <= pLog->snapshot.lastIndex);
-
-  if (index == pLog->snapshot.lastIndex) {
-    assert(pLog->snapshot.lastTerm != 0);
-    i = locateEntry(pLog, index);
-    /**
-     * if we still have the entry at last index, then its term MUST match to the snapshot last term
-     **/
-    if (i != pLog->size) {
-      assert(pLog->entries[i].term == pLog->snapshot.lastTerm);
+  SyncIndex lastIndex = syncRaftLogLastIndex(log);
+  for (i = 0; i < n; ++i) {
+    const SSyncRaftEntry* entry = &entries[i];
+    if (!syncRaftLogMatchTerm(log, entry->index, entry->term)) {
+      if (entry->index <= lastIndex) {
+        syncFatal("[%d:%d]found conflict at index %d [existing term: %d, conflicting term: %d]",
+          log->pRaft->selfGroupId, log->pRaft->selfId, entry->index);
+      }
+      return entry->index;
     }
-
-    return pLog->snapshot.lastTerm;
   }
 
-  /* is the log has been compacted? */
-  if (index < pLog->offset + 1) {
-    if (errCode) *errCode = RAFT_INDEX_COMPACTED;
-    return 0;
-  }
-
-  /* is the log index bigger than the last log index? */
-  if (index > raftLogLastIndex(pLog)) {
-    if (errCode) *errCode = RAFT_INDEX_UNAVAILABLE;
-    return 0;
-  }
-  
-  i = locateEntry(pLog, index);
-  assert(i < pLog->size);
-  return pLog->entries[i].term;
-}
-
-int syncRaftLogAppend(SSyncRaftLog* pLog, SSyncRaftEntry *pEntries, int n) {
-
-}
-
-int syncRaftLogAcquire(SSyncRaftLog* pLog, SyncIndex index, int maxMsgSize,
-                      SSyncRaftEntry **ppEntries, int *n) {
   return 0;
 }
 
-void syncRaftLogRelease(SSyncRaftLog* pLog, SyncIndex index,
-                      SSyncRaftEntry *pEntries, int n) {
-  return;
+// findConflictByTerm takes an (index, term) pair (indicating a conflicting log
+// entry on a leader/follower during an append) and finds the largest index in
+// log l with a term <= `term` and an index <= `index`. If no such index exists
+// in the log, the log's first index is returned.
+//
+// The index provided MUST be equal to or less than l.lastIndex(). Invalid
+// inputs log a warning and the input index is returned.
+SyncIndex syncRaftLogFindConflictByTerm(const SSyncRaftLog* log, SyncIndex index, SyncTerm term) {
+  SyncIndex lastIndex = syncRaftLogLastIndex(log);
+  if (index > lastIndex) {
+    return index;
+  }
+
+  while (true) {
+    ESyncRaftCode err = RAFT_OK;
+    SyncTerm logTerm = syncRaftLogTermOf(log, index, &err);
+    if (logTerm <= term || err != RAFT_OK) {
+      return index;
+    }
+    index -= 1;
+  }
+
+  return index;
 }
 
-#endif
+SyncTerm syncRaftLogLastTerm(const SSyncRaftLog* log) {
+  ESyncRaftCode err = RAFT_OK;
+  SyncIndex lastIndex = syncRaftLogLastIndex(log);
+  SyncTerm logTerm = syncRaftLogTermOf(log, lastIndex, &err);
+  if (err != RAFT_OK) {
+
+  }
+  return logTerm;
+}
+
+void syncRaftLogAppliedTo(SSyncRaftLog* log, SyncIndex index) {
+  if (index == 0) {
+    return;
+  }
+
+  if (log->committedIndex < index || index < log->appliedIndex) {
+
+  }
+  log->appliedIndex = index;
+}
+
+// isUpToDate determines if the given (lastIndex,term) log is more up-to-date
+// by comparing the index and term of the last entries in the existing logs.
+// If the logs have last entries with different terms, then the log with the
+// later term is more up-to-date. If the logs end with the same term, then
+// whichever log has the larger lastIndex is more up-to-date. If the logs are
+// the same, the given log is up-to-date.
+bool syncRaftLogIsUptodate(const SSyncRaftLog* log, SyncIndex index, SyncTerm term) {
+  SyncIndex lastIndex = syncRaftLogLastIndex(log);
+  SyncTerm  lastTerm  = syncRaftLogLastTerm(log);
+
+  return term > lastTerm || (term == lastTerm && index >= lastIndex);
+}
+
+bool syncRaftHasUnappliedLog(const SSyncRaftLog* log) {
+  return log->committedIndex > log->appliedIndex;
+}
+
+// slice returns a slice of log entries from lo through hi-1, inclusive.
+void syncRaftLogSlice(SSyncRaftLog* log, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n, int limit) {
+  if (lo == hi) {
+    *n = 0;
+    return;
+  }
+
+}
+
+int syncRaftLogNumOfPendingConf(SSyncRaftLog* log) {
+  SyncIndex lo = log->appliedIndex + 1;
+  SyncIndex hi = log->committedIndex + 1;
+  if (lo == hi) {
+    return 0;
+  }
+
+  
+}
+
+bool syncRaftLogIsCommitted(SSyncRaftLog* log, SyncIndex index) {
+  return log->committedIndex <= index;
+}

@@ -47,4 +47,4 @@ const SSyncRaftEntry* syncRaftFirstEntry(const SSyncRaftEntryArray* ents);
 
 const SSyncRaftEntry* syncRaftLastEntry(const SSyncRaftEntryArray* ents);
 
-#endif // _TD_LIBS_SYNC_RAFT_STABLE_LOG_H
+#endif // _TD_LIBS_SYNC_RAFT_ENTRY__H

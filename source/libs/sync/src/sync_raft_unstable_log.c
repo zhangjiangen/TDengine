@@ -156,6 +156,21 @@ int syncRaftUnstableLogTruncateAndAppend(SSyncRaftUnstableLog* unstable, SSyncRa
   return syncRaftAppendEntries(unstable->entries, entries, n);
 }
 
+int syncRaftUnstableLogNumOfPendingConf(const SSyncRaftUnstableLog* unstable, SyncIndex appliedIndex, SyncIndex commitIndex) {
+  int n = 0;
+  
+  if (appliedIndex < unstable->offset) {
+    SyncIndex lastIndex = MIN(commitIndex, unstable->offset);
+    while (appliedIndex < lastIndex) {
+      const SSyncRaftEntry* entry = &unstable->entries[];
+      if (syncRaftIsConfEntry(entry)) n+=1;
+      appliedIndex += 1;
+    }
+  }
+
+  return n;
+}
+
 static void unstableSliceEntries(SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n) {
   syncRaftSliceEntries(unstable->entries, lo - unstable->offset, hi - unstable->offset, ppEntries, n);
 }
