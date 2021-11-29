@@ -33,15 +33,15 @@ static int positionAt(const SSyncRaftEntryArray*, int i);
 
 static void removePrefix(SSyncRaftEntryArray*, int pos);
 static int numBeforePosition(const SSyncRaftEntryArray*, int pos);
+static void initEntry(SSyncRaftEntry *entry);
 
-
-
+static int ensureCapacity(SSyncRaftEntryArray*, int n);
 
 
 
 static void resetEntries(SSyncRaftEntryArray*);
 
-static int ensureCapacity(SSyncRaftEntryArray*, int n);
+
 
 static int sliceEntries(SSyncRaftEntryArray* ents, SyncIndex from, SyncIndex to, SSyncRaftEntry **ppEntries, int* n);
 
@@ -68,6 +68,27 @@ SSyncRaftEntryArray* syncRaftCreateEntryArray() {
   return ary;
 }
 
+void syncRaftDestroyEntryArray(SSyncRaftEntryArray* ents) {
+  syncRaftCleanEntryArray(ents);
+  free(ents);
+}
+
+void syncRaftCleanEntryArray(SSyncRaftEntryArray* ents) {
+  int i, n, j;
+  n = syncRaftNumOfEntries(ents);
+  for (i = 0; i < n; ++i) {
+    j = (i + ents->front) % ents->size;
+    SSyncRaftEntry* entry = &ents->entries[j];
+    if (entry->buffer.data != NULL) {
+      free(entry->buffer.data);
+    }
+    
+    initEntry(entry);
+  }
+
+  ents->front = ents->back = 0; 
+}
+
 int syncRaftNumOfEntries(const SSyncRaftEntryArray* ents) {
   // if circular buffer wrapped?
   if (ents->front > ents->back) {
@@ -88,6 +109,69 @@ SyncTerm syncRaftTermOfPosition(const SSyncRaftEntryArray* ents, int pos) {
 // delete all entries before the given position(included)
 void syncRaftRemoveEntriesBeforePosition(SSyncRaftEntryArray* ents, int pos) {
   removePrefix(ents, pos);
+}
+
+int syncRaftAppendEntries(SSyncRaftEntryArray* ents, SSyncRaftEntry* entries, int n) {
+  int ret, i;
+
+  ret = ensureCapacity(ents, n);
+  if (ret < 0) {
+    return ret;
+  }
+
+  for (i = 0; i < n; ++i) {
+    SSyncRaftEntry* entry = &ents->entries[ents->back];
+    memcpy(entry, &entries[i], sizeof(SSyncRaftEntry));
+    ents->back = (1 + ents->back) % ents->size;
+  }
+}
+
+int syncRaftAppendEmptyEntry(SSyncRaftEntryArray* ents) {
+  int ret;
+
+  ret = ensureCapacity(ents, 1);
+  if (ret < 0) {
+    return ret;
+  }
+  SSyncRaftEntry* entry = &ents->entries[ents->back];
+  initEntry(entry);
+  ents->back = (1 + ents->back) % ents->size;
+}
+
+int syncRaftAssignEntries(SSyncRaftEntryArray* ents, SSyncRaftEntry* entries, int n) {
+  syncRaftCleanEntryArray(ents);
+  return syncRaftAppendEntries(ents, entries, n);
+}
+
+int syncRaftSliceEntries(SSyncRaftEntryArray* ents, int lo, int hi, SSyncRaftEntry** ppEntries, int* n) {
+  int num = syncRaftNumOfEntries(ents);
+  int size = hi - lo + 1;
+
+  assert(hi > lo);  
+  assert (num >= size);
+
+  SSyncRaftEntry* entries = (SSyncRaftEntry*)malloc(size * sizeof(SSyncRaftEntry));
+  if (entries == NULL) {
+    return RAFT_NO_MEM;
+  }
+
+  int i;
+  for (i = 0; i < size; ++i) {
+    const SSyncRaftEntry* entry = entryAt(ents, lo + i);
+    memcpy(&entries[i], entry, sizeof(SSyncRaftEntry));
+  }
+  *ppEntries = entries;
+  *n = size;
+
+  return RAFT_OK;
+}
+
+const SSyncRaftEntry* syncRaftFirstEntry(const SSyncRaftEntryArray* ents) {
+  return entryAt(ents, 0);
+}
+
+const SSyncRaftEntry* syncRaftLastEntry(const SSyncRaftEntryArray* ents) {
+  return entryAt(ents, ents->size - 1);
 }
 
 // return the index of circular buffer of the i'th entry in the log
@@ -136,38 +220,17 @@ static int numBeforePosition(const SSyncRaftEntryArray* ents, int pos) {
   return num;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+static void initEntry(SSyncRaftEntry *entry) {
+  *entry = (SSyncRaftEntry) {
+    .buffer = (SSyncBuffer) {
+      .data = NULL,
+      .len  = 0,
+    },
+    .index = 0,
+    .refCount = 0,
+    .term = SYNC_NON_TERM,
+  };
+}
 
 // Ensure that the entries array has enough free slots for adding n new entry.
 static int ensureCapacity(SSyncRaftEntryArray* ents, int n) {
@@ -200,6 +263,21 @@ static int ensureCapacity(SSyncRaftEntryArray* ents, int n) {
 
   return RAFT_OK;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 static int sliceEntries(SSyncRaftEntryArray* ents, SyncIndex from, SyncIndex to, SSyncRaftEntry **ppEntries, int* n) {
   return RAFT_OK;

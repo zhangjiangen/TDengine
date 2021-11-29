@@ -21,6 +21,10 @@
 
 SSyncRaftEntryArray* syncRaftCreateEntryArray();
 
+void syncRaftDestroyEntryArray(SSyncRaftEntryArray*);
+
+void syncRaftCleanEntryArray(SSyncRaftEntryArray*);
+
 int syncRaftNumOfEntries(const SSyncRaftEntryArray* ents);
 
 const SSyncRaftEntry* syncRaftEntryOfPosition(const SSyncRaftEntryArray* ents, int pos);
@@ -32,8 +36,15 @@ void syncRaftRemoveEntriesBeforePosition(SSyncRaftEntryArray* ents, int pos);
 
 int syncRaftAppendEntries(SSyncRaftEntryArray* ents, SSyncRaftEntry* entries, int n);
 
+int syncRaftAppendEmptyEntry(SSyncRaftEntryArray* ents);
+
 int syncRaftAssignEntries(SSyncRaftEntryArray* ents, SSyncRaftEntry* entries, int n);
 
+// return entries between [lo,hi]
 int syncRaftSliceEntries(SSyncRaftEntryArray* ents, int lo, int hi, SSyncRaftEntry** ppEntries, int* n);
+
+const SSyncRaftEntry* syncRaftFirstEntry(const SSyncRaftEntryArray* ents);
+
+const SSyncRaftEntry* syncRaftLastEntry(const SSyncRaftEntryArray* ents);
 
 #endif // _TD_LIBS_SYNC_RAFT_STABLE_LOG_H

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "syncInt.h"
 #include "sync_raft_entry.h"
 #include "sync_raft_proto.h"
 #include "sync_raft_unstable_log.h"
@@ -125,23 +126,36 @@ int syncRaftUnstableLogTruncateAndAppend(SSyncRaftUnstableLog* unstable, SSyncRa
   int num = syncRaftNumOfEntries(unstable->entries);
 
   if (afterIndex == unstable->offset + num) {
+		// after is the next index in the u.entries
+		// directly append
     return syncRaftAppendEntries(unstable->entries, entries, n);
   }
 
   if (afterIndex <= unstable->offset) {
+    syncInfo("replace the unstable entries from index %" PRId64 "", afterIndex);
+		// The log is being truncated to before our current offset
+		// portion, so set the offset and replace the entries    
     unstable->offset = afterIndex;
     return syncRaftAssignEntries(unstable->entries, entries, n);
   }
 
+  assert(afterIndex > unstable->offset);
+
+	// truncate to after and copy to u.entries
+	// then append
+  syncInfo("truncate the unstable entries before index %" PRId64 "", afterIndex);
   SSyncRaftEntry* sliceEnts;
   int nSliceEnts;
 
   unstableSliceEntries(unstable, unstable->offset, afterIndex, &sliceEnts, &nSliceEnts);
 
-  syncRaftAppendEntries(unstable->entries, sliceEnts, nSliceEnts);
+  syncRaftCleanEntryArray(unstable->entries);
+  syncRaftAppendEmptyEntry(unstable->entries);
+  int ret = syncRaftAppendEntries(unstable->entries, sliceEnts, nSliceEnts);
+  if (ret < 0) return ret;
   return syncRaftAppendEntries(unstable->entries, entries, n);
 }
 
 static void unstableSliceEntries(SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n) {
-  syncRaftSliceEntries(unstable->entries, lo-unstable->offset, hi - unstable->offset, ppEntries, n);
+  syncRaftSliceEntries(unstable->entries, lo - unstable->offset, hi - unstable->offset, ppEntries, n);
 }

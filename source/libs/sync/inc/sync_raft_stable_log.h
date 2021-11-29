@@ -22,6 +22,8 @@
 
 SSyncRaftStableLog* syncRaftCreateStableLog();
 
+void syncRaftStableEntries(SSyncRaftStableLog* storage, SyncIndex lo, SyncIndex hi, int maxSize, SSyncRaftEntry** ppEntries, int* n);
+
 SyncIndex syncRaftStableLogLastIndex(const SSyncRaftStableLog* storage);
 
 // FirstIndex returns the index of the first log entry that is
@@ -29,5 +31,7 @@ SyncIndex syncRaftStableLogLastIndex(const SSyncRaftStableLog* storage);
 // into the latest Snapshot; if storage only contains the dummy entry the
 // first log entry is not available).
 SyncIndex syncRaftStableLogFirstIndex(const SSyncRaftStableLog* storage);
+
+int syncRaftStableAppendEntries(SSyncRaftStableLog* storage, SSyncRaftEntry* entries, int n);
 
 #endif // _TD_LIBS_SYNC_RAFT_STABLE_LOG_H
