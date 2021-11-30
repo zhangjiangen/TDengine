@@ -19,7 +19,7 @@
 #include "sync.h"
 #include "sync_type.h"
 
-SSyncRaftUnstableLog* syncRaftCreateUnstableLog(SyncIndex lastIndex);
+SSyncRaftUnstableLog* syncRaftCreateUnstableLog(const SSyncRaft*, SyncIndex lastIndex);
 
 // maybeFirstIndex returns the index of the first possible entry in entries
 // if it has a snapshot.
@@ -37,7 +37,7 @@ void syncRaftUnstableLogStableTo(SSyncRaftUnstableLog* unstable, SyncIndex i, Sy
 
 int syncRaftUnstableLogTruncateAndAppend(SSyncRaftUnstableLog* unstable, SSyncRaftEntry* entries, int n);
 
-int syncRaftUnstableLogNumOfPendingConf(const SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi);
+void syncRaftUnstableLogSlice(const SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n);
 
 void syncRaftUnstableLogVisit(const SSyncRaftUnstableLog* storage, SyncIndex lo, SyncIndex hi, visitEntryFp visit, void* arg);
 

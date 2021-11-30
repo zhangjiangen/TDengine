@@ -20,7 +20,8 @@
 #include "sync_raft_unstable_log.h"
 
 static void visitNumOfPendingConf(const SSyncRaftEntry* entry, void* arg);
-static SyncIndex findConflict(SSyncRaftLog*, const SSyncRaftEntry*, int n);
+static SyncIndex findConflict(const SSyncRaftLog*, const SSyncRaftEntry*, int n);
+static int mustCheckOutOfBounds(const SSyncRaftLog*, SyncIndex lo, SyncIndex hi);
 static SyncTerm zeroTermOnErrCompacted(const SSyncRaftLog*, SyncTerm, ESyncRaftCode err);
 
 struct SSyncRaftLog {
@@ -60,7 +61,7 @@ SSyncRaftLog* syncCreateRaftLog(SSyncRaftStableLog* storage, uint64_t maxNextEnt
   SyncIndex firstIndex = syncRaftStableLogFirstIndex(storage);
   SyncIndex lastIndex = syncRaftStableLogLastIndex(storage);
 
-  SSyncRaftUnstableLog* unstable = syncRaftCreateUnstableLog(lastIndex);
+  SSyncRaftUnstableLog* unstable = syncRaftCreateUnstableLog(pRaft, lastIndex);
   if (unstable == NULL) {
     free(log);
     return NULL;
@@ -282,11 +283,69 @@ bool syncRaftHasUnappliedLog(const SSyncRaftLog* log) {
 
 // slice returns a slice of log entries from lo through hi-1, inclusive.
 int syncRaftLogSlice(SSyncRaftLog* log, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n) {
-  if (lo == hi) {
-    *n = 0;
-    return;
+  *n = 0;
+  if (lo == hi) {    
+    return RAFT_OK;
   }
 
+  int err = mustCheckOutOfBounds(log, lo, hi);
+  if (err != RAFT_OK) {
+    return err;
+  }
+
+  SSyncRaft* pRaft = log->pRaft;
+  SSyncRaftEntry *stableEnts = NULL, *unstableEnts = NULL, *pRet = NULL;
+  int nStableEnts = 0, nUnstableEnts = 0, nRet = 0;
+
+  SyncIndex unstableOffset = syncRaftUnstableLogOffset(log->unstable);
+  if (lo < unstableOffset) {
+    SyncIndex newHi = MIN(hi, unstableOffset);
+    err = syncRaftStableEntries(log->storage, lo, newHi, &stableEnts, &nStableEnts);
+    if (err == RAFT_COMPACTED) {
+      return err;
+    } else if (err == RAFT_UNAVAILABLE) {
+      syncFatal("[%d:%d]entries[%"PRId64":%"PRId64") is unavailable from storage",
+        pRaft->selfGroupId, pRaft->selfId, lo, newHi);
+    } else {
+      syncFatal("[%d:%d]syncRaftLogSlice fail:%s",
+        pRaft->selfGroupId, pRaft->selfId, gSyncRaftCodeString[err]);
+    }
+
+    // check if ents has reached the size limitation
+    if (nStableEnts < newHi) {
+      *ppEntries = stableEnts;
+      *n = nStableEnts;
+      return RAFT_OK;
+    }
+    pRet = stableEnts;
+    nRet = nStableEnts;
+  }
+
+  if (hi > unstableOffset) {
+    SyncIndex newLo = MAX(lo, unstableOffset);
+    syncRaftUnstableLogSlice(log->unstable, newLo, hi, &unstableEnts, &nUnstableEnts);
+
+    if (nRet > 0) {
+      SSyncRaftEntry* combined = (SSyncRaftEntry*)malloc((nRet + nUnstableEnts) * sizeof(SSyncRaftEntry));
+      if (combined == NULL) {
+        return RAFT_NO_MEM;
+      }
+      memcpy(combined, pRet, sizeof(SSyncRaftEntry) * nRet);
+      memcpy(&combined[nRet], unstableEnts, sizeof(SSyncRaftEntry) * nUnstableEnts);
+
+      pRet = combined;
+      nRet = nRet + unstableEnts;
+      if (stableEnts) free(stableEnts);
+      if (unstableEnts) free(unstableEnts);
+    } else {
+      pRet = unstableEnts;
+      nRet = nUnstableEnts;
+    }
+  }
+
+  *ppEntries = pRet;
+  *n = nRet;
+  return RAFT_OK;
 }
 
 // return number of pending config entries
@@ -328,7 +387,7 @@ static void visitNumOfPendingConf(const SSyncRaftEntry* entry, void* arg) {
 // An entry is considered to be conflicting if it has the same index but
 // a different term.
 // The index of the given entries MUST be continuously increasing.
-static SyncIndex findConflict(SSyncRaftLog* log, const SSyncRaftEntry* entries, int n) {
+static SyncIndex findConflict(const SSyncRaftLog* log, const SSyncRaftEntry* entries, int n) {
   int i;
   SyncIndex lastIndex = syncRaftLogLastIndex(log);
   SSyncRaft* pRaft = log->pRaft;
@@ -346,6 +405,29 @@ static SyncIndex findConflict(SSyncRaftLog* log, const SSyncRaftEntry* entries, 
   }
 
   return 0;
+}
+
+// l.firstIndex <= lo <= hi <= l.firstIndex + len(l.entries)
+static int mustCheckOutOfBounds(const SSyncRaftLog* log, SyncIndex lo, SyncIndex hi) {
+  SSyncRaft* pRaft = log->pRaft;
+
+  if (lo > hi) {
+    syncFatal("[%d:%d]invalid slice %" PRId64 " > %" PRId64 " ",
+      pRaft->selfGroupId, pRaft->selfId, lo, hi);
+  }
+
+  SyncIndex firstIndex = syncRaftLogFirstIndex(log);
+  if (lo < firstIndex) {
+    return RAFT_COMPACTED;
+  }
+  SyncIndex lastIndex = syncRaftLogLastIndex(log);
+  int length = (int)(lastIndex + 1 - firstIndex);
+  if (hi > firstIndex + length) {
+    syncFatal("[%d:%d]slice[%"PRId64",%"PRId64") out of bound [%"PRId64",%"PRId64"]",
+      pRaft->selfGroupId, pRaft->selfId, lo, hi, firstIndex, lastIndex);
+  }
+
+  return RAFT_OK;
 }
 
 static SyncTerm zeroTermOnErrCompacted(const SSyncRaftLog* log, SyncTerm t, ESyncRaftCode err) {

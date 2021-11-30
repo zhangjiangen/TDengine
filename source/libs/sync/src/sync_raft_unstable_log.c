@@ -18,7 +18,6 @@
 #include "sync_raft_proto.h"
 #include "sync_raft_unstable_log.h"
 
-static void unstableSliceEntries(SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n);
 static void mustCheckOutOfBounds(SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi);
 
 // unstable.entries[i] has raft log position i+unstable.offset.
@@ -26,6 +25,8 @@ static void mustCheckOutOfBounds(SSyncRaftUnstableLog* unstable, SyncIndex lo, S
 // position in storage; this means that the next write to storage
 // might need to truncate the log before persisting unstable.entries.
 struct SSyncRaftUnstableLog {
+  SSyncRaft* pRaft;
+
   SyncRaftSnapshot* snapshot;
 
   // all entries that have not yet been written to storage.
@@ -34,7 +35,7 @@ struct SSyncRaftUnstableLog {
   SyncIndex offset;
 };
 
-SSyncRaftUnstableLog* syncRaftCreateUnstableLog(SyncIndex lastIndex) {
+SSyncRaftUnstableLog* syncRaftCreateUnstableLog(const SSyncRaft* pRaft, SyncIndex lastIndex) {
   SSyncRaftUnstableLog* unstable = (SSyncRaftUnstableLog*)malloc(sizeof(SSyncRaftUnstableLog));
   if (unstable == NULL) {
     return NULL;
@@ -46,6 +47,7 @@ SSyncRaftUnstableLog* syncRaftCreateUnstableLog(SyncIndex lastIndex) {
     return NULL;
   }
   unstable->offset = lastIndex + 1;
+  unstable->pRaft = pRaft;
 
   return unstable;
 }
@@ -148,7 +150,7 @@ int syncRaftUnstableLogTruncateAndAppend(SSyncRaftUnstableLog* unstable, SSyncRa
   SSyncRaftEntry* sliceEnts;
   int nSliceEnts;
 
-  unstableSliceEntries(unstable, unstable->offset, afterIndex, &sliceEnts, &nSliceEnts);
+  syncRaftUnstableLogSlice(unstable, unstable->offset, afterIndex, &sliceEnts, &nSliceEnts);
 
   syncRaftCleanEntryArray(unstable->entries);
   syncRaftAppendEmptyEntry(unstable->entries);
@@ -171,14 +173,22 @@ SyncIndex syncRaftUnstableLogOffset(const SSyncRaftUnstableLog* unstable) {
   return unstable->offset;
 }
 
-static void unstableSliceEntries(SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n) {
+void syncRaftUnstableLogSlice(const SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n) {
+  mustCheckOutOfBounds(unstable, lo, hi);
   syncRaftSliceEntries(unstable->entries, lo - unstable->offset, hi - unstable->offset, ppEntries, n);
 }
 
+// u.offset <= lo <= hi <= u.offset+len(u.entries)
 static void mustCheckOutOfBounds(SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi) {
+  const SSyncRaft* pRaft = unstable->pRaft;
   if (lo > hi) {
-
+    syncFatal("[%d:%d]invalid unstable.slice %" PRId64 " > %" PRId64 "",
+      pRaft->selfGroupId, pRaft->selfId, lo, hi);
   }
 
-
+  SyncIndex upper = unstable->offset + syncRaftNumOfEntries(unstable->entries);
+  if (lo < unstable->offset || hi > upper) {
+    syncFatal("[%d:%d]unstable.slice[%"PRId64",%"PRId64") out of bound [%"PRId64",%"PRId64"]",
+      pRaft->selfGroupId, pRaft->selfId, lo, hi, unstable->offset, upper);
+  }
 }
