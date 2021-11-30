@@ -20,9 +20,13 @@
 #include "sync_raft_code.h"
 #include "sync_type.h"
 
-SSyncRaftStableLog* syncRaftCreateStableLog();
+SSyncRaftStableLog* syncRaftCreateStableLog(SSyncRaft* pRaft);
 
-void syncRaftStableEntries(SSyncRaftStableLog* storage, SyncIndex lo, SyncIndex hi, int maxSize, SSyncRaftEntry** ppEntries, int* n);
+// Entries returns a slice of log entries in the range [lo,hi).
+// MaxSize limits the total size of the log entries returned, but
+// Entries returns at least one entry if any.
+int syncRaftStableEntries(SSyncRaftStableLog* storage, SyncIndex lo, SyncIndex hi, 
+                          SSyncRaftEntry** ppEntries, int* n);
 
 SyncIndex syncRaftStableLogLastIndex(const SSyncRaftStableLog* storage);
 
@@ -31,6 +35,12 @@ SyncIndex syncRaftStableLogLastIndex(const SSyncRaftStableLog* storage);
 // into the latest Snapshot; if storage only contains the dummy entry the
 // first log entry is not available).
 SyncIndex syncRaftStableLogFirstIndex(const SSyncRaftStableLog* storage);
+
+// Term returns the term of entry i, which must be in the range
+// [FirstIndex()-1, LastIndex()]. The term of the entry before
+// FirstIndex is retained for matching purposes even though the
+// rest of that entry may not be available.
+SyncTerm syncRaftStableLogTerm(const SSyncRaftStableLog*, SyncIndex, ESyncRaftCode*);
 
 int syncRaftStableAppendEntries(SSyncRaftStableLog* storage, SSyncRaftEntry* entries, int n);
 

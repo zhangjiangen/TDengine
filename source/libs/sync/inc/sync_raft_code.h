@@ -19,17 +19,22 @@
 typedef enum ESyncRaftCode {
   RAFT_OK = 0,
 
-  /**
-   * RAFT_INDEX_COMPACTED is returned when a request index is predates the last snapshot
-   **/
-  RAFT_INDEX_COMPACTED = -1,
+  RAFT_NO_MEM = 1,
 
-  /**
-   * RAFT_INDEX_UNAVAILABLE is returned when a request index is unavailable
-   **/
-  RAFT_INDEX_UNAVAILABLE = -2,
+  // ErrCompacted is returned by Storage.Entries/Compact when a requested
+  // index is unavailable because it predates the last snapshot.
+  RAFT_COMPACTED = 2,
 
-  RAFT_NO_MEM = -3,
+  // ErrUnavailable is returned by Storage interface when the requested log entries
+  // are unavailable.
+  RAFT_UNAVAILABLE = 3,
 } ESyncRaftCode;
+
+const static const char* gSyncRaftCodeString[] = {
+  "OK",
+  "NO_MEM",
+  "COMPACTED",
+  "UNAVAILABLE",
+};
 
 #endif // _TD_LIBS_SYNC_RAFT_CODE_H

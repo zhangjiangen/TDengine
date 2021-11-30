@@ -20,7 +20,7 @@
 #include "syncInt.h"
 #include "sync_type.h"
 
-// syncRaftMaybeSendAppend sends an append RPC with new entries to the given peer,
+// maybeSendAppend sends an append RPC with new entries to the given peer,
 // if necessary. Returns true if a message was sent. The sendIfEmpty
 // argument controls whether messages with no entries will be sent
 // ("empty" messages are useful to convey updated Commit indexes, but

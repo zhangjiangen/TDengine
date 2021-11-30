@@ -19,11 +19,13 @@
 #include "sync_raft_stable_log.h"
 #include "sync_raft_unstable_log.h"
 
+static void visitNumOfPendingConf(const SSyncRaftEntry* entry, void* arg);
 static SyncIndex findConflict(SSyncRaftLog*, const SSyncRaftEntry*, int n);
+static SyncTerm zeroTermOnErrCompacted(const SSyncRaftLog*, SyncTerm, ESyncRaftCode err);
 
 struct SSyncRaftLog {
   // owner Raft
-  SSyncRaft* pRaft;
+  const SSyncRaft* pRaft;
 
   // storage contains all stable entries since the last snapshot.
   SSyncRaftStableLog* storage;
@@ -46,7 +48,7 @@ struct SSyncRaftLog {
   uint64_t maxNextEntsSize;
 };
 
-SSyncRaftLog* syncCreateRaftLog(SSyncRaftStableLog* storage, uint64_t maxNextEntsSize) {
+SSyncRaftLog* syncCreateRaftLog(SSyncRaftStableLog* storage, uint64_t maxNextEntsSize, const SSyncRaft* pRaft) {
   SSyncRaftLog* log = (SSyncRaftLog*)malloc(sizeof(SSyncRaftLog));
   if (log == NULL) {
     return NULL;
@@ -68,6 +70,8 @@ SSyncRaftLog* syncCreateRaftLog(SSyncRaftStableLog* storage, uint64_t maxNextEnt
   // Initialize our committed and applied pointers to the time of the last compaction.
   log->committedIndex = firstIndex - 1;
   log->committedIndex = firstIndex - 1;
+
+  log->pRaft = pRaft;
   return log;
 }
 
@@ -82,7 +86,7 @@ bool syncRaftLogMaybeAppend(SSyncRaftLog* log, SyncIndex index, SyncTerm logTerm
   *lastNewIndex = index + n;
   SyncIndex ci = findConflict(log, entries, n);
   if (ci <= log->committedIndex) {
-    syncFatal("[%d:%d]entry %d conflict with committed entry [committed(%d)]", 
+    syncFatal("[%d:%d]entry %" PRId64 " conflict with committed entry [committed(%" PRId64 ")]", 
       log->pRaft->selfGroupId, log->pRaft->selfId, ci, log->committedIndex);
     return false;
   }
@@ -110,31 +114,67 @@ SyncIndex syncRaftLogAppend(SSyncRaftLog* log, const SSyncRaftEntry* entries, in
 }
 
 bool syncRaftLogMatchTerm(SSyncRaftLog* log, SyncIndex index, SyncTerm logTerm) {
-
-}
-
-bool syncRaftLogCommitTo(SSyncRaftLog* log, SyncIndex toCommit) {
-  // never decrease commit
-  if (log->committedIndex < toCommit) {
-    SyncIndex lastIndex = syncRaftLogLastIndex(log);
-    if (lastIndex < toCommit) {
-      syncFatal("[%d:%d]entry %d conflict with committed entry [committed(%d)]",
-        log->pRaft->selfGroupId, log->pRaft->selfId, ci, log->committedIndex);
-    }
-    log->committedIndex = toCommit;
+  ESyncRaftCode err;
+  SyncTerm t = syncRaftLogTermOf(log, index, &err);
+  if (err != RAFT_OK) {
+    return false;
   }
+
+  return t == logTerm;
 }
 
-SyncIndex syncRaftLogLastIndex(const SSyncRaftLog* log) {
-
-}
-
-SyncTerm syncRaftLogTermOf(SSyncRaftLog* pLog, SyncIndex index, ESyncRaftCode* errCode) {
+SyncTerm syncRaftLogTermOf(SSyncRaftLog* log, SyncIndex index, ESyncRaftCode* errCode) {
   // the valid term range is [index of dummy entry, last index]
+  SyncIndex dummyIndex = syncRaftLogFirstIndex(log) - 1;
+  SyncIndex lastIndex = syncRaftLogLastIndex(log);
+  if (errCode) *errCode = RAFT_OK;
+  if (index < dummyIndex || index > lastIndex) {
+    return 0;
+  }
 
+  SyncTerm term;
+  if (syncRaftUnstableLogMaybeTerm(log->unstable, index, &term)) {
+    return term;
+  }
+
+  term = syncRaftStableLogTerm(log->storage, index, errCode);
+  if (*errCode == RAFT_OK) {
+    return term;
+  }
+
+  if (*errCode == RAFT_COMPACTED || *errCode == RAFT_UNAVAILABLE) {
+    return SYNC_NON_TERM;
+  }
+
+  SSyncRaft* pRaft = log->pRaft;
+  syncFatal("[%d:%d] syncRaftLogTermOf fatal", pRaft->selfGroupId, pRaft->selfId);
 }
 
-SyncIndex syncRaftLogFirstIndex(SSyncRaftLog* log) {
+int syncRaftLogEntries(SSyncRaftLog* log, SyncIndex index, SSyncRaftEntry **ppEntries, int *n) {
+  SyncIndex lastIndex = syncRaftLogLastIndex(log);
+  if (index > lastIndex) {
+    *n = 0;
+    return RAFT_OK;
+  }
+
+  return syncRaftLogSlice(log, index, lastIndex + 1, ppEntries, n);
+}
+
+bool syncRaftMaybeCommit(SSyncRaftLog* log, SyncIndex maxIndex, SyncTerm term) {
+
+  if (maxIndex > log->committedIndex) {
+    ESyncRaftCode err;
+    SyncTerm t = syncRaftLogTermOf(log, maxIndex, &err);
+    if (zeroTermOnErrCompacted(log, t, &err) == term) {
+      syncRaftLogCommitTo(log, maxIndex);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+SyncIndex syncRaftLogFirstIndex(const SSyncRaftLog* log) {
   SyncIndex firstIndex;
   if (syncRaftUnstableLogMaybeFirstIndex(log->unstable, &firstIndex)) {
     return firstIndex;
@@ -142,31 +182,24 @@ SyncIndex syncRaftLogFirstIndex(SSyncRaftLog* log) {
   return syncRaftStableLogFirstIndex(log->storage);
 }
 
-// findConflict finds the index of the conflict.
-// It returns the first pair of conflicting entries between the existing
-// entries and the given entries, if there are any.
-// If there is no conflicting entries, and the existing entries contains
-// all the given entries, zero will be returned.
-// If there is no conflicting entries, but the given entries contains new
-// entries, the index of the first new entry will be returned.
-// An entry is considered to be conflicting if it has the same index but
-// a different term.
-// The index of the given entries MUST be continuously increasing.
-static SyncIndex findConflict(SSyncRaftLog* log, const SSyncRaftEntry* entries, int n) {
-  int i;
-  SyncIndex lastIndex = syncRaftLogLastIndex(log);
-  for (i = 0; i < n; ++i) {
-    const SSyncRaftEntry* entry = &entries[i];
-    if (!syncRaftLogMatchTerm(log, entry->index, entry->term)) {
-      if (entry->index <= lastIndex) {
-        syncFatal("[%d:%d]found conflict at index %d [existing term: %d, conflicting term: %d]",
-          log->pRaft->selfGroupId, log->pRaft->selfId, entry->index);
-      }
-      return entry->index;
-    }
+SyncIndex syncRaftLogLastIndex(const SSyncRaftLog* log) {
+  SyncIndex lastIndex;
+  if (syncRaftUnstableLogMaybeLastIndex(log->unstable, &lastIndex)) {
+    return lastIndex;
   }
+  return syncRaftStableLogLastIndex(log->storage);
+}
 
-  return 0;
+bool syncRaftLogCommitTo(SSyncRaftLog* log, SyncIndex toCommit) {
+  // never decrease commit
+  if (log->committedIndex < toCommit) {
+    SyncIndex lastIndex = syncRaftLogLastIndex(log);
+    if (lastIndex < toCommit) {
+      syncFatal("[%d:%d]entry %" PRId64 " conflict with committed entry [committed(%"PRId64")]",
+        log->pRaft->selfGroupId, log->pRaft->selfId, ci, log->committedIndex);
+    }
+    log->committedIndex = toCommit;
+  }
 }
 
 // findConflictByTerm takes an (index, term) pair (indicating a conflicting log
@@ -179,6 +212,16 @@ static SyncIndex findConflict(SSyncRaftLog* log, const SSyncRaftEntry* entries, 
 SyncIndex syncRaftLogFindConflictByTerm(const SSyncRaftLog* log, SyncIndex index, SyncTerm term) {
   SyncIndex lastIndex = syncRaftLogLastIndex(log);
   if (index > lastIndex) {
+		// NB: such calls should not exist, but since there is a straightfoward
+		// way to recover, do it.
+		//
+		// It is tempting to also check something about the first index, but
+		// there is odd behavior with peers that have no log, in which case
+		// lastIndex will return zero and firstIndex will return one, which
+		// leads to calls with an index of zero into this method.
+    SSyncRaft* pRaft = log->pRaft;
+    syncWarn("[%d:%d]index(%"PRId64") is out of range [0, lastIndex(%"PRId64")] in findConflictByTerm",
+      pRaft->selfGroupId, pRaft->selfId, index, lastIndex);
     return index;
   }
 
@@ -199,7 +242,7 @@ SyncTerm syncRaftLogLastTerm(const SSyncRaftLog* log) {
   SyncIndex lastIndex = syncRaftLogLastIndex(log);
   SyncTerm logTerm = syncRaftLogTermOf(log, lastIndex, &err);
   if (err != RAFT_OK) {
-
+    syncFatal("[%d:%d]unexpected error when getting the last term %s", gSyncRaftCodeString[err]);
   }
   return logTerm;
 }
@@ -210,9 +253,14 @@ void syncRaftLogAppliedTo(SSyncRaftLog* log, SyncIndex index) {
   }
 
   if (log->committedIndex < index || index < log->appliedIndex) {
-
+    syncFatal("[%d:%d]applied(%" PRId64 ") is out of range [prevApplied(%d" PRId64 "), committed(%" PRId64 ")]",
+      pRaft->selfGroupId, pRaft->selfId, index, log->appliedIndex, log->committedIndex);
   }
   log->appliedIndex = index;
+}
+
+void syncRaftLogStableTo(SSyncRaftLog* log, SyncIndex i, SyncTerm t) {
+  syncRaftUnstableLogStableTo(log->unstable, i, t);
 }
 
 // isUpToDate determines if the given (lastIndex,term) log is more up-to-date
@@ -233,17 +281,12 @@ bool syncRaftHasUnappliedLog(const SSyncRaftLog* log) {
 }
 
 // slice returns a slice of log entries from lo through hi-1, inclusive.
-void syncRaftLogSlice(SSyncRaftLog* log, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n, int limit) {
+int syncRaftLogSlice(SSyncRaftLog* log, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n) {
   if (lo == hi) {
     *n = 0;
     return;
   }
 
-}
-
-static visitNumOfPendingConf(const SSyncRaftEntry* entry, void* arg) {
-  int* n = (int*)arg;
-  if (syncRaftIsConfEntry(entry)) *n = *n + 1;
 }
 
 // return number of pending config entries
@@ -268,4 +311,52 @@ int syncRaftLogNumOfPendingConf(SSyncRaftLog* log) {
 
 bool syncRaftLogIsCommitted(SSyncRaftLog* log, SyncIndex index) {
   return log->committedIndex <= index;
+}
+
+static void visitNumOfPendingConf(const SSyncRaftEntry* entry, void* arg) {
+  int* n = (int*)arg;
+  if (syncRaftIsConfEntry(entry)) *n = *n + 1;
+}
+
+// findConflict finds the index of the conflict.
+// It returns the first pair of conflicting entries between the existing
+// entries and the given entries, if there are any.
+// If there is no conflicting entries, and the existing entries contains
+// all the given entries, zero will be returned.
+// If there is no conflicting entries, but the given entries contains new
+// entries, the index of the first new entry will be returned.
+// An entry is considered to be conflicting if it has the same index but
+// a different term.
+// The index of the given entries MUST be continuously increasing.
+static SyncIndex findConflict(SSyncRaftLog* log, const SSyncRaftEntry* entries, int n) {
+  int i;
+  SyncIndex lastIndex = syncRaftLogLastIndex(log);
+  SSyncRaft* pRaft = log->pRaft;
+  for (i = 0; i < n; ++i) {
+    const SSyncRaftEntry* entry = &entries[i];
+    if (!syncRaftLogMatchTerm(log, entry->index, entry->term)) {
+      if (entry->index <= lastIndex) {
+        syncFatal("[%d:%d]found conflict at index %" PRId64 " [existing term: %" PRId64 ", conflicting term: %" PRId64 "]",
+          pRaft->selfGroupId, pRaft->selfId, entry->index,
+          zeroTermOnErrCompacted(log, syncRaftLogTermOf(log, entry->index)),
+          entry->term);
+      }
+      return entry->index;
+    }
+  }
+
+  return 0;
+}
+
+static SyncTerm zeroTermOnErrCompacted(const SSyncRaftLog* log, SyncTerm t, ESyncRaftCode err) {
+  if (err == RAFT_OK) {
+    return t;
+  }
+
+  if (err == RAFT_COMPACTED) {
+    return SYNC_NON_TERM;
+  }
+  SSyncRaft* pRaft = log->pRaft;
+  syncFatal("[%d:%d]unexpected error %s", pRaft->selfGroupId, pRaft->selfId, gSyncRaftCodeString[err]);
+  return SYNC_NON_TERM;
 }

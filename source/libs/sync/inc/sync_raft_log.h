@@ -20,7 +20,7 @@
 #include "sync_type.h"
 #include "sync_raft_code.h"
 
-SSyncRaftLog* syncCreateRaftLog(SSyncRaftStableLog* storage, uint64_t maxNextEntsSize);
+SSyncRaftLog* syncCreateRaftLog(SSyncRaftStableLog* storage, uint64_t maxNextEntsSize, const SSyncRaft*);
 
 bool syncRaftLogMaybeAppend(SSyncRaftLog* log, SyncIndex index, SyncTerm logTerm, 
                             SyncIndex committedIndex, const SSyncRaftEntry* entries, int n, SyncIndex* lastNewIndex);
@@ -35,7 +35,9 @@ SyncIndex syncRaftLogLastIndex(const SSyncRaftLog* log);
 
 SyncTerm syncRaftLogTermOf(SSyncRaftLog* log, SyncIndex index, ESyncRaftCode* errCode);
 
-SyncIndex syncRaftLogFirstIndex(SSyncRaftLog* log);
+SyncIndex syncRaftLogFirstIndex(const SSyncRaftLog* log);
+
+SyncIndex syncRaftLogLastIndex(const SSyncRaftLog* log);
 
 SyncIndex syncRaftLogFindConflictByTerm(const SSyncRaftLog* log, SyncIndex index, SyncTerm term);
 
@@ -43,13 +45,20 @@ SyncTerm syncRaftLogLastTerm(const SSyncRaftLog* pLog);
 
 void syncRaftLogAppliedTo(SSyncRaftLog* pLog, SyncIndex appliedIndex);
 
+void syncRaftLogStableTo(SSyncRaftLog* log, SyncIndex, SyncTerm);
+
 bool syncRaftLogIsUptodate(const SSyncRaftLog* pLog, SyncIndex index, SyncTerm term);
 
 bool syncRaftHasUnappliedLog(const SSyncRaftLog* pLog);
 
-void syncRaftLogSlice(SSyncRaftLog* pLog, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n, int limit);
+int syncRaftLogSlice(SSyncRaftLog* pLog, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n);
 
 int syncRaftLogNumOfPendingConf(SSyncRaftLog* pLog);
+
+int syncRaftLogEntries(SSyncRaftLog* pLog, SyncIndex index,
+                      SSyncRaftEntry **ppEntries, int *n);
+
+bool syncRaftMaybeCommit(SSyncRaftLog* log, SyncIndex maxIndex, SyncTerm term);
 
 
 

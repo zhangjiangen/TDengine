@@ -72,7 +72,7 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   }
 
   // open raft log
-  if ((pRaft->log = syncCreateRaftLog(NULL, kmaxNextEntsSize)) == NULL) {
+  if ((pRaft->log = syncCreateRaftLog(NULL, kmaxNextEntsSize, pRaft)) == NULL) {
     return -1;
   }
   // read server state
