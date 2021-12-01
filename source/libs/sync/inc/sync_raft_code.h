@@ -19,7 +19,7 @@
 typedef enum ESyncRaftCode {
   RAFT_OK = 0,
 
-  RAFT_NO_MEM = 1,
+  RAFT_OOM = 1,
 
   // ErrCompacted is returned by Storage.Entries/Compact when a requested
   // index is unavailable because it predates the last snapshot.
@@ -32,7 +32,7 @@ typedef enum ESyncRaftCode {
 
 const static const char* gSyncRaftCodeString[] = {
   "OK",
-  "NO_MEM",
+  "OOM",
   "COMPACTED",
   "UNAVAILABLE",
 };

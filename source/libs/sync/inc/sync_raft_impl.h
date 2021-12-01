@@ -30,8 +30,6 @@ void syncRaftStartElection(SSyncRaft* pRaft, ESyncRaftElectionType cType);
 
 void syncRaftCampaign(SSyncRaft* pRaft, ESyncRaftElectionType cType);
 
-void syncRaftTriggerHeartbeat(SSyncRaft* pRaft);
-
 void syncRaftRandomizedElectionTimeout(SSyncRaft* pRaft);
 bool syncRaftIsPromotable(SSyncRaft* pRaft);
 bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft);

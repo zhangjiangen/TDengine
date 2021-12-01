@@ -25,6 +25,6 @@
 // argument controls whether messages with no entries will be sent
 // ("empty" messages are useful to convey updated Commit indexes, but
 // are undesirable when we're sending multiple messages in a batch).
-bool syncRaftMaybeSendAppend(SSyncRaft* pRaft, SSyncRaftProgress* progress, bool sendIfEmpty);
+bool syncRaftMaybeSendAppend(SSyncRaft* pRaft, SyncNodeId to, bool sendIfEmpty);
 
 #endif  /* TD_SYNC_RAFT_REPLICATION_H */

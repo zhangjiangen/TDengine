@@ -34,11 +34,11 @@ SyncTerm syncRaftTermOfPosition(const SSyncRaftEntryArray* ents, int pos);
 // delete all entries before the given position(included)
 void syncRaftRemoveEntriesBeforePosition(SSyncRaftEntryArray* ents, int pos);
 
-int syncRaftAppendEntries(SSyncRaftEntryArray* ents, SSyncRaftEntry* entries, int n);
+int syncRaftAppendEntries(SSyncRaftEntryArray* ents, const SSyncRaftEntry* entries, int n);
 
 int syncRaftAppendEmptyEntry(SSyncRaftEntryArray* ents);
 
-int syncRaftAssignEntries(SSyncRaftEntryArray* ents, SSyncRaftEntry* entries, int n);
+int syncRaftAssignEntries(SSyncRaftEntryArray* ents, const SSyncRaftEntry* entries, int n);
 
 // return entries between [lo,hi]
 int syncRaftSliceEntries(SSyncRaftEntryArray* ents, int lo, int hi, SSyncRaftEntry** ppEntries, int* n);

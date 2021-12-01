@@ -18,6 +18,7 @@
 #include "sync_raft_progress.h"
 #include "syncInt.h"
 #include "raft_replication.h"
+#include "sync_raft_progress_tracker.h"
 
 static bool sendSnapshot(SSyncRaft* pRaft, SSyncRaftProgress* progress);
 static bool sendAppendEntries(SSyncRaft* pRaft, SSyncRaftProgress* progress,
@@ -29,7 +30,11 @@ static bool sendAppendEntries(SSyncRaft* pRaft, SSyncRaftProgress* progress,
 // argument controls whether messages with no entries will be sent
 // ("empty" messages are useful to convey updated Commit indexes, but
 // are undesirable when we're sending multiple messages in a batch).
-bool syncRaftMaybeSendAppend(SSyncRaft* pRaft, SSyncRaftProgress* progress, bool sendIfEmpty) {
+bool syncRaftMaybeSendAppend(SSyncRaft* pRaft, SyncNodeId to, bool sendIfEmpty) {
+  SSyncRaftProgress* progress = syncRaftFindProgressByNodeId(&pRaft->tracker->progressMap, to);
+  if (progress == NULL) {
+    return false;
+  }
   assert(pRaft->state == TAOS_SYNC_STATE_LEADER);
   SyncNodeId nodeId = progress->id;
 
@@ -43,16 +48,18 @@ bool syncRaftMaybeSendAppend(SSyncRaft* pRaft, SSyncRaftProgress* progress, bool
   int nEntry;   
   SyncIndex prevIndex;
   SyncTerm prevTerm;
+  ESyncRaftCode err;
 
   prevIndex = nextIndex - 1;
-  prevTerm = syncRaftLogTermOf(pRaft->log, prevIndex);
-  int ret = syncRaftLogAcquire(pRaft->log, nextIndex, pRaft->maxMsgSize, &entries, &nEntry);
+  prevTerm = syncRaftLogTermOf(pRaft->log, prevIndex, &err);
+  int ret = syncRaftLogEntries(pRaft->log, nextIndex, &entries, &nEntry);
 
   if (nEntry == 0 && !sendIfEmpty) {
     return false;
   }
 
-  if (ret != 0 || prevTerm == SYNC_NON_TERM) {
+  if (ret != RAFT_OK || err != RAFT_OK) {
+    if (entries) free(entries);
     return sendSnapshot(pRaft, progress);
   }
 
@@ -68,16 +75,18 @@ static bool sendSnapshot(SSyncRaft* pRaft, SSyncRaftProgress* progress) {
 
 static bool sendAppendEntries(SSyncRaft* pRaft, SSyncRaftProgress* progress,
                               SyncIndex prevIndex, SyncTerm prevTerm,
-                              SSyncRaftEntry *entries, int nEntry) {
+                              SSyncRaftEntry *entries, int nEntry) {                                
   SNodeInfo* pNode = syncRaftGetNodeById(pRaft, progress->id);
   if (pNode == NULL) {
     return false;
   }
+  bool ret = false;
   SyncIndex lastIndex;
   SyncTerm logTerm = prevTerm;  
+  SyncIndex commitIndex = syncRaftLogCommitIndex(pRaft->log);
 
   SSyncMessage* msg = syncNewAppendMsg(pRaft->selfGroupId, pRaft->selfId, pRaft->term,
-                                      prevIndex, prevTerm, pRaft->log->commitIndex,
+                                      prevIndex, prevTerm, commitIndex,
                                       nEntry, entries);
 
   if (msg == NULL) {
@@ -102,9 +111,9 @@ static bool sendAppendEntries(SSyncRaft* pRaft, SSyncRaftProgress* progress,
     }
   }
   pRaft->io.send(msg, pNode);
-  return true;
+  ret = true;
 
 err_release_log:
-  syncRaftLogRelease(pRaft->log, prevIndex + 1, entries, nEntry);
-  return false;
+  if (entries) free(entries);
+  return ret;
 }

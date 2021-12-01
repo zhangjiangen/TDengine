@@ -19,7 +19,7 @@
 #include <stdint.h>
 #include "sync.h"
 #include "sync_raft_code.h"
-#include "sync_raft_proto.h"
+//#include "sync_raft_proto.h"
 #include "osMath.h"
 
 #define SYNC_NON_NODE_ID -1
@@ -46,8 +46,6 @@ typedef struct SSyncRaftEntryArray SSyncRaftEntryArray;
 typedef struct SSyncRaftStableLog SSyncRaftStableLog;
 typedef struct SSyncRaftUnstableLog SSyncRaftUnstableLog;
 typedef struct SSyncRaftLog SSyncRaftLog;
-
-typedef struct SSyncRaftEntry SSyncRaftEntry;
 
 #if 0
 #ifndef MIN

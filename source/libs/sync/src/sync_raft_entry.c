@@ -111,7 +111,7 @@ void syncRaftRemoveEntriesBeforePosition(SSyncRaftEntryArray* ents, int pos) {
   removePrefix(ents, pos);
 }
 
-int syncRaftAppendEntries(SSyncRaftEntryArray* ents, SSyncRaftEntry* entries, int n) {
+int syncRaftAppendEntries(SSyncRaftEntryArray* ents, const SSyncRaftEntry* entries, int n) {
   int ret, i;
 
   ret = ensureCapacity(ents, n);
@@ -138,7 +138,7 @@ int syncRaftAppendEmptyEntry(SSyncRaftEntryArray* ents) {
   ents->back = (1 + ents->back) % ents->size;
 }
 
-int syncRaftAssignEntries(SSyncRaftEntryArray* ents, SSyncRaftEntry* entries, int n) {
+int syncRaftAssignEntries(SSyncRaftEntryArray* ents, const SSyncRaftEntry* entries, int n) {
   syncRaftCleanEntryArray(ents);
   return syncRaftAppendEntries(ents, entries, n);
 }
@@ -152,7 +152,7 @@ int syncRaftSliceEntries(SSyncRaftEntryArray* ents, int lo, int hi, SSyncRaftEnt
 
   SSyncRaftEntry* entries = (SSyncRaftEntry*)malloc(size * sizeof(SSyncRaftEntry));
   if (entries == NULL) {
-    return RAFT_NO_MEM;
+    return RAFT_OOM;
   }
 
   int i;
@@ -247,7 +247,7 @@ static int ensureCapacity(SSyncRaftEntryArray* ents, int n) {
 
   SSyncRaftEntry *entries = (SSyncRaftEntry*)calloc(newSize, sizeof(SSyncRaftEntry));
   if (entries == NULL) {
-    return RAFT_NO_MEM;
+    return RAFT_OOM;
   }
 
   int i;

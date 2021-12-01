@@ -27,7 +27,7 @@ static int stepLeader(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 
 static bool increaseUncommittedSize(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n);
 
-static int triggerAll(SSyncRaft* pRaft);
+static bool sendAppend(SSyncRaft* pRaft, SyncNodeId to);
 
 static void tickElection(SSyncRaft* pRaft);
 static void tickHeartbeat(SSyncRaft* pRaft);
@@ -102,23 +102,18 @@ void syncRaftBecomeLeader(SSyncRaft* pRaft) {
   pRaft->pendingConfigIndex = lastIndex;
 
   // after become leader, send a no-op log
-  SSyncRaftEntry* entry = (SSyncRaftEntry*)malloc(sizeof(SSyncRaftEntry));
-  if (entry == NULL) {
-    return;
-  }
-  *entry = (SSyncRaftEntry) {
+  SSyncRaftEntry emptyEntry = (SSyncRaftEntry) {
     .buffer = (SSyncBuffer) {
       .data = NULL,
-      .len = 0,
-    }
+      .len  = 0,
+    },
+    .index = 0,
+    .term = 0,
+    .type = SYNC_ENTRY_TYPE_LOG,
   };
-  appendEntries(pRaft, entry, 1);
-  //syncRaftTriggerHeartbeat(pRaft);
-  syncInfo("[%d:%d] became leader at term %" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
-}
+  appendEntries(pRaft, &emptyEntry, 1);
 
-void syncRaftTriggerHeartbeat(SSyncRaft* pRaft) {
-  triggerAll(pRaft);
+  syncInfo("[%d:%d] became leader at term %" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
 }
 
 void syncRaftRandomizedElectionTimeout(SSyncRaft* pRaft) {
@@ -158,44 +153,27 @@ ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id,
   syncRaftRecordVote(pRaft->tracker, pNode->nodeId, grant);
   return syncRaftTallyVotes(pRaft->tracker, rejected, granted);
 }
-/*
-  if (accept) {
-    syncInfo("[%d:%d] received (pre-vote %d) from %d at term %" PRId64 "", 
-      pRaft->selfGroupId, pRaft->selfId, preVote, id, pRaft->term);
-  } else {
-    syncInfo("[%d:%d] received rejection from %d at term %" PRId64 "", 
-      pRaft->selfGroupId, pRaft->selfId, id, pRaft->term);
-  }
-  
-  int voteIndex = syncRaftGetNodeById(pRaft, id);
-  assert(voteIndex < pRaft->cluster.replica && voteIndex >= 0);
-  assert(pRaft->candidateState.votes[voteIndex] == SYNC_RAFT_VOTE_RESP_UNKNOWN);
-
-  pRaft->candidateState.votes[voteIndex] = accept ? SYNC_RAFT_VOTE_RESP_GRANT : SYNC_RAFT_VOTE_RESP_REJECT;
-  int granted = 0, rejected = 0;
-  int i;
-  for (i = 0; i < pRaft->cluster.replica; ++i) {
-    if (pRaft->candidateState.votes[i] == SYNC_RAFT_VOTE_RESP_GRANT) granted++;
-    else if (pRaft->candidateState.votes[i] == SYNC_RAFT_VOTE_RESP_REJECT) rejected++;
-  }
-
-  if (rejectNum) *rejectNum = rejected;
-  return granted;
-*/
 
 void syncRaftLoadState(SSyncRaft* pRaft, const SSyncServerState* serverState) {
   SyncIndex commitIndex = serverState->commitIndex;
   SyncIndex lastIndex = syncRaftLogLastIndex(pRaft->log);
+  SyncIndex logCommitIndex = syncRaftLogCommitIndex(pRaft->log);
 
-  if (commitIndex < pRaft->log->commitIndex || commitIndex > lastIndex) {
+  if (commitIndex < logCommitIndex || commitIndex > lastIndex) {
     syncFatal("[%d:%d] state.commit %"PRId64" is out of range [%" PRId64 ",%" PRId64 "",
-      pRaft->selfGroupId, pRaft->selfId, commitIndex, pRaft->log->commitIndex, lastIndex);
+      pRaft->selfGroupId, pRaft->selfId, commitIndex, logCommitIndex, lastIndex);
     return;
   }
 
-  pRaft->log->commitIndex = commitIndex;
+  syncSetRaftLogCommitIndex(pRaft->log, commitIndex);
   pRaft->term = serverState->term;
   pRaft->voteFor = serverState->voteFor;
+}
+
+// sendAppend sends an append RPC with new entries (if any) and the
+// current commit index to the given peer.
+static bool sendAppend(SSyncRaft* pRaft, SyncNodeId to) {
+  syncRaftMaybeSendAppend(pRaft, to, true);
 }
 
 static void visitProgressSendAppend(SSyncRaftProgress* progress, void* arg) {
@@ -203,8 +181,8 @@ static void visitProgressSendAppend(SSyncRaftProgress* progress, void* arg) {
   if (pRaft->selfId == progress->id) {
     return;
   }
-
-  syncRaftMaybeSendAppend(arg, progress, true);
+  
+  sendAppend(pRaft, progress->id);
 }
 
 // bcastAppend sends RPC, with entries to all peers that are not up-to-date
@@ -315,27 +293,9 @@ static void appendEntries(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n) {
 // the commit index changed (in which case the caller should call
 // r.bcastAppend).
 bool syncRaftMaybeCommit(SSyncRaft* pRaft) {
-  
+  SyncIndex commitIndex = syncRaftCommittedIndex(pRaft->tracker);
+  syncRaftLogMaybeCommit(pRaft->log, commitIndex, pRaft->term);
   return true;
-}
-
-/**
- * trigger I/O requests for newly appended log entries or heartbeats.
- **/
-static int triggerAll(SSyncRaft* pRaft) {
-  #if 0
-  assert(pRaft->state == TAOS_SYNC_STATE_LEADER);
-  int i;
-
-  for (i = 0; i < pRaft->cluster.replica; ++i) {
-    if (i == pRaft->cluster.selfIndex) {
-      continue;
-    }
-
-    syncRaftMaybeSendAppend(pRaft, pRaft->tracker->progressMap.progress[i], true);
-  }
-  #endif
-  return 0;
 }
 
 static void abortLeaderTransfer(SSyncRaft* pRaft) {

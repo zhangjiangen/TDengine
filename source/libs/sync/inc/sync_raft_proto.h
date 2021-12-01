@@ -70,8 +70,8 @@ typedef struct SyncRaftSnapshot {
 } SyncRaftSnapshot;
 
 typedef enum ESyncRaftEntryType {
-  SYNC_ENTRY_TYPE_LOG = 1,
-  SYNC_ENTRY_TYPE_CONF_CHANGE = 2,
+  SYNC_ENTRY_TYPE_LOG = 0,
+  SYNC_ENTRY_TYPE_CONF_CHANGE = 1,
 } ESyncRaftEntryType;
 
 struct SSyncRaftEntry {

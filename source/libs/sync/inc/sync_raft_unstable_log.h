@@ -35,7 +35,7 @@ bool syncRaftUnstableLogMaybeTerm(const SSyncRaftUnstableLog* unstable, SyncInde
 
 void syncRaftUnstableLogStableTo(SSyncRaftUnstableLog* unstable, SyncIndex i, SyncTerm term);
 
-int syncRaftUnstableLogTruncateAndAppend(SSyncRaftUnstableLog* unstable, SSyncRaftEntry* entries, int n);
+int syncRaftUnstableLogTruncateAndAppend(SSyncRaftUnstableLog* unstable, const SSyncRaftEntry* entries, int n);
 
 void syncRaftUnstableLogSlice(const SSyncRaftUnstableLog* unstable, SyncIndex lo, SyncIndex hi, SSyncRaftEntry** ppEntries, int* n);
 

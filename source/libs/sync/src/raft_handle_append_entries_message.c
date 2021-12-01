@@ -35,7 +35,7 @@ int syncRaftHandleAppendEntriesMessage(SSyncRaft* pRaft, const SSyncMessage* pMs
   RaftMsg_Append_Resp *appendResp = &(pRespMsg->appendResp);
   // ignore committed logs
   if (syncRaftLogIsCommitted(pRaft->log, appendEntries->index)) {
-    appendResp->index = pRaft->log->commitIndex;
+    appendResp->index = syncRaftLogCommitIndex(pRaft->log);
     goto out;
   }
 

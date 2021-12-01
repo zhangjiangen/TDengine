@@ -114,7 +114,7 @@ SyncIndex syncRaftLogAppend(SSyncRaftLog* log, const SSyncRaftEntry* entries, in
   return syncRaftLogLastIndex(log);
 }
 
-bool syncRaftLogMatchTerm(SSyncRaftLog* log, SyncIndex index, SyncTerm logTerm) {
+bool syncRaftLogMatchTerm(const SSyncRaftLog* log, SyncIndex index, SyncTerm logTerm) {
   ESyncRaftCode err;
   SyncTerm t = syncRaftLogTermOf(log, index, &err);
   if (err != RAFT_OK) {
@@ -124,7 +124,7 @@ bool syncRaftLogMatchTerm(SSyncRaftLog* log, SyncIndex index, SyncTerm logTerm) 
   return t == logTerm;
 }
 
-SyncTerm syncRaftLogTermOf(SSyncRaftLog* log, SyncIndex index, ESyncRaftCode* errCode) {
+SyncTerm syncRaftLogTermOf(const SSyncRaftLog* log, SyncIndex index, ESyncRaftCode* errCode) {
   // the valid term range is [index of dummy entry, last index]
   SyncIndex dummyIndex = syncRaftLogFirstIndex(log) - 1;
   SyncIndex lastIndex = syncRaftLogLastIndex(log);
@@ -147,7 +147,7 @@ SyncTerm syncRaftLogTermOf(SSyncRaftLog* log, SyncIndex index, ESyncRaftCode* er
     return SYNC_NON_TERM;
   }
 
-  SSyncRaft* pRaft = log->pRaft;
+  const SSyncRaft* pRaft = log->pRaft;
   syncFatal("[%d:%d] syncRaftLogTermOf fatal", pRaft->selfGroupId, pRaft->selfId);
 }
 
@@ -161,18 +161,26 @@ int syncRaftLogEntries(SSyncRaftLog* log, SyncIndex index, SSyncRaftEntry **ppEn
   return syncRaftLogSlice(log, index, lastIndex + 1, ppEntries, n);
 }
 
-bool syncRaftMaybeCommit(SSyncRaftLog* log, SyncIndex maxIndex, SyncTerm term) {
+bool syncRaftLogMaybeCommit(SSyncRaftLog* log, SyncIndex maxIndex, SyncTerm term) {
 
   if (maxIndex > log->committedIndex) {
     ESyncRaftCode err;
     SyncTerm t = syncRaftLogTermOf(log, maxIndex, &err);
-    if (zeroTermOnErrCompacted(log, t, &err) == term) {
+    if (zeroTermOnErrCompacted(log, t, err) == term) {
       syncRaftLogCommitTo(log, maxIndex);
       return true;
     }
   }
 
   return false;
+}
+
+SyncIndex syncRaftLogCommitIndex(const SSyncRaftLog* log) {
+  return log->committedIndex;
+}
+
+void syncSetRaftLogCommitIndex(SSyncRaftLog* log, SyncIndex index) {
+  log->committedIndex = index;
 }
 
 SyncIndex syncRaftLogFirstIndex(const SSyncRaftLog* log) {
@@ -196,8 +204,8 @@ bool syncRaftLogCommitTo(SSyncRaftLog* log, SyncIndex toCommit) {
   if (log->committedIndex < toCommit) {
     SyncIndex lastIndex = syncRaftLogLastIndex(log);
     if (lastIndex < toCommit) {
-      syncFatal("[%d:%d]entry %" PRId64 " conflict with committed entry [committed(%"PRId64")]",
-        log->pRaft->selfGroupId, log->pRaft->selfId, ci, log->committedIndex);
+      syncFatal("[%d:%d]tocommit(%" PRId64 ") is out of range [lastIndex(%" PRId64 ")]. Was the raft log corrupted, truncated, or lost?",
+        log->pRaft->selfGroupId, log->pRaft->selfId, toCommit, log->committedIndex);
     }
     log->committedIndex = toCommit;
   }
@@ -220,7 +228,7 @@ SyncIndex syncRaftLogFindConflictByTerm(const SSyncRaftLog* log, SyncIndex index
 		// there is odd behavior with peers that have no log, in which case
 		// lastIndex will return zero and firstIndex will return one, which
 		// leads to calls with an index of zero into this method.
-    SSyncRaft* pRaft = log->pRaft;
+    const SSyncRaft* pRaft = log->pRaft;
     syncWarn("[%d:%d]index(%"PRId64") is out of range [0, lastIndex(%"PRId64")] in findConflictByTerm",
       pRaft->selfGroupId, pRaft->selfId, index, lastIndex);
     return index;
@@ -243,7 +251,9 @@ SyncTerm syncRaftLogLastTerm(const SSyncRaftLog* log) {
   SyncIndex lastIndex = syncRaftLogLastIndex(log);
   SyncTerm logTerm = syncRaftLogTermOf(log, lastIndex, &err);
   if (err != RAFT_OK) {
-    syncFatal("[%d:%d]unexpected error when getting the last term %s", gSyncRaftCodeString[err]);
+    const SSyncRaft* pRaft = log->pRaft;
+    syncFatal("[%d:%d]unexpected error when getting the last term %s",
+      pRaft->selfGroupId, pRaft->selfId, gSyncRaftCodeString[err]);
   }
   return logTerm;
 }
@@ -254,7 +264,8 @@ void syncRaftLogAppliedTo(SSyncRaftLog* log, SyncIndex index) {
   }
 
   if (log->committedIndex < index || index < log->appliedIndex) {
-    syncFatal("[%d:%d]applied(%" PRId64 ") is out of range [prevApplied(%d" PRId64 "), committed(%" PRId64 ")]",
+    const SSyncRaft* pRaft = log->pRaft;
+    syncFatal("[%d:%d]applied(%" PRId64 ") is out of range [prevApplied(%" PRId64 "), committed(%" PRId64 ")]",
       pRaft->selfGroupId, pRaft->selfId, index, log->appliedIndex, log->committedIndex);
   }
   log->appliedIndex = index;
@@ -293,7 +304,7 @@ int syncRaftLogSlice(SSyncRaftLog* log, SyncIndex lo, SyncIndex hi, SSyncRaftEnt
     return err;
   }
 
-  SSyncRaft* pRaft = log->pRaft;
+  const SSyncRaft* pRaft = log->pRaft;
   SSyncRaftEntry *stableEnts = NULL, *unstableEnts = NULL, *pRet = NULL;
   int nStableEnts = 0, nUnstableEnts = 0, nRet = 0;
 
@@ -328,13 +339,13 @@ int syncRaftLogSlice(SSyncRaftLog* log, SyncIndex lo, SyncIndex hi, SSyncRaftEnt
     if (nRet > 0) {
       SSyncRaftEntry* combined = (SSyncRaftEntry*)malloc((nRet + nUnstableEnts) * sizeof(SSyncRaftEntry));
       if (combined == NULL) {
-        return RAFT_NO_MEM;
+        return RAFT_OOM;
       }
       memcpy(combined, pRet, sizeof(SSyncRaftEntry) * nRet);
       memcpy(&combined[nRet], unstableEnts, sizeof(SSyncRaftEntry) * nUnstableEnts);
 
       pRet = combined;
-      nRet = nRet + unstableEnts;
+      nRet = nRet + nUnstableEnts;
       if (stableEnts) free(stableEnts);
       if (unstableEnts) free(unstableEnts);
     } else {
@@ -390,14 +401,16 @@ static void visitNumOfPendingConf(const SSyncRaftEntry* entry, void* arg) {
 static SyncIndex findConflict(const SSyncRaftLog* log, const SSyncRaftEntry* entries, int n) {
   int i;
   SyncIndex lastIndex = syncRaftLogLastIndex(log);
-  SSyncRaft* pRaft = log->pRaft;
+  const SSyncRaft* pRaft = log->pRaft;
   for (i = 0; i < n; ++i) {
     const SSyncRaftEntry* entry = &entries[i];
     if (!syncRaftLogMatchTerm(log, entry->index, entry->term)) {
       if (entry->index <= lastIndex) {
+        ESyncRaftCode err;
+        SyncTerm term = syncRaftLogTermOf(log, entry->index, &err);
         syncFatal("[%d:%d]found conflict at index %" PRId64 " [existing term: %" PRId64 ", conflicting term: %" PRId64 "]",
           pRaft->selfGroupId, pRaft->selfId, entry->index,
-          zeroTermOnErrCompacted(log, syncRaftLogTermOf(log, entry->index)),
+          zeroTermOnErrCompacted(log, term, err),
           entry->term);
       }
       return entry->index;
@@ -409,7 +422,7 @@ static SyncIndex findConflict(const SSyncRaftLog* log, const SSyncRaftEntry* ent
 
 // l.firstIndex <= lo <= hi <= l.firstIndex + len(l.entries)
 static int mustCheckOutOfBounds(const SSyncRaftLog* log, SyncIndex lo, SyncIndex hi) {
-  SSyncRaft* pRaft = log->pRaft;
+  const SSyncRaft* pRaft = log->pRaft;
 
   if (lo > hi) {
     syncFatal("[%d:%d]invalid slice %" PRId64 " > %" PRId64 " ",
@@ -438,7 +451,7 @@ static SyncTerm zeroTermOnErrCompacted(const SSyncRaftLog* log, SyncTerm t, ESyn
   if (err == RAFT_COMPACTED) {
     return SYNC_NON_TERM;
   }
-  SSyncRaft* pRaft = log->pRaft;
+  const SSyncRaft* pRaft = log->pRaft;
   syncFatal("[%d:%d]unexpected error %s", pRaft->selfGroupId, pRaft->selfId, gSyncRaftCodeString[err]);
   return SYNC_NON_TERM;
 }

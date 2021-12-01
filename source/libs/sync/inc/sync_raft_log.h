@@ -27,13 +27,13 @@ bool syncRaftLogMaybeAppend(SSyncRaftLog* log, SyncIndex index, SyncTerm logTerm
 
 SyncIndex syncRaftLogAppend(SSyncRaftLog*, const SSyncRaftEntry* entries, int n);
 
-bool syncRaftLogMatchTerm(SSyncRaftLog* log, SyncIndex index, SyncTerm logTerm);
+bool syncRaftLogMatchTerm(const SSyncRaftLog* log, SyncIndex index, SyncTerm logTerm);
 
 bool syncRaftLogCommitTo(SSyncRaftLog* log, SyncIndex toCommit);
 
 SyncIndex syncRaftLogLastIndex(const SSyncRaftLog* log);
 
-SyncTerm syncRaftLogTermOf(SSyncRaftLog* log, SyncIndex index, ESyncRaftCode* errCode);
+SyncTerm syncRaftLogTermOf(const SSyncRaftLog* log, SyncIndex index, ESyncRaftCode* errCode);
 
 SyncIndex syncRaftLogFirstIndex(const SSyncRaftLog* log);
 
@@ -58,17 +58,10 @@ int syncRaftLogNumOfPendingConf(SSyncRaftLog* pLog);
 int syncRaftLogEntries(SSyncRaftLog* pLog, SyncIndex index,
                       SSyncRaftEntry **ppEntries, int *n);
 
-bool syncRaftMaybeCommit(SSyncRaftLog* log, SyncIndex maxIndex, SyncTerm term);
+bool syncRaftLogMaybeCommit(SSyncRaftLog* log, SyncIndex maxIndex, SyncTerm term);
 
+SyncIndex syncRaftLogCommitIndex(const SSyncRaftLog* log);
 
-
-
-
-int syncRaftLogAcquire(SSyncRaftLog* pLog, SyncIndex index, int maxMsgSize,
-                      SSyncRaftEntry **ppEntries, int *n);
-
-void syncRaftLogRelease(SSyncRaftLog* pLog, SyncIndex index,
-                      SSyncRaftEntry *pEntries, int n);
-
+void syncSetRaftLogCommitIndex(SSyncRaftLog* log, SyncIndex index);
 
 #endif  /* _TD_LIBS_SYNC_RAFT_LOG_H */
