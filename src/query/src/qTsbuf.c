@@ -446,6 +446,12 @@ static int32_t setCheckTSOrder(STSBuf* pTSBuf, const char* pData, int32_t len) {
 void tsBufAppend(STSBuf* pTSBuf, int32_t id, tVariant* tag, const char* pData, int32_t len) {
   STSGroupBlockInfoEx* pBlockInfo = NULL;
   STSList*             ptsData = &pTSBuf->tsData;
+
+  // check reach max number
+  if(pTSBuf->numOfGroups >= TS_COMP_FILE_GROUP_MAX) {
+    qError("STSBUF tsBufAppend numOfGroups is over max. numOfGroups=%d id=%d pData=%p len=%d", pTSBuf->numOfGroups, id, pData, len);
+    return ;
+  }
   
   if (pTSBuf->numOfGroups == 0 || tsBufGetLastGroupInfo(pTSBuf)->info.id != id) {
     writeDataToDisk(pTSBuf);
