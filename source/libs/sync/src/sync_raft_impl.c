@@ -23,7 +23,6 @@
 static int convertClear(SSyncRaft* pRaft);
 static int stepFollower(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg);
-static int stepLeader(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 
 static bool increaseUncommittedSize(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n);
 
@@ -31,8 +30,6 @@ static bool sendAppend(SSyncRaft* pRaft, SyncNodeId to);
 
 static void tickElection(SSyncRaft* pRaft);
 static void tickHeartbeat(SSyncRaft* pRaft);
-
-static void appendEntries(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n);
 
 static void abortLeaderTransfer(SSyncRaft* pRaft);
 
@@ -80,7 +77,7 @@ void syncRaftBecomeCandidate(SSyncRaft* pRaft) {
 void syncRaftBecomeLeader(SSyncRaft* pRaft) {
   assert(pRaft->state != TAOS_SYNC_STATE_FOLLOWER);
 
-  pRaft->stepFp = stepLeader;
+  pRaft->stepFp = syncRaftStepLeader;
   resetRaft(pRaft, pRaft->term);
   pRaft->leaderId = pRaft->leaderId;
   pRaft->state  = TAOS_SYNC_STATE_LEADER;
@@ -111,7 +108,7 @@ void syncRaftBecomeLeader(SSyncRaft* pRaft) {
     .term = 0,
     .type = SYNC_ENTRY_TYPE_LOG,
   };
-  appendEntries(pRaft, &emptyEntry, 1);
+  syncRaftAppendEntry(pRaft, &emptyEntry, 1);
 
   syncInfo("[%d:%d] became leader at term %" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
 }
@@ -191,6 +188,10 @@ void syncRaftBroadcastAppend(SSyncRaft* pRaft) {
   syncRaftProgressVisit(pRaft->tracker, visitProgressSendAppend, pRaft);
 }
 
+void syncRaftBroadcastHeartbeat(SSyncRaft* pRaft) {
+
+}
+
 SNodeInfo* syncRaftGetNodeById(SSyncRaft *pRaft, SyncNodeId id) {
   SNodeInfo **ppNode = taosHashGet(pRaft->nodeInfoMap, &id, sizeof(SyncNodeId*));
   if (ppNode != NULL) {
@@ -231,11 +232,6 @@ static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   return 0;
 }
 
-static int stepLeader(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  convertClear(pRaft);
-  return 0;
-}
-
 // tickElection is run by followers and candidates after r.electionTimeout.
 static void tickElection(SSyncRaft* pRaft) {
   pRaft->electionElapsed += 1;
@@ -256,7 +252,30 @@ static void tickElection(SSyncRaft* pRaft) {
 
 // tickHeartbeat is run by leaders to send a MsgBeat after r.heartbeatTimeout.
 static void tickHeartbeat(SSyncRaft* pRaft) {
+  pRaft->heartbeatElapsed++;
+  pRaft->electionElapsed++;
 
+  if (pRaft->electionElapsed >= pRaft->electionTimeout) {
+    pRaft->electionElapsed = 0;
+    if (pRaft->checkQuorum) {
+      // TODO
+    }
+    // If current leader cannot transfer leadership in electionTimeout, it becomes leader again.
+    if (pRaft->state == TAOS_SYNC_STATE_LEADER && pRaft->leadTransferee != SYNC_NON_NODE_ID) {
+      abortLeaderTransfer(pRaft);
+    }
+  }
+
+  if (pRaft->state != TAOS_SYNC_STATE_LEADER) {
+    return;
+  }
+
+  if (pRaft->heartbeatElapsed >= pRaft->heartbeatTimeout) {
+    pRaft->heartbeatElapsed = 0;
+    SSyncMessage msg;
+    syncInitBeatMsg(&msg, pRaft->selfId);
+    syncRaftStep(pRaft, &msg);
+  }
 }
 
 // TODO
@@ -264,7 +283,7 @@ static bool increaseUncommittedSize(SSyncRaft* pRaft, SSyncRaftEntry* entries, i
   return false;
 }
 
-static void appendEntries(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n) {
+bool syncRaftAppendEntry(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n) {
   SyncIndex lastIndex = syncRaftLogLastIndex(pRaft->log);
   SyncTerm term = pRaft->term;
   int i;
@@ -277,16 +296,19 @@ static void appendEntries(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n) {
   // Track the size of this uncommitted proposal.
   if (!increaseUncommittedSize(pRaft, entries, n)) {
     // Drop the proposal.
-    return;    
+    return false;    
   }
 
-  syncRaftLogAppend(pRaft->log, entries, n);
+  // use latest "last" index after truncate/append
+  lastIndex = syncRaftLogAppend(pRaft->log, entries, n);
 
   SSyncRaftProgress* progress = syncRaftFindProgressByNodeId(&pRaft->tracker->progressMap, pRaft->selfId);
   assert(progress != NULL);
   syncRaftProgressMaybeUpdate(progress, lastIndex);
   // Regardless of syncRaftMaybeCommit's return, our caller will call bcastAppend.
   syncRaftMaybeCommit(pRaft);
+
+  return true;
 }
 
 // syncRaftMaybeCommit attempts to advance the commit index. Returns true if
@@ -296,6 +318,46 @@ bool syncRaftMaybeCommit(SSyncRaft* pRaft) {
   SyncIndex commitIndex = syncRaftCommittedIndex(pRaft->tracker);
   syncRaftLogMaybeCommit(pRaft->log, commitIndex, pRaft->term);
   return true;
+}
+
+// send schedules persisting state to a stable storage and AFTER that
+// sending the message (as part of next Ready message processing).
+int syncRaftsend(SSyncRaft* pRaft, SSyncMessage* pMsg, const SNodeInfo* pNode) {
+  if (pMsg->from == SYNC_NON_NODE_ID) {
+    pMsg->from = pRaft->selfId;
+  }
+  ESyncRaftMessageType msgType = pMsg->msgType;
+  if (msgType == RAFT_MSG_VOTE || msgType == RAFT_MSG_VOTE_RESP || syncIsPreVoteRespMsg(pMsg)) {
+		// All {pre-,}campaign messages need to have the term set when
+		// sending.
+		// - MsgVote: m.Term is the term the node is campaigning for,
+		//   non-zero as we increment the term when campaigning.
+		// - MsgVoteResp: m.Term is the new r.Term if the MsgVote was
+		//   granted, non-zero for the same reason MsgVote is
+		// - MsgPreVote: m.Term is the term the node will campaign,
+		//   non-zero as we use m.Term to indicate the next term we'll be
+		//   campaigning for
+		// - MsgPreVoteResp: m.Term is the term received in the original
+		//   MsgPreVote if the pre-vote was granted, non-zero for the
+		//   same reasons MsgPreVote is
+    if (pMsg->term == SYNC_NON_TERM) {
+      syncFatal("[%d:%d]term should be set when sending vote msg", pRaft->selfGroupId, pRaft->selfId);
+    }
+  } else {
+    if (pMsg->term != SYNC_NON_TERM) {
+      syncFatal("[%d:%d]term should be not set when sending %s msg", 
+        pRaft->selfGroupId, pRaft->selfId, gMsgString[pMsg->msgType]);
+    }
+		// do not attach term to MsgProp, MsgReadIndex
+		// proposals are a way to forward to the leader and
+		// should be treated as local message.
+		// MsgReadIndex is also forwarded to leader.
+    if (pMsg->msgType != RAFT_MSG_INTERNAL_PROP && pMsg->msgType != RAFT_MSG_READ_INDEX) {
+      pMsg->term = pRaft->term;
+    }
+  }
+
+  return pRaft->io.send(pMsg, pNode);
 }
 
 static void abortLeaderTransfer(SSyncRaft* pRaft) {

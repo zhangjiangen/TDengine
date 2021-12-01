@@ -35,22 +35,39 @@ typedef enum ESyncRaftMessageType {
   // node election timeout
   RAFT_MSG_INTERNAL_ELECTION = 2,
 
+  RAFT_MSG_INTERNAL_BEAT = 3,
+
   RAFT_MSG_VOTE = 3,
   RAFT_MSG_VOTE_RESP = 4,
 
   RAFT_MSG_APPEND = 5,
   RAFT_MSG_APPEND_RESP = 6,
+
+  RAFT_MSG_HEARTBEAT = 7,
+
+  RAFT_MSG_SNAPSHOT,
+
+  RAFT_MSG_READ_INDEX,
 } ESyncRaftMessageType;
+
+static const char* gMsgString[] = {
+
+};
 
 typedef struct RaftMsgInternal_Prop {
   const SSyncBuffer *pBuf;
   bool isWeak;
   void* pData;
+  ESyncRaftEntryType eType;
 } RaftMsgInternal_Prop;
 
 typedef struct RaftMsgInternal_Election {
 
 } RaftMsgInternal_Election;
+
+typedef struct RaftMsgInternal_Beat {
+
+} RaftMsgInternal_Beat;
 
 typedef struct RaftMsg_Vote {
   ESyncRaftElectionType cType;
@@ -95,6 +112,8 @@ typedef struct SSyncMessage {
 
     RaftMsgInternal_Election election;
 
+    RaftMsgInternal_Beat beat;
+  
     RaftMsg_Vote vote;
     RaftMsg_VoteResp voteResp;
 
@@ -103,7 +122,7 @@ typedef struct SSyncMessage {
   };
 } SSyncMessage;
 
-static FORCE_INLINE SSyncMessage* syncInitPropMsg(SSyncMessage* pMsg, const SSyncBuffer* pBuf, void* pData, bool isWeak) {
+static FORCE_INLINE SSyncMessage* syncInitPropEntryMsg(SSyncMessage* pMsg, const SSyncBuffer* pBuf, void* pData, bool isWeak) {
   *pMsg = (SSyncMessage) {
     .msgType = RAFT_MSG_INTERNAL_PROP,
     .term = 0,
@@ -111,6 +130,7 @@ static FORCE_INLINE SSyncMessage* syncInitPropMsg(SSyncMessage* pMsg, const SSyn
       .isWeak = isWeak,
       .pBuf = pBuf,
       .pData = pData,
+      .eType = SYNC_ENTRY_TYPE_LOG,
     },
   };
 
@@ -123,6 +143,19 @@ static FORCE_INLINE SSyncMessage* syncInitElectionMsg(SSyncMessage* pMsg, SyncNo
     .term = 0,
     .from = from,
     .election = (RaftMsgInternal_Election) {
+
+    },
+  };
+
+  return pMsg;
+}
+
+static FORCE_INLINE SSyncMessage* syncInitBeatMsg(SSyncMessage* pMsg, SyncNodeId from) {
+  *pMsg = (SSyncMessage) {
+    .msgType = RAFT_MSG_INTERNAL_BEAT,
+    .term = 0,
+    .from = from,
+    .beat = (RaftMsgInternal_Beat) {
 
     },
   };
@@ -222,6 +255,10 @@ static FORCE_INLINE bool syncIsPreVoteRespMsg(const SSyncMessage* pMsg) {
   return pMsg->msgType == RAFT_MSG_VOTE_RESP && pMsg->voteResp.cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION;
 }
 
+static FORCE_INLINE bool syncIsVoteMsg(const SSyncMessage* pMsg) {
+  return pMsg->msgType == RAFT_MSG_VOTE;
+}
+
 static FORCE_INLINE bool syncIsPreVoteMsg(const SSyncMessage* pMsg) {
   return pMsg->msgType == RAFT_MSG_VOTE && pMsg->voteResp.cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION;
 }
@@ -233,5 +270,6 @@ int syncRaftHandleElectionMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 int syncRaftHandleVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 int syncRaftHandleAppendEntriesMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+int syncRaftHandlePropMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 
 #endif  /* _TD_LIBS_SYNC_RAFT_MESSAGE_H */

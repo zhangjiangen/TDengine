@@ -37,6 +37,10 @@ int  syncRaftQuorum(SSyncRaft* pRaft);
 
 bool syncRaftMaybeCommit(SSyncRaft* pRaft);
 
+int syncRaftStepLeader(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+
+int syncRaftsend(SSyncRaft* pRaft, SSyncMessage* pMsg, const SNodeInfo* pNode);
+
 ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id, 
                                     bool preVote, bool accept, 
                                     int* rejectNum, int *granted);
@@ -50,6 +54,9 @@ static FORCE_INLINE bool syncRaftIsEmptyServerState(const SSyncServerState* serv
 void syncRaftLoadState(SSyncRaft* pRaft, const SSyncServerState* serverState);
 
 void syncRaftBroadcastAppend(SSyncRaft* pRaft);
+void syncRaftBroadcastHeartbeat(SSyncRaft* pRaft);
+
+bool syncRaftAppendEntry(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n);
 
 SNodeInfo* syncRaftGetNodeById(SSyncRaft *pRaft, SyncNodeId id);
 

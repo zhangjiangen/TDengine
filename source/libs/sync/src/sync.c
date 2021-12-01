@@ -160,7 +160,7 @@ int32_t syncPropose(SSyncNode* syncNode, const SSyncBuffer* pBuf, void* pData, b
   SSyncMessage msg;
 
   pthread_mutex_lock(&syncNode->mutex);
-  int32_t ret = syncRaftStep(&syncNode->raft, syncInitPropMsg(&msg, pBuf, pData, isWeak));
+  int32_t ret = syncRaftStep(&syncNode->raft, syncInitPropEntryMsg(&msg, pBuf, pData, isWeak));
   pthread_mutex_unlock(&syncNode->mutex);
   return ret;
 }

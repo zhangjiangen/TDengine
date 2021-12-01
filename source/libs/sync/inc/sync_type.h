@@ -47,6 +47,12 @@ typedef struct SSyncRaftStableLog SSyncRaftStableLog;
 typedef struct SSyncRaftUnstableLog SSyncRaftUnstableLog;
 typedef struct SSyncRaftLog SSyncRaftLog;
 
+
+typedef enum ESyncRaftEntryType {
+  SYNC_ENTRY_TYPE_LOG = 0,
+  SYNC_ENTRY_TYPE_CONF_CHANGE = 1,
+} ESyncRaftEntryType;
+
 #if 0
 #ifndef MIN
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))

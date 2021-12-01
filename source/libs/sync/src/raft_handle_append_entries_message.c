@@ -43,6 +43,6 @@ int syncRaftHandleAppendEntriesMessage(SSyncRaft* pRaft, const SSyncMessage* pMs
       pRaft->selfGroupId, pRaft->selfId, pMsg->from, appendEntries->index); 
 
 out:
-  pRaft->io.send(pRespMsg, pNode);
+  syncRaftsend(pRaft, pRespMsg, pNode);
   return 0;
 }

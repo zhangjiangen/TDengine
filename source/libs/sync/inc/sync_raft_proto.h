@@ -69,11 +69,6 @@ typedef struct SyncRaftSnapshot {
   RaftSnapshotMeta meta;
 } SyncRaftSnapshot;
 
-typedef enum ESyncRaftEntryType {
-  SYNC_ENTRY_TYPE_LOG = 0,
-  SYNC_ENTRY_TYPE_CONF_CHANGE = 1,
-} ESyncRaftEntryType;
-
 struct SSyncRaftEntry {
   SyncTerm term;
   SyncIndex index;

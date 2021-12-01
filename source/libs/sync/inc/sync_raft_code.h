@@ -28,6 +28,10 @@ typedef enum ESyncRaftCode {
   // ErrUnavailable is returned by Storage interface when the requested log entries
   // are unavailable.
   RAFT_UNAVAILABLE = 3,
+
+  // ErrProposalDropped is returned when the proposal is ignored by some cases,
+  // so that the proposer can be notified and fail fast.
+  RAFT_PROPOSAL_DROPPED = 4,
 } ESyncRaftCode;
 
 const static const char* gSyncRaftCodeString[] = {
@@ -35,6 +39,7 @@ const static const char* gSyncRaftCodeString[] = {
   "OOM",
   "COMPACTED",
   "UNAVAILABLE",
+  "PROPOSAL_DROPPED",
 };
 
 #endif // _TD_LIBS_SYNC_RAFT_CODE_H

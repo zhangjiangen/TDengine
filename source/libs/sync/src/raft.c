@@ -134,8 +134,8 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
 }
 
 int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  syncDebug("from %d, type:%d, term:%" PRId64 ", state:%d",
-    pMsg->from, pMsg->msgType, pMsg->term, pRaft->state);
+  syncDebug("[%d:%d]from %d, type:%d, term:%" PRId64 ", state:%d",
+    pRaft->selfGroupId, pRaft->selfId, pMsg->from, pMsg->msgType, pMsg->term, pRaft->state);
 
   if (preHandleMessage(pRaft, pMsg)) {
     syncFreeMessage(pMsg);
@@ -265,9 +265,24 @@ static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
   SyncNodeId leaderId = pMsg->from;
   ESyncRaftMessageType msgType = pMsg->msgType;
 
-  if (msgType == RAFT_MSG_VOTE) {
-    // TODO
-    leaderId = SYNC_NON_NODE_ID;
+  if (syncIsVoteMsg(pMsg)) {
+    bool force = pMsg->vote.cType == SYNC_RAFT_CAMPAIGN_TRANSFER;
+    bool inLease = pRaft->checkQuorum &&
+                  pRaft->leaderId != SYNC_NON_NODE_ID &&
+                  pRaft->electionElapsed < pRaft->electionTimeout;
+    if (!force && inLease) {
+			// If a server receives a RequestVote request within the minimum election timeout
+			// of hearing from a current leader, it does not update its term or grant its vote
+      syncInfo("[%d:%d][logterm: %"PRId64", index: %" PRId64 " vote: %d] ignored vote from %d" \
+        "[logterm: %"PRId64", index: %"PRId64"] at term %"PRId64": lease is not expired (remaining ticks: %"PRId64")",
+        pRaft->selfGroupId, pRaft->selfId,
+        syncRaftLogLastTerm(pRaft->log), syncRaftLogLastIndex(pRaft->log), pRaft->voteFor,
+        pMsg->from, pMsg->vote.lastTerm, pMsg->vote.lastIndex,
+        pRaft->term, pRaft->electionTimeout - pRaft->electionElapsed);
+    }
+
+    // return true to break more msg process
+    return true;
   }
 
   if (syncIsPreVoteMsg(pMsg)) {
@@ -283,29 +298,41 @@ static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
   } else {
     syncInfo("[%d:%d] [term:%" PRId64 "] received a %d message with higher term from %d [term:%" PRId64 "]",
       pRaft->selfGroupId, pRaft->selfId, pRaft->term, msgType, pMsg->from, pMsg->term);
-    syncRaftBecomeFollower(pRaft, pMsg->term, leaderId);
+    ESyncRaftMessageType msgType = pMsg->msgType;
+    if (msgType == RAFT_MSG_APPEND || msgType == RAFT_MSG_HEARTBEAT || RAFT_MSG_SNAPSHOT) {
+      syncRaftBecomeFollower(pRaft, pMsg->term, pMsg->from);
+    } else {
+      syncRaftBecomeFollower(pRaft, pMsg->term, SYNC_NON_NODE_ID);
+    }
   }
 
   return false;
 }
 
 static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  if (pRaft->checkQuorum && pMsg->msgType == RAFT_MSG_APPEND) {
-		/**
-     * We have received messages from a leader at a lower term. It is possible
-		 * that these messages were simply delayed in the network, but this could
-		 * also mean that this node has advanced its term number during a network
-		 * partition, and it is now unable to either win an election or to rejoin
-	   * the majority on the old term. If checkQuorum is false, this will be
-		 * handled by incrementing term numbers in response to MsgVote with a
-		 * higher term, but if checkQuorum is true we may not advance the term on
-		 * MsgVote and must generate other messages to advance the term. The net
-		 * result of these two features is to minimize the disruption caused by
-		 * nodes that have been removed from the cluster's configuration: a
-		 * removed node will send MsgVotes (or MsgPreVotes) which will be ignored,
-		 * but it will not receive MsgApp or MsgHeartbeat, so it will not create
-		 * disruptive term increases
-    **/
+  if ((pRaft->checkQuorum || pRaft->candidateState.inPreVote ) &&
+      (pMsg->msgType == RAFT_MSG_APPEND || pMsg->msgType == RAFT_MSG_HEARTBEAT)) {
+			// We have received messages from a leader at a lower term. It is possible
+			// that these messages were simply delayed in the network, but this could
+			// also mean that this node has advanced its term number during a network
+			// partition, and it is now unable to either win an election or to rejoin
+			// the majority on the old term. If checkQuorum is false, this will be
+			// handled by incrementing term numbers in response to MsgVote with a
+			// higher term, but if checkQuorum is true we may not advance the term on
+			// MsgVote and must generate other messages to advance the term. The net
+			// result of these two features is to minimize the disruption caused by
+			// nodes that have been removed from the cluster's configuration: a
+			// removed node will send MsgVotes (or MsgPreVotes) which will be ignored,
+			// but it will not receive MsgApp or MsgHeartbeat, so it will not create
+			// disruptive term increases, by notifying leader of this node's activeness.
+			// The above comments also true for Pre-Vote
+			//
+			// When follower gets isolated, it soon starts an election ending
+			// up with a higher term than leader, although it won't receive enough
+			// votes to win the election. When it regains connectivity, this response
+			// with "pb.MsgAppResp" of higher term would force leader to step down.
+			// However, this disruption is inevitable to free this stuck node with
+			// fresh election. This can be prevented with Pre-Vote phase.
     SNodeInfo* pNode = syncRaftGetNodeById(pRaft, pMsg->from);
     if (pNode == NULL) {
       return true;
@@ -315,12 +342,18 @@ static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
       return true;
     }
 
-    pRaft->io.send(msg, pNode);
+    syncRaftsend(pRaft, msg, pNode);
+  } else if (syncIsPreVoteMsg(pMsg)) {
+		// Before Pre-Vote enable, there may have candidate with higher term,
+		// but less log. After update to Pre-Vote, the cluster may deadlock if
+		// we drop messages with a lower term.
+    // TODO
   } else {
     // ignore other cases
     syncInfo("[%d:%d] [term:%" PRId64 "] ignored a %d message with lower term from %d [term:%" PRId64 "]",
       pRaft->selfGroupId, pRaft->selfId, pRaft->term, pMsg->msgType, pMsg->from, pMsg->term);    
   }
 
+  // return true to break msg process
   return true;
 }

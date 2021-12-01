@@ -109,6 +109,6 @@ void syncRaftCampaign(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
       pRaft->selfGroupId, pRaft->selfId, lastTerm, 
       lastIndex, nodeId, pRaft->term);
 
-    pRaft->io.send(pMsg, pNode);
+    syncRaftsend(pRaft, pMsg, pNode);
   }
 }
