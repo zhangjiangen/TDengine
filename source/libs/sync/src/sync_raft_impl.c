@@ -26,7 +26,7 @@ static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 
 static bool increaseUncommittedSize(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n);
 
-static bool sendAppend(SSyncRaft* pRaft, SyncNodeId to);
+static bool syncRaftSendAppend(SSyncRaft* pRaft, SyncNodeId to);
 
 static void tickElection(SSyncRaft* pRaft);
 static void tickHeartbeat(SSyncRaft* pRaft);
@@ -167,9 +167,9 @@ void syncRaftLoadState(SSyncRaft* pRaft, const SSyncServerState* serverState) {
   pRaft->voteFor = serverState->voteFor;
 }
 
-// sendAppend sends an append RPC with new entries (if any) and the
+// syncRaftSendAppend sends an append RPC with new entries (if any) and the
 // current commit index to the given peer.
-static bool sendAppend(SSyncRaft* pRaft, SyncNodeId to) {
+bool syncRaftSendAppend(SSyncRaft* pRaft, SyncNodeId to) {
   syncRaftMaybeSendAppend(pRaft, to, true);
 }
 
@@ -179,7 +179,7 @@ static void visitProgressSendAppend(SSyncRaftProgress* progress, void* arg) {
     return;
   }
   
-  sendAppend(pRaft, progress->id);
+  syncRaftSendAppend(pRaft, progress->id);
 }
 
 // bcastAppend sends RPC, with entries to all peers that are not up-to-date
