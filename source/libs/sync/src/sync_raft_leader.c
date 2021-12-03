@@ -14,7 +14,9 @@
  */
 
 #include "sync_raft_impl.h"
+#include "raft.h"
 #include "raft_message.h"
+#include "sync_raft_progress_tracker.h"
 
 int syncRaftStepLeader(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   // These message types do not require any progress for m.From.
@@ -29,6 +31,12 @@ int syncRaftStepLeader(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   }
 
   // All other message types require a progress for m.From (pr).
-  
-  return 0;
+  SSyncRaftProgress* progress = syncRaftFindProgressByNodeId(&pRaft->tracker->progressMap, pMsg->from);
+  if (progress == NULL) {
+    return RAFT_OK;
+  }
+  if (msgType == RAFT_MSG_APPEND_RESP) {
+    
+  }
+  return RAFT_OK;
 }

@@ -39,7 +39,7 @@ bool syncRaftMaybeCommit(SSyncRaft* pRaft);
 
 int syncRaftStepLeader(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 
-int syncRaftsend(SSyncRaft* pRaft, SSyncMessage* pMsg, const SNodeInfo* pNode);
+int syncRaftSend(SSyncRaft* pRaft, SSyncMessage* pMsg, const SNodeInfo* pNode);
 
 ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id, 
                                     bool preVote, bool accept, 

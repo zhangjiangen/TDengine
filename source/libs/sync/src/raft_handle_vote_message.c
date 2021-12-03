@@ -43,7 +43,7 @@ int syncRaftHandleVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
     grant ? "grant" : "reject",
     pMsg->from, pMsg->vote.lastTerm, pMsg->vote.lastIndex, pRaft->term);
 
-  syncRaftsend(pRaft, pRespMsg, pNode);
+  syncRaftSend(pRaft, pRespMsg, pNode);
   return 0;
 }
 

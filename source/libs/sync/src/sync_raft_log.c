@@ -22,7 +22,6 @@
 static void visitNumOfPendingConf(const SSyncRaftEntry* entry, void* arg);
 static SyncIndex findConflict(const SSyncRaftLog*, const SSyncRaftEntry*, int n);
 static int mustCheckOutOfBounds(const SSyncRaftLog*, SyncIndex lo, SyncIndex hi);
-static SyncTerm zeroTermOnErrCompacted(const SSyncRaftLog*, SyncTerm, ESyncRaftCode err);
 
 struct SSyncRaftLog {
   // owner Raft
@@ -166,7 +165,7 @@ bool syncRaftLogMaybeCommit(SSyncRaftLog* log, SyncIndex maxIndex, SyncTerm term
   if (maxIndex > log->committedIndex) {
     ESyncRaftCode err;
     SyncTerm t = syncRaftLogTermOf(log, maxIndex, &err);
-    if (zeroTermOnErrCompacted(log, t, err) == term) {
+    if (syncRaftLogZeroTermOnErrCompacted(log, t, err) == term) {
       syncRaftLogCommitTo(log, maxIndex);
       return true;
     }
@@ -410,7 +409,7 @@ static SyncIndex findConflict(const SSyncRaftLog* log, const SSyncRaftEntry* ent
         SyncTerm term = syncRaftLogTermOf(log, entry->index, &err);
         syncFatal("[%d:%d]found conflict at index %" PRId64 " [existing term: %" PRId64 ", conflicting term: %" PRId64 "]",
           pRaft->selfGroupId, pRaft->selfId, entry->index,
-          zeroTermOnErrCompacted(log, term, err),
+          syncRaftLogZeroTermOnErrCompacted(log, term, err),
           entry->term);
       }
       return entry->index;
@@ -443,7 +442,7 @@ static int mustCheckOutOfBounds(const SSyncRaftLog* log, SyncIndex lo, SyncIndex
   return RAFT_OK;
 }
 
-static SyncTerm zeroTermOnErrCompacted(const SSyncRaftLog* log, SyncTerm t, ESyncRaftCode err) {
+SyncTerm syncRaftLogZeroTermOnErrCompacted(const SSyncRaftLog* log, SyncTerm t, ESyncRaftCode err) {
   if (err == RAFT_OK) {
     return t;
   }

@@ -99,6 +99,9 @@ typedef struct RaftMsg_Append_Entries {
 
 typedef struct RaftMsg_Append_Resp {
   SyncIndex index;
+  SyncIndex rejectHint;
+  SyncTerm logTerm;
+  bool reject;
 } RaftMsg_Append_Resp;
 
 typedef struct SSyncMessage {
@@ -239,7 +242,8 @@ static FORCE_INLINE SSyncMessage* syncNewEmptyAppendRespMsg(SyncGroupId groupId,
     .term = term,
     .msgType = RAFT_MSG_APPEND_RESP,
     .appendResp = (RaftMsg_Append_Resp) {
-
+      .index = 0,
+      .reject = false,
     },
   };
 
@@ -270,6 +274,7 @@ int syncRaftHandleElectionMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 int syncRaftHandleVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 int syncRaftHandleAppendEntriesMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+int syncRaftHandleAppendEntriesRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg, SSyncRaftProgress*);
 int syncRaftHandlePropMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 
 #endif  /* _TD_LIBS_SYNC_RAFT_MESSAGE_H */

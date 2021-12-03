@@ -342,7 +342,7 @@ static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
       return true;
     }
 
-    syncRaftsend(pRaft, msg, pNode);
+    syncRaftSend(pRaft, msg, pNode);
   } else if (syncIsPreVoteMsg(pMsg)) {
 		// Before Pre-Vote enable, there may have candidate with higher term,
 		// but less log. After update to Pre-Vote, the cluster may deadlock if

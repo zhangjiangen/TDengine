@@ -109,6 +109,6 @@ void syncRaftCampaign(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
       pRaft->selfGroupId, pRaft->selfId, lastTerm, 
       lastIndex, nodeId, pRaft->term);
 
-    syncRaftsend(pRaft, pMsg, pNode);
+    syncRaftSend(pRaft, pMsg, pNode);
   }
 }

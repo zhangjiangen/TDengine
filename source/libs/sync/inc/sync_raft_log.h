@@ -64,4 +64,6 @@ SyncIndex syncRaftLogCommitIndex(const SSyncRaftLog* log);
 
 void syncSetRaftLogCommitIndex(SSyncRaftLog* log, SyncIndex index);
 
+SyncTerm syncRaftLogZeroTermOnErrCompacted(const SSyncRaftLog* log, SyncTerm t, ESyncRaftCode err);
+
 #endif  /* _TD_LIBS_SYNC_RAFT_LOG_H */

@@ -322,7 +322,7 @@ bool syncRaftMaybeCommit(SSyncRaft* pRaft) {
 
 // send schedules persisting state to a stable storage and AFTER that
 // sending the message (as part of next Ready message processing).
-int syncRaftsend(SSyncRaft* pRaft, SSyncMessage* pMsg, const SNodeInfo* pNode) {
+int syncRaftSend(SSyncRaft* pRaft, SSyncMessage* pMsg, const SNodeInfo* pNode) {
   if (pMsg->from == SYNC_NON_NODE_ID) {
     pMsg->from = pRaft->selfId;
   }

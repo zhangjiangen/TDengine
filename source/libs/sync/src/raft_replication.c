@@ -110,7 +110,7 @@ static bool sendAppendEntries(SSyncRaft* pRaft, SSyncRaftProgress* progress,
       break;
     }
   }
-  syncRaftsend(pRaft, msg, pNode);
+  syncRaftSend(pRaft, msg, pNode);
   ret = true;
 
 err_release_log:
