@@ -19,7 +19,7 @@
 #include "sync_raft_impl.h"
 #include "raft_message.h"
 
-int syncRaftHandleAppendEntriesMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
+int syncRaftHandleAppendEntriesMessage(SSyncRaft* pRaft, SSyncMessage* pMsg) {
   const RaftMsg_Append_Entries *appendEntries = &(pMsg->appendEntries);
   
   SNodeInfo* pNode = syncRaftGetNodeById(pRaft, pMsg->from);

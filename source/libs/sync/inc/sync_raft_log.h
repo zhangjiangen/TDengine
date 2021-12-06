@@ -31,6 +31,8 @@ bool syncRaftLogMatchTerm(const SSyncRaftLog* log, SyncIndex index, SyncTerm log
 
 bool syncRaftLogCommitTo(SSyncRaftLog* log, SyncIndex toCommit);
 
+bool syncRaftLogIsCommitted(SSyncRaftLog* log, SyncIndex index);
+
 SyncIndex syncRaftLogLastIndex(const SSyncRaftLog* log);
 
 SyncTerm syncRaftLogTermOf(const SSyncRaftLog* log, SyncIndex index, ESyncRaftCode* errCode);

@@ -33,13 +33,16 @@ void syncRaftCampaign(SSyncRaft* pRaft, ESyncRaftElectionType cType);
 void syncRaftRandomizedElectionTimeout(SSyncRaft* pRaft);
 bool syncRaftIsPromotable(SSyncRaft* pRaft);
 bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft);
-int  syncRaftQuorum(SSyncRaft* pRaft);
 
 bool syncRaftMaybeCommit(SSyncRaft* pRaft);
 
-int syncRaftStepLeader(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+int syncRaftStepLeader(SSyncRaft* pRaft, SSyncMessage* pMsg);
+int syncRaftStepCandidate(SSyncRaft* pRaft, SSyncMessage* pMsg);
+int syncRaftStepFollower(SSyncRaft* pRaft, SSyncMessage* pMsg);
 
 int syncRaftSend(SSyncRaft* pRaft, SSyncMessage* pMsg, const SNodeInfo* pNode);
+bool syncRaftSendAppend(SSyncRaft* pRaft, SyncNodeId to);
+bool syncRaftMaybeSendAppend(SSyncRaft* pRaft, SyncNodeId to, bool sendIfEmpty);
 
 ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id, 
                                     bool preVote, bool accept, 

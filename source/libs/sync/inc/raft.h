@@ -37,7 +37,7 @@ typedef struct SSyncRaftIOMethods {
   int (*send)(const SSyncMessage* pMsg, const SNodeInfo* pNode);
 } SSyncRaftIOMethods;
 
-typedef int   (*SyncRaftStepFp)(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+typedef int   (*SyncRaftStepFp)(SSyncRaft* pRaft, SSyncMessage* pMsg);
 typedef void  (*SyncRaftTickFp)(SSyncRaft* pRaft);
 
 struct SSyncRaft {

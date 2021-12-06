@@ -21,12 +21,8 @@
 #include "syncInt.h"
 
 static int convertClear(SSyncRaft* pRaft);
-static int stepFollower(SSyncRaft* pRaft, const SSyncMessage* pMsg);
-static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 
 static bool increaseUncommittedSize(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n);
-
-static bool syncRaftSendAppend(SSyncRaft* pRaft, SyncNodeId to);
 
 static void tickElection(SSyncRaft* pRaft);
 static void tickHeartbeat(SSyncRaft* pRaft);
@@ -38,7 +34,7 @@ static void resetRaft(SSyncRaft* pRaft, SyncTerm term);
 void syncRaftBecomeFollower(SSyncRaft* pRaft, SyncTerm term, SyncNodeId leaderId) {
   convertClear(pRaft);
 
-  pRaft->stepFp = stepFollower;
+  pRaft->stepFp = syncRaftStepFollower;
   resetRaft(pRaft, term);
   pRaft->tickFp = tickElection;
   pRaft->leaderId = leaderId;
@@ -49,12 +45,15 @@ void syncRaftBecomeFollower(SSyncRaft* pRaft, SyncTerm term, SyncNodeId leaderId
 void syncRaftBecomePreCandidate(SSyncRaft* pRaft) {
   convertClear(pRaft);
 
+  if (pRaft->state == TAOS_SYNC_STATE_LEADER) {
+    syncFatal("[%d:%d]invalid transition [leader -> candidate]", pRaft->selfGroupId, pRaft->selfId);
+  }
 	/**
    * Becoming a pre-candidate changes our step functions and state,
 	 * but doesn't change anything else. In particular it does not increase
 	 * r.Term or change r.Vote.
    **/
-  pRaft->stepFp = stepCandidate;
+  pRaft->stepFp = syncRaftStepCandidate;
   pRaft->tickFp = tickElection;
   pRaft->state  = TAOS_SYNC_STATE_CANDIDATE;
   pRaft->candidateState.inPreVote = true;
@@ -63,9 +62,11 @@ void syncRaftBecomePreCandidate(SSyncRaft* pRaft) {
 
 void syncRaftBecomeCandidate(SSyncRaft* pRaft) {
   convertClear(pRaft);
-
+  if (pRaft->state == TAOS_SYNC_STATE_LEADER) {
+    syncFatal("[%d:%d]invalid transition [leader -> candidate]", pRaft->selfGroupId, pRaft->selfId);
+  }
   pRaft->candidateState.inPreVote = false;
-  pRaft->stepFp = stepCandidate;
+  pRaft->stepFp = syncRaftStepCandidate;
   // become candidate make term+1
   resetRaft(pRaft, pRaft->term + 1);
   pRaft->tickFp = tickElection;
@@ -124,11 +125,6 @@ bool syncRaftIsPromotable(SSyncRaft* pRaft) {
 
 bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft) {
   return pRaft->electionElapsed >= pRaft->randomizedElectionTimeout;
-}
-
-int syncRaftQuorum(SSyncRaft* pRaft) {
-  return 0;
-  //return pRaft->cluster.replica / 2 + 1;
 }
 
 ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id, 
@@ -203,33 +199,6 @@ SNodeInfo* syncRaftGetNodeById(SSyncRaft *pRaft, SyncNodeId id) {
 
 static int convertClear(SSyncRaft* pRaft) {
 
-}
-
-static int stepFollower(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  
-  return 0;
-}
-
-static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  /**
-   * Only handle vote responses corresponding to our candidacy (while in
-	 * StateCandidate, we may get stale MsgPreVoteResp messages in this term from
-	 * our pre-candidate state).
-   **/
-  ESyncRaftMessageType msgType = pMsg->msgType;
-
-  if (msgType == RAFT_MSG_INTERNAL_PROP) {
-    return 0;
-  }
-
-  if (msgType == RAFT_MSG_VOTE_RESP) {
-    syncRaftHandleVoteRespMessage(pRaft, pMsg);
-    return 0;
-  } else if (msgType == RAFT_MSG_APPEND) {
-    syncRaftBecomeFollower(pRaft, pMsg->term, pMsg->from);
-    syncRaftHandleAppendEntriesMessage(pRaft, pMsg);
-  }
-  return 0;
 }
 
 // tickElection is run by followers and candidates after r.electionTimeout.

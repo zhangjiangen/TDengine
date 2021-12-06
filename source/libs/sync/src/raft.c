@@ -274,7 +274,7 @@ static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
 			// If a server receives a RequestVote request within the minimum election timeout
 			// of hearing from a current leader, it does not update its term or grant its vote
       syncInfo("[%d:%d][logterm: %"PRId64", index: %" PRId64 " vote: %d] ignored vote from %d" \
-        "[logterm: %"PRId64", index: %"PRId64"] at term %"PRId64": lease is not expired (remaining ticks: %"PRId64")",
+        "[logterm: %"PRId64", index: %"PRId64"] at term %"PRId64": lease is not expired (remaining ticks: %d)",
         pRaft->selfGroupId, pRaft->selfId,
         syncRaftLogLastTerm(pRaft->log), syncRaftLogLastIndex(pRaft->log), pRaft->voteFor,
         pMsg->from, pMsg->vote.lastTerm, pMsg->vote.lastIndex,

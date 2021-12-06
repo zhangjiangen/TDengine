@@ -18,12 +18,9 @@
 #include "sync_raft_impl.h"
 #include "raft_message.h"
 
-int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
+int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, SSyncMessage* pMsg) {
   int granted, rejected;
-  int quorum;
   int voterIndex;
-
-  assert(pRaft->state == TAOS_SYNC_STATE_CANDIDATE);
 
   SNodeInfo* pNode = syncRaftGetNodeById(pRaft, pMsg->from);
   if (pNode == NULL) {
@@ -40,8 +37,8 @@ int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
                                 pMsg->voteResp.cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION,
                                 !pMsg->voteResp.rejected, &rejected, &granted);
 
-  syncInfo("[%d:%d] [quorum:%d] has received %d votes and %d vote rejections",
-    pRaft->selfGroupId, pRaft->selfId, quorum, granted, rejected);
+  syncInfo("[%d:%d] has received %d votes and %d vote rejections",
+    pRaft->selfGroupId, pRaft->selfId, granted, rejected);
 
   if (result == SYNC_RAFT_VOTE_WON) {
     if (pRaft->candidateState.inPreVote) {

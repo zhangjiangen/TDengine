@@ -16,6 +16,7 @@
 #ifndef _TD_LIBS_SYNC_RAFT_MESSAGE_H
 #define _TD_LIBS_SYNC_RAFT_MESSAGE_H
 
+#include <stdio.h>
 #include "sync.h"
 #include "sync_type.h"
 
@@ -104,6 +105,14 @@ typedef struct RaftMsg_Append_Resp {
   bool reject;
 } RaftMsg_Append_Resp;
 
+typedef struct RaftMsg_Heartbeat {
+  SyncIndex commmitIndex;
+} RaftMsg_Heartbeat;
+
+typedef struct RaftMsg_Heartbeat_Resp {
+  
+} RaftMsg_Heartbeat_Resp;
+
 typedef struct SSyncMessage {
   ESyncRaftMessageType msgType;
   SyncTerm term;
@@ -122,6 +131,8 @@ typedef struct SSyncMessage {
 
     RaftMsg_Append_Entries appendEntries;
     RaftMsg_Append_Resp appendResp;
+
+    RaftMsg_Heartbeat heartbeat;
   };
 } SSyncMessage;
 
@@ -270,11 +281,12 @@ static FORCE_INLINE bool syncIsPreVoteMsg(const SSyncMessage* pMsg) {
 void syncFreeMessage(const SSyncMessage* pMsg);
 
 // message handlers
-int syncRaftHandleElectionMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
-int syncRaftHandleVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
-int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
-int syncRaftHandleAppendEntriesMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
-int syncRaftHandleAppendEntriesRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg, SSyncRaftProgress*);
-int syncRaftHandlePropMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+int syncRaftHandleElectionMessage(SSyncRaft* pRaft, SSyncMessage* pMsg);
+int syncRaftHandleVoteMessage(SSyncRaft* pRaft, SSyncMessage* pMsg);
+int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, SSyncMessage* pMsg);
+int syncRaftHandleAppendEntriesMessage(SSyncRaft* pRaft, SSyncMessage* pMsg);
+int syncRaftHandleAppendEntriesRespMessage(SSyncRaft* pRaft, SSyncMessage* pMsg, SSyncRaftProgress*);
+int syncRaftHandlePropMessage(SSyncRaft* pRaft, SSyncMessage* pMsg);
+int syncRaftHandleHeartbeat(SSyncRaft* pRaft, SSyncMessage* pMsg);
 
 #endif  /* _TD_LIBS_SYNC_RAFT_MESSAGE_H */

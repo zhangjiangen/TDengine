@@ -20,8 +20,8 @@
 #include "raft_message.h"
 #include "sync_raft_progress_tracker.h"
 
-int syncRaftHandlePropMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  RaftMsgInternal_Prop *propose = &(pMsg->propose);
+int syncRaftHandlePropMessage(SSyncRaft* pRaft, SSyncMessage* pMsg) {
+  const RaftMsgInternal_Prop *propose = &(pMsg->propose);
   if (propose->pData == NULL) {
 
   }
@@ -41,7 +41,7 @@ int syncRaftHandlePropMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
     .buffer = propose->pData,
     .type = propose->eType,
   };
-  if (!syncRaftAppendEntry(pRaft->log, &entry, 1)) {
+  if (!syncRaftAppendEntry(pRaft, &entry, 1)) {
     return RAFT_PROPOSAL_DROPPED;
   }
 

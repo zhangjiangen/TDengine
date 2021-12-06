@@ -16,14 +16,15 @@
 #include "syncInt.h"
 #include "raft.h"
 #include "sync_raft_log.h"
+#include "sync_raft_impl.h"
 #include "raft_message.h"
 
-int syncRaftHandleElectionMessage(SSyncRaft* pRaft, SSyncMessage* pMsg) {
-  if (pRaft->preVote) {
-    syncRaftStartElection(pRaft, SYNC_RAFT_CAMPAIGN_PRE_ELECTION);
-  } else {
-    syncRaftStartElection(pRaft, SYNC_RAFT_CAMPAIGN_ELECTION);
-  }
+int syncRaftHandleHeartbeat(SSyncRaft* pRaft, SSyncMessage* pMsg) {
+  RaftMsg_Heartbeat* ht = (RaftMsg_Heartbeat*)(&pMsg->heartbeat);
+  syncRaftLogCommitTo(pRaft->log, ht->commmitIndex);
 
-  return 0;
+  // TODO: resp heartbeat
+  //syncRaftSend(pRaft, pRespMsg, pNode);
+
+  return RAFT_OK;
 }

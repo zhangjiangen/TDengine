@@ -15,28 +15,29 @@
 
 #include "sync_raft_impl.h"
 #include "raft.h"
+#include "syncInt.h"
 #include "raft_message.h"
 #include "sync_raft_progress_tracker.h"
 
-int syncRaftStepLeader(SSyncRaft* pRaft, SSyncMessage* pMsg) {
-  // These message types do not require any progress for m.From.
+int syncRaftStepCandidate(SSyncRaft* pRaft, SSyncMessage* pMsg) {
+  /**
+   * Only handle vote responses corresponding to our candidacy (while in
+	 * StateCandidate, we may get stale MsgPreVoteResp messages in this term from
+	 * our pre-candidate state).
+   **/
   ESyncRaftMessageType msgType = pMsg->msgType;
-  if (msgType == RAFT_MSG_INTERNAL_BEAT) {
-    syncRaftBroadcastHeartbeat(pRaft);
-    return 0;
-  }
 
   if (msgType == RAFT_MSG_INTERNAL_PROP) {
-    return syncRaftHandlePropMessage(pRaft, pMsg);
+    syncInfo("[%d:%d]no leader at term %"PRId64", dropping proposal",
+      pRaft->selfGroupId, pRaft->selfId, pRaft->term);
+    return RAFT_PROPOSAL_DROPPED;
   }
 
-  // All other message types require a progress for m.From (pr).
-  SSyncRaftProgress* progress = syncRaftFindProgressByNodeId(&pRaft->tracker->progressMap, pMsg->from);
-  if (progress == NULL) {
-    return RAFT_OK;
-  }
-  if (msgType == RAFT_MSG_APPEND_RESP) {
-    
+  if (msgType == RAFT_MSG_VOTE_RESP) {
+    syncRaftHandleVoteRespMessage(pRaft, pMsg);    
+  } else if (msgType == RAFT_MSG_APPEND) {
+    syncRaftBecomeFollower(pRaft, pMsg->term, pMsg->from);
+    syncRaftHandleAppendEntriesMessage(pRaft, pMsg);
   }
   return RAFT_OK;
 }

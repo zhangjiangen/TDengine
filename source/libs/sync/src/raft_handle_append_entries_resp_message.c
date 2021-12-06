@@ -24,7 +24,7 @@ static int acceptAppendEntriesResp(SSyncRaft* pRaft, const SSyncMessage* pMsg,SS
 static int rejectAppendEntriesResp(SSyncRaft* pRaft, const SSyncMessage* pMsg,SSyncRaftProgress* progress);
 static void releasePendingReadIndexMessages(SSyncRaft* pRaft);
 
-int syncRaftHandleAppendEntriesRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg,SSyncRaftProgress* progress) {
+int syncRaftHandleAppendEntriesRespMessage(SSyncRaft* pRaft, SSyncMessage* pMsg,SSyncRaftProgress* progress) {
   syncRaftProgressRecentActive(progress);
   const RaftMsg_Append_Resp* resp = &(pMsg->appendResp);
   if (resp->reject) {

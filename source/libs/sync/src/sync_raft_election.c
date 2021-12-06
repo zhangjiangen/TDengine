@@ -64,7 +64,6 @@ void syncRaftCampaign(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
     preVote = false;
   }
 
-  int quorum = syncRaftQuorum(pRaft);
   ESyncRaftVoteResult result = syncRaftPollVote(pRaft, pRaft->selfId, preVote, true, NULL, NULL);
   if (result == SYNC_RAFT_VOTE_WON) {
 		// We won the election after voting for ourselves (which must mean that
