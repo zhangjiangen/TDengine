@@ -13,10 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "raft.h"
+#include "sync_raft.h"
 #include "sync_raft_impl.h"
 #include "sync_raft_log.h"
-#include "raft_replication.h"
 #include "sync_raft_progress_tracker.h"
 #include "syncInt.h"
 

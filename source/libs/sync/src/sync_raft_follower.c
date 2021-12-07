@@ -14,9 +14,9 @@
  */
 
 #include "sync_raft_impl.h"
-#include "raft.h"
+#include "sync_raft.h"
 #include "syncInt.h"
-#include "raft_message.h"
+#include "sync_raft_message.h"
 #include "sync_raft_progress_tracker.h"
 
 static int followerHandleProp(SSyncRaft* pRaft, SSyncMessage* pMsg);

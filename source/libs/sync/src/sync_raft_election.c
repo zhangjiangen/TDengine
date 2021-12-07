@@ -14,9 +14,9 @@
  */
 
 #include "syncInt.h"
-#include "raft.h"
+#include "sync_raft.h"
 #include "sync_raft_log.h"
-#include "raft_message.h"
+#include "sync_raft_message.h"
 #include "sync_raft_progress_tracker.h"
 
 void syncRaftStartElection(SSyncRaft* pRaft, ESyncRaftElectionType cType) {

@@ -14,8 +14,8 @@
  */
 
 #include "sync_raft_impl.h"
-#include "raft.h"
-#include "raft_message.h"
+#include "sync_raft.h"
+#include "sync_raft_message.h"
 #include "sync_raft_progress_tracker.h"
 
 int syncRaftStepLeader(SSyncRaft* pRaft, SSyncMessage* pMsg) {

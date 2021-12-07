@@ -14,10 +14,10 @@
  */
 
 #include "syncInt.h"
-#include "raft.h"
+#include "sync_raft.h"
 #include "sync_raft_log.h"
 #include "sync_raft_impl.h"
-#include "raft_message.h"
+#include "sync_raft_message.h"
 
 int syncRaftHandleHeartbeat(SSyncRaft* pRaft, SSyncMessage* pMsg) {
   RaftMsg_Heartbeat* ht = (RaftMsg_Heartbeat*)(&pMsg->heartbeat);

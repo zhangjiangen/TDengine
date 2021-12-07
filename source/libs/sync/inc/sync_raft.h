@@ -19,7 +19,7 @@
 #include "sync.h"
 #include "sync_type.h"
 #include "thash.h"
-#include "raft_message.h"
+#include "sync_raft_message.h"
 #include "sync_raft_impl.h"
 #include "sync_raft_quorum.h"
 
@@ -33,6 +33,7 @@ typedef struct RaftCandidateState {
 } RaftCandidateState;
 
 typedef struct SSyncRaftIOMethods {
+  void* pArg;
   // send SSyncMessage to node
   int (*send)(const SSyncMessage* pMsg, const SNodeInfo* pNode);
 } SSyncRaftIOMethods;

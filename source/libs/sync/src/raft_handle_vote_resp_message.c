@@ -14,9 +14,9 @@
  */
 
 #include "syncInt.h"
-#include "raft.h"
+#include "sync_raft.h"
 #include "sync_raft_impl.h"
-#include "raft_message.h"
+#include "sync_raft_message.h"
 
 int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, SSyncMessage* pMsg) {
   int granted, rejected;

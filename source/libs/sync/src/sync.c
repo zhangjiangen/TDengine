@@ -13,9 +13,51 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "thash.h"
+#include "os.h"
+#include "sync.h"
+#include "sync_type.h"
 #include "syncInt.h"
 #include "trpc.h"
 #include "ttimer.h"
+
+#define TAOS_SYNC_MAX_WORKER 3
+
+typedef struct SSyncWorker {
+  pthread_t thread;
+} SSyncWorker;
+
+struct SSyncNode {
+  pthread_mutex_t   mutex;
+  int32_t      refCount;
+  SyncGroupId   vgId;
+  SSyncRaft raft;
+  void* syncTimer;
+};
+
+typedef struct SSyncManager {
+  pthread_mutex_t   mutex;
+
+  // sync server rpc
+  void* serverRpc;
+  // rpc server hash table base on FQDN:port key
+  SHashObj* rpcServerTable;
+
+  // sync client rpc
+  void* clientRpc;
+
+  // worker threads
+  SSyncWorker worker[TAOS_SYNC_MAX_WORKER];
+
+  // vgroup hash table
+  SHashObj* vgroupTable;
+
+  // timer manager
+  void* syncTimerManager;
+
+} SSyncManager;
+
+extern SSyncManager* gSyncManager;
 
 SSyncManager* gSyncManager = NULL;
 

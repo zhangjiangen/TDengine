@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "sync_raft.h"
 #include "syncInt.h"
 #include "sync_raft_log.h"
 #include "sync_raft_proto.h"

@@ -14,10 +14,10 @@
  */
 
 #include "syncInt.h"
-#include "raft.h"
+#include "sync_raft.h"
 #include "sync_raft_log.h"
 #include "sync_raft_impl.h"
-#include "raft_message.h"
+#include "sync_raft_message.h"
 #include "sync_raft_progress_tracker.h"
 
 static int acceptAppendEntriesResp(SSyncRaft* pRaft, const SSyncMessage* pMsg,SSyncRaftProgress* progress);

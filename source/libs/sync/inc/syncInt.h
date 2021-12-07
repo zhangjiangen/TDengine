@@ -16,50 +16,9 @@
 #ifndef _TD_LIBS_SYNC_INT_H
 #define _TD_LIBS_SYNC_INT_H
 
-#include "thash.h"
-#include "os.h"
-#include "sync.h"
-#include "sync_type.h"
-#include "raft.h"
+#include <stdint.h>
+#include "sync_raft.h"
 #include "tlog.h"
-
-#define TAOS_SYNC_MAX_WORKER 3
-
-typedef struct SSyncWorker {
-  pthread_t thread;
-} SSyncWorker;
-
-struct SSyncNode {
-  pthread_mutex_t   mutex;
-  int32_t      refCount;
-  SyncGroupId   vgId;
-  SSyncRaft raft;
-  void* syncTimer;
-};
-
-typedef struct SSyncManager {
-  pthread_mutex_t   mutex;
-
-  // sync server rpc
-  void* serverRpc;
-  // rpc server hash table base on FQDN:port key
-  SHashObj* rpcServerTable;
-
-  // sync client rpc
-  void* clientRpc;
-
-  // worker threads
-  SSyncWorker worker[TAOS_SYNC_MAX_WORKER];
-
-  // vgroup hash table
-  SHashObj* vgroupTable;
-
-  // timer manager
-  void* syncTimerManager;
-
-} SSyncManager;
-
-extern SSyncManager* gSyncManager;
 
 #define syncFatal(...) do { if (sDebugFlag & DEBUG_FATAL) { taosPrintLog("SYNC FATAL ", 255, __VA_ARGS__); }}     while(0)
 #define syncError(...) do { if (sDebugFlag & DEBUG_ERROR) { taosPrintLog("SYNC ERROR ", 255, __VA_ARGS__); }}     while(0)

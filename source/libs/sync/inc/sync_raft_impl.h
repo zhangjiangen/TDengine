@@ -18,7 +18,7 @@
 
 #include "sync.h"
 #include "sync_type.h"
-#include "raft_message.h"
+#include "sync_raft_message.h"
 #include "sync_raft_quorum.h"
 
 void syncRaftBecomeFollower(SSyncRaft* pRaft, SyncTerm term, SyncNodeId leaderId);
@@ -42,6 +42,12 @@ int syncRaftStepFollower(SSyncRaft* pRaft, SSyncMessage* pMsg);
 
 int syncRaftSend(SSyncRaft* pRaft, SSyncMessage* pMsg, const SNodeInfo* pNode);
 bool syncRaftSendAppend(SSyncRaft* pRaft, SyncNodeId to);
+
+// maybeSendAppend sends an append RPC with new entries to the given peer,
+// if necessary. Returns true if a message was sent. The sendIfEmpty
+// argument controls whether messages with no entries will be sent
+// ("empty" messages are useful to convey updated Commit indexes, but
+// are undesirable when we're sending multiple messages in a batch).
 bool syncRaftMaybeSendAppend(SSyncRaft* pRaft, SyncNodeId to, bool sendIfEmpty);
 
 ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id, 

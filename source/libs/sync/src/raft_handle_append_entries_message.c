@@ -14,10 +14,10 @@
  */
 
 #include "syncInt.h"
-#include "raft.h"
+#include "sync_raft.h"
 #include "sync_raft_log.h"
 #include "sync_raft_impl.h"
-#include "raft_message.h"
+#include "sync_raft_message.h"
 
 int syncRaftHandleAppendEntriesMessage(SSyncRaft* pRaft, SSyncMessage* pMsg) {
   const RaftMsg_Append_Entries *appendEntries = &(pMsg->appendEntries);
