@@ -132,7 +132,7 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   return 0;
 }
 
-int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
+int32_t syncRaftStep(SSyncRaft* pRaft, SSyncMessage* pMsg) {
   syncDebug("[%d:%d]from %d, type:%d, term:%" PRId64 ", state:%d",
     pRaft->selfGroupId, pRaft->selfId, pMsg->from, pMsg->msgType, pMsg->term, pRaft->state);
 

@@ -141,7 +141,7 @@ struct SSyncRaft {
 };
 
 int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo);
-int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+int32_t syncRaftStep(SSyncRaft* pRaft, SSyncMessage* pMsg);
 int32_t syncRaftTick(SSyncRaft* pRaft);
 
 #endif /* _TD_LIBS_SYNC_RAFT_H */

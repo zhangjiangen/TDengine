@@ -161,7 +161,7 @@ SSyncNode* syncStart(const SSyncInfo* pInfo) {
     return NULL;
   }
 
-  pNode->syncTimer = taosTmrStart(syncNodeTick, SYNC_TICK_TIMER, (void*)pInfo->vgId, gSyncManager->syncTimerManager);
+  pNode->syncTimer = taosTmrStart(syncNodeTick, SYNC_TICK_TIMER, pNode, gSyncManager->syncTimerManager);
 
   // start raft
   pNode->raft.pNode = pNode;
@@ -237,8 +237,12 @@ static int syncInitRpcServer(SSyncManager* syncManager, const SSyncCluster* pSyn
   }
   assert(pSyncCfg->selfIndex < pSyncCfg->replica && pSyncCfg->selfIndex >= 0);
   const SNodeInfo* pNode = &(pSyncCfg->nodeInfo[pSyncCfg->replica]);
-  char buffer[20] = {'\0'};
-  snprintf(buffer, sizeof(buffer), "%s:%d", &(pNode->nodeFqdn[0]), pNode->nodePort);
+  char buffer[30] = {'\0'};
+  int ret = snprintf(buffer, sizeof(buffer), "%s:%d", pNode->nodeFqdn, pNode->nodePort);
+  if (ret < 0) {
+    syncError("init sync rpc server hash table error");
+    return -1;
+  }
   size_t len = strlen(buffer);
   void** ppRpcServer = taosHashGet(gSyncManager->rpcServerTable, buffer, len);
   if (ppRpcServer != NULL) {
@@ -329,16 +333,18 @@ static void *syncWorkerMain(void *argv) {
 }
 
 static void syncNodeTick(void *param, void *tmrId) {
+/*  
   SyncGroupId vgId = (SyncGroupId)param;
   SSyncNode **ppNode = taosHashGet(gSyncManager->vgroupTable, &vgId, sizeof(SyncGroupId*));
   if (ppNode == NULL) {
     return;
   }
-  SSyncNode *pNode = *ppNode;
+*/
+  SSyncNode *pNode = (SSyncNode*)param;
 
   pthread_mutex_lock(&pNode->mutex);
   syncRaftTick(&pNode->raft);
   pthread_mutex_unlock(&pNode->mutex);
 
-  pNode->syncTimer = taosTmrStart(syncNodeTick, SYNC_TICK_TIMER, (void*)pNode->vgId, gSyncManager->syncTimerManager);
+  pNode->syncTimer = taosTmrStart(syncNodeTick, SYNC_TICK_TIMER, pNode, gSyncManager->syncTimerManager);
 }
