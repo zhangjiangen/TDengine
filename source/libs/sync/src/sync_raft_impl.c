@@ -129,7 +129,7 @@ bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft) {
 ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id, 
                                       bool preVote, bool grant, 
                                       int* rejected, int *granted) {
-  SNodeInfo* pNode = syncRaftGetNodeById(pRaft, id);
+  SSyncNodeInfo* pNode = syncRaftGetNodeById(pRaft, id);
   if (pNode == NULL) {
     return true;
   }
@@ -142,7 +142,7 @@ ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id,
       pRaft->selfGroupId, pRaft->selfId, preVote, id, pRaft->term);
   }
 
-  syncRaftRecordVote(pRaft->tracker, pNode->nodeId, grant);
+  syncRaftRecordVote(pRaft->tracker, pNode->node.nodeId, grant);
   return syncRaftTallyVotes(pRaft->tracker, rejected, granted);
 }
 
@@ -187,8 +187,8 @@ void syncRaftBroadcastHeartbeat(SSyncRaft* pRaft) {
 
 }
 
-SNodeInfo* syncRaftGetNodeById(SSyncRaft *pRaft, SyncNodeId id) {
-  SNodeInfo **ppNode = taosHashGet(pRaft->nodeInfoMap, &id, sizeof(SyncNodeId*));
+SSyncNodeInfo* syncRaftGetNodeById(SSyncRaft *pRaft, SyncNodeId id) {
+  SSyncNodeInfo **ppNode = taosHashGet(pRaft->nodeInfoMap, &id, sizeof(SyncNodeId*));
   if (ppNode != NULL) {
     return *ppNode;
   }
@@ -290,7 +290,7 @@ bool syncRaftMaybeCommit(SSyncRaft* pRaft) {
 
 // send schedules persisting state to a stable storage and AFTER that
 // sending the message (as part of next Ready message processing).
-int syncRaftSend(SSyncRaft* pRaft, SSyncMessage* pMsg, const SNodeInfo* pNode) {
+int syncRaftSend(SSyncRaft* pRaft, SSyncMessage* pMsg, const SSyncNodeInfo* pNode) {
   if (pMsg->from == SYNC_NON_NODE_ID) {
     pMsg->from = pRaft->selfId;
   }
@@ -325,7 +325,7 @@ int syncRaftSend(SSyncRaft* pRaft, SSyncMessage* pMsg, const SNodeInfo* pNode) {
     }
   }
 
-  return pRaft->io.send(pMsg, pNode);
+  return pRaft->io.send(pRaft->io.pArg, pMsg, pNode);
 }
 
 static void abortLeaderTransfer(SSyncRaft* pRaft) {

@@ -40,7 +40,7 @@ int syncRaftStepLeader(SSyncRaft* pRaft, SSyncMessage* pMsg);
 int syncRaftStepCandidate(SSyncRaft* pRaft, SSyncMessage* pMsg);
 int syncRaftStepFollower(SSyncRaft* pRaft, SSyncMessage* pMsg);
 
-int syncRaftSend(SSyncRaft* pRaft, SSyncMessage* pMsg, const SNodeInfo* pNode);
+int syncRaftSend(SSyncRaft* pRaft, SSyncMessage* pMsg, const SSyncNodeInfo* pNode);
 bool syncRaftSendAppend(SSyncRaft* pRaft, SyncNodeId to);
 
 // maybeSendAppend sends an append RPC with new entries to the given peer,
@@ -67,6 +67,6 @@ void syncRaftBroadcastHeartbeat(SSyncRaft* pRaft);
 
 bool syncRaftAppendEntry(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n);
 
-SNodeInfo* syncRaftGetNodeById(SSyncRaft *pRaft, SyncNodeId id);
+SSyncNodeInfo* syncRaftGetNodeById(SSyncRaft *pRaft, SyncNodeId id);
 
 #endif /* _TD_LIBS_SYNC_RAFT_IMPL_H */

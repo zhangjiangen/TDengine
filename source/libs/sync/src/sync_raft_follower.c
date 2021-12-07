@@ -54,7 +54,7 @@ static int followerHandleProp(SSyncRaft* pRaft, SSyncMessage* pMsg) {
     return RAFT_PROPOSAL_DROPPED;
   }
 
-  SNodeInfo* pNode = syncRaftGetNodeById(pRaft, pRaft->leaderId);
+  SSyncNodeInfo* pNode = syncRaftGetNodeById(pRaft, pRaft->leaderId);
   assert(pNode);
   syncRaftSend(pRaft, pMsg, pNode);
   return RAFT_OK;

@@ -93,7 +93,7 @@ void syncRaftCampaign(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
       continue;
     }
 
-    SNodeInfo* pNode = syncRaftGetNodeById(pRaft, nodeId);
+    SSyncNodeInfo* pNode = syncRaftGetNodeById(pRaft, nodeId);
     if (pNode == NULL) {
       continue;
     }

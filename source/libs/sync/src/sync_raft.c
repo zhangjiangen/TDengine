@@ -332,7 +332,7 @@ static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
 			// with "pb.MsgAppResp" of higher term would force leader to step down.
 			// However, this disruption is inevitable to free this stuck node with
 			// fresh election. This can be prevented with Pre-Vote phase.
-    SNodeInfo* pNode = syncRaftGetNodeById(pRaft, pMsg->from);
+    SSyncNodeInfo* pNode = syncRaftGetNodeById(pRaft, pMsg->from);
     if (pNode == NULL) {
       return true;
     }

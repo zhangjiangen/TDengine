@@ -23,7 +23,7 @@ static bool canGrantVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 
 int syncRaftHandleVoteMessage(SSyncRaft* pRaft, SSyncMessage* pMsg) {
   SSyncMessage* pRespMsg;
-  SNodeInfo* pNode = syncRaftGetNodeById(pRaft, pMsg->from);
+  SSyncNodeInfo* pNode = syncRaftGetNodeById(pRaft, pMsg->from);
   if (pNode == NULL) {
     return 0;
   }

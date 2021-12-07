@@ -22,7 +22,7 @@
 int syncRaftHandleAppendEntriesMessage(SSyncRaft* pRaft, SSyncMessage* pMsg) {
   const RaftMsg_Append_Entries *appendEntries = &(pMsg->appendEntries);
   
-  SNodeInfo* pNode = syncRaftGetNodeById(pRaft, pMsg->from);
+  SSyncNodeInfo* pNode = syncRaftGetNodeById(pRaft, pMsg->from);
   if (pNode == NULL) {
     return RAFT_OK;
   }

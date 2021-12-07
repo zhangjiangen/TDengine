@@ -68,6 +68,7 @@ SSyncManager* gSyncManager = NULL;
 static void syncProcessRsp(SRpcMsg *pMsg, SEpSet *pEpSet);
 static void syncProcessReqMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
 
+static int syncSend(void* pArg, const SSyncMessage* pMsg, const SSyncNodeInfo* pNode);
 static int syncInitRpcServer(SSyncManager* syncManager, const SSyncCluster* pSyncCfg);
 static int syncInitRpcClient(SSyncManager* syncManager);
 static int syncOpenWorkerPool(SSyncManager* syncManager);
@@ -171,6 +172,12 @@ SSyncNode* syncStart(const SSyncInfo* pInfo) {
     return NULL;
   }
 
+  // init raft io methods
+  pNode->raft.io = (SSyncRaftIOMethods){
+    .pArg = gSyncManager,
+    .send = syncSend,
+  };
+
   pthread_mutex_init(&pNode->mutex, NULL);
 
   taosHashPut(gSyncManager->vgroupTable, &pInfo->vgId, sizeof(SyncGroupId), &pNode, sizeof(SSyncNode *));
@@ -225,6 +232,13 @@ static void syncProcessRsp(SRpcMsg *pMsg, SEpSet *pEpSet) {
 // process rpc message from other sync server
 static void syncProcessReqMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
 
+}
+
+// send msg to node
+static int syncSend(void* pArg, const SSyncMessage* pMsg, const SSyncNodeInfo* pNode) {
+  assert(pNode != NULL);
+  assert(pNode->hash != 0);
+  
 }
 
 static int syncInitRpcServer(SSyncManager* syncManager, const SSyncCluster* pSyncCfg) {

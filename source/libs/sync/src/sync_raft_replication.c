@@ -75,7 +75,7 @@ static bool sendSnapshot(SSyncRaft* pRaft, SSyncRaftProgress* progress) {
 static bool sendAppendEntries(SSyncRaft* pRaft, SSyncRaftProgress* progress,
                               SyncIndex prevIndex, SyncTerm prevTerm,
                               SSyncRaftEntry *entries, int nEntry) {                                
-  SNodeInfo* pNode = syncRaftGetNodeById(pRaft, progress->id);
+  SSyncNodeInfo* pNode = syncRaftGetNodeById(pRaft, progress->id);
   if (pNode == NULL) {
     return false;
   }

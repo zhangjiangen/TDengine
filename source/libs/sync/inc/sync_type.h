@@ -29,6 +29,7 @@
 typedef int32_t SyncTime;
 typedef uint32_t SyncTick;
 
+typedef struct SSyncNodeInfo SSyncNodeInfo;
 typedef struct SSyncRaft SSyncRaft;
 
 typedef struct SSyncRaftProgress SSyncRaftProgress;
@@ -53,6 +54,11 @@ typedef enum ESyncRaftEntryType {
   SYNC_ENTRY_TYPE_LOG = 0,
   SYNC_ENTRY_TYPE_CONF_CHANGE = 1,
 } ESyncRaftEntryType;
+
+struct SSyncNodeInfo {
+  SNodeInfo node;
+  int32_t hash;
+};
 
 #if 0
 #ifndef MIN

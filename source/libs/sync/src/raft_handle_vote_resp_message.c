@@ -22,7 +22,7 @@ int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, SSyncMessage* pMsg) {
   int granted, rejected;
   int voterIndex;
 
-  SNodeInfo* pNode = syncRaftGetNodeById(pRaft, pMsg->from);
+  SSyncNodeInfo* pNode = syncRaftGetNodeById(pRaft, pMsg->from);
   if (pNode == NULL) {
     syncError("[%d:%d] recv vote resp from unknown server %d", pRaft->selfGroupId, pRaft->selfId, pMsg->from);
     return 0;

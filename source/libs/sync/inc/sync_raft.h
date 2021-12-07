@@ -35,7 +35,7 @@ typedef struct RaftCandidateState {
 typedef struct SSyncRaftIOMethods {
   void* pArg;
   // send SSyncMessage to node
-  int (*send)(const SSyncMessage* pMsg, const SNodeInfo* pNode);
+  int (*send)(void* pArg, const SSyncMessage* pMsg, const SSyncNodeInfo* pNode);
 } SSyncRaftIOMethods;
 
 typedef int   (*SyncRaftStepFp)(SSyncRaft* pRaft, SSyncMessage* pMsg);
@@ -45,7 +45,7 @@ struct SSyncRaft {
   // owner sync node
   SSyncNode* pNode;
 
-  // hash map nodeId -> SNodeInfo*
+  // hash map nodeId -> SSyncNodeInfo*
   SHashObj* nodeInfoMap;
 
   SyncNodeId selfId;
