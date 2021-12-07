@@ -14,18 +14,13 @@
  */
 
 #include "thash.h"
-#include "os.h"
 #include "sync.h"
+#include "sync_const.h"
 #include "sync_type.h"
+#include "sync_worker.h"
 #include "syncInt.h"
 #include "trpc.h"
 #include "ttimer.h"
-
-#define TAOS_SYNC_MAX_WORKER 3
-
-typedef struct SSyncWorker {
-  pthread_t thread;
-} SSyncWorker;
 
 struct SSyncNode {
   pthread_mutex_t   mutex;
@@ -46,8 +41,8 @@ typedef struct SSyncManager {
   // sync client rpc
   void* clientRpc;
 
-  // worker threads
-  SSyncWorker worker[TAOS_SYNC_MAX_WORKER];
+  // worker threads pool
+  SSyncWorkerPool* pWorkerPool;
 
   // vgroup hash table
   SHashObj* vgroupTable;
@@ -71,9 +66,6 @@ static void syncProcessReqMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
 static int syncSend(void* pArg, const SSyncMessage* pMsg, const SSyncNodeInfo* pNode);
 static int syncInitRpcServer(SSyncManager* syncManager, const SSyncCluster* pSyncCfg);
 static int syncInitRpcClient(SSyncManager* syncManager);
-static int syncOpenWorkerPool(SSyncManager* syncManager);
-static int syncCloseWorkerPool(SSyncManager* syncManager);
-static void *syncWorkerMain(void *argv);
 static void syncNodeTick(void *param, void *tmrId);
 
 int32_t syncInit() { 
@@ -103,7 +95,8 @@ int32_t syncInit() {
   }
 
   // init worker pool
-  if (syncOpenWorkerPool(gSyncManager) != 0) {
+  gSyncManager->pWorkerPool = syncOpenWorkerPool(kSyncMaxWorker);
+  if (gSyncManager->pWorkerPool == NULL) {
     syncCleanUp();
     return -1;
   }
@@ -132,7 +125,7 @@ void syncCleanUp() {
   if (gSyncManager->syncTimerManager) {
     taosTmrCleanUp(gSyncManager->syncTimerManager);
   }
-  syncCloseWorkerPool(gSyncManager);
+  syncCloseWorkerPool(gSyncManager->pWorkerPool);
   pthread_mutex_unlock(&gSyncManager->mutex);
   pthread_mutex_destroy(&gSyncManager->mutex);
   free(gSyncManager);
@@ -226,7 +219,8 @@ int32_t syncRemoveNode(SSyncNode syncNode, const SNodeInfo *pNode) {
 
 // process rpc rsp message from other sync server
 static void syncProcessRsp(SRpcMsg *pMsg, SEpSet *pEpSet) {
-
+  // unused,so assert NULL
+  assert(NULL);
 }
 
 // process rpc message from other sync server
@@ -238,7 +232,9 @@ static void syncProcessReqMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
 static int syncSend(void* pArg, const SSyncMessage* pMsg, const SSyncNodeInfo* pNode) {
   assert(pNode != NULL);
   assert(pNode->hash != 0);
-  
+
+  SSyncManager* pManager = (SSyncManager*)pArg;
+  syncWorkerSendMessage(pManager->pWorkerPool, pMsg, pNode);
 }
 
 static int syncInitRpcServer(SSyncManager* syncManager, const SSyncCluster* pSyncCfg) {
@@ -309,41 +305,6 @@ static int syncInitRpcClient(SSyncManager* syncManager) {
 
   syncInfo("sync inter-sync rpc client is initialized");
   return 0;
-}
-
-static int syncOpenWorkerPool(SSyncManager* syncManager) {
-  int i;
-  pthread_attr_t thattr;
-
-  pthread_attr_init(&thattr);
-  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE); 
-
-  for (i = 0; i < TAOS_SYNC_MAX_WORKER; ++i) {
-    SSyncWorker* pWorker = &(syncManager->worker[i]);
-
-    if (pthread_create(&(pWorker->thread), &thattr, (void *)syncWorkerMain, pWorker) != 0) {
-      syncError("failed to create sync worker since %s", strerror(errno));
-
-      return -1;
-    }
-  }
-
-  pthread_attr_destroy(&thattr);
-
-  return 0;
-}
-
-static int syncCloseWorkerPool(SSyncManager* syncManager) {
-  return 0;
-}
-
-static void *syncWorkerMain(void *argv) {
-  SSyncWorker* pWorker = (SSyncWorker *)argv;
-
-  taosBlockSIGPIPE();
-  setThreadName("syncWorker");
-
-  return NULL;
 }
 
 static void syncNodeTick(void *param, void *tmrId) {

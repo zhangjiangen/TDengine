@@ -30,6 +30,7 @@ typedef int32_t SyncTime;
 typedef uint32_t SyncTick;
 
 typedef struct SSyncNodeInfo SSyncNodeInfo;
+typedef struct SSyncWorkerPool SSyncWorkerPool;
 typedef struct SSyncRaft SSyncRaft;
 
 typedef struct SSyncRaftProgress SSyncRaftProgress;
@@ -41,6 +42,8 @@ typedef struct SSyncRaftNodeMap SSyncRaftNodeMap;
 typedef struct SSyncRaftProgressTracker SSyncRaftProgressTracker;
 
 typedef struct SSyncRaftChanger SSyncRaftChanger;
+
+typedef struct SSyncMessage SSyncMessage;
 
 typedef struct SSyncRaftEntry SSyncRaftEntry;
 typedef struct SSyncRaftEntryArray SSyncRaftEntryArray;
@@ -57,6 +60,7 @@ typedef enum ESyncRaftEntryType {
 
 struct SSyncNodeInfo {
   SNodeInfo node;
+  // hash code base on node address and port
   int32_t hash;
 };
 

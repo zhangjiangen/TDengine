@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <cli@taosdata.com>
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -13,19 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LIBS_SYNC_CONST_H
-#define _TD_LIBS_SYNC_CONST_H
+#ifndef _TD_LIBS_SYNC_WORKER_H
+#define _TD_LIBS_SYNC_WORKER_H
 
-#include "sync.h"
+#include "sync_type.h"
 
-static int kSyncMaxWorker = 3;
+SSyncWorkerPool* syncOpenWorkerPool(int nWorker);
+void syncCloseWorkerPool(SSyncWorkerPool* pPool);
 
-static int kSyncRaftMaxInflghtMsgs = 20;
+void syncWorkerSendMessage(SSyncWorkerPool* pPool, const SSyncMessage* pMsg, const SSyncNodeInfo* pNode);
 
-static SyncIndex kMaxCommitIndex = UINT64_MAX;
-
-static uint64_t kmaxNextEntsSize = 100;
-
-static int kEntryArrayInitSize = 256;
-
-#endif  /* _TD_LIBS_SYNC_CONST_H */
+#endif  // _TD_LIBS_SYNC_WORKER_H

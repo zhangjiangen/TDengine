@@ -113,7 +113,7 @@ typedef struct RaftMsg_Heartbeat_Resp {
   
 } RaftMsg_Heartbeat_Resp;
 
-typedef struct SSyncMessage {
+struct SSyncMessage {
   ESyncRaftMessageType msgType;
   SyncTerm term;
   SyncGroupId groupId;
@@ -134,7 +134,7 @@ typedef struct SSyncMessage {
 
     RaftMsg_Heartbeat heartbeat;
   };
-} SSyncMessage;
+};
 
 static FORCE_INLINE SSyncMessage* syncInitPropEntryMsg(SSyncMessage* pMsg, const SSyncBuffer* pBuf, void* pData, bool isWeak) {
   *pMsg = (SSyncMessage) {
