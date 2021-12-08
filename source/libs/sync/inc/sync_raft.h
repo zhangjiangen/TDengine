@@ -140,6 +140,10 @@ struct SSyncRaft {
   SyncRaftTickFp tickFp;
 };
 
+static FORCE_INLINE bool syncRaftIsLeader(const SSyncRaft* pRaft) {
+  return pRaft->state == TAOS_SYNC_STATE_LEADER && pRaft->leaderId == pRaft->selfId;
+}
+
 int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo);
 int32_t syncRaftStep(SSyncRaft* pRaft, SSyncMessage* pMsg);
 int32_t syncRaftTick(SSyncRaft* pRaft);

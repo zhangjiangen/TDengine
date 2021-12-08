@@ -36,6 +36,8 @@ static bool preHandleMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 
+static int addClusterConfig(SSyncRaft* pRaft, const SSyncInfo* pInfo);
+
 int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   SSyncNode* pNode = pRaft->pNode;
   SSyncServerState serverState;
@@ -61,6 +63,9 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
 
   pRaft->nodeInfoMap = taosHashInit(TSDB_MAX_REPLICA, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (pRaft->nodeInfoMap == NULL) {
+    return -1;
+  }
+  if (addClusterConfig(pRaft, pInfo) < 0) {
     return -1;
   }
 
@@ -306,6 +311,39 @@ static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
   }
 
   return false;
+}
+
+static int addClusterConfig(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
+  int i;
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  char buf[30];
+
+  pRaft->selfId = -1;
+  for (i = 0; i < pInfo->syncCfg.replica; ++i) {
+    SSyncNodeInfo *pNode = malloc(sizeof(SSyncNodeInfo));
+    if (pNode == NULL) {
+      return -1;
+    }
+    const SNodeInfo* pNodeInfo = &(pInfo->syncCfg.nodeInfo[i]);
+    
+    if (pInfo->syncCfg.selfIndex == i) {
+      pRaft->selfId = pNodeInfo->nodeId;  
+    }
+    memcpy(&pNode->node, pNodeInfo, sizeof(SNodeInfo));
+    int ret = snprintf(buf, sizeof(buf), "%s:%d", pNodeInfo->nodeFqdn, pNodeInfo->nodePort);
+    if (ret < 0) {
+      return -1;
+    }
+    pNode->hash = hashFn(buf, strlen(buf));
+
+    taosHashPut(pRaft->nodeInfoMap, &pNodeInfo->nodeId, sizeof(SyncNodeId), &pNode, sizeof(SSyncNodeInfo *));
+  }
+  pRaft->selfGroupId = pInfo->vgId;
+  if (pRaft->selfId == -1) {
+    syncError("no self node cluster config, abort raft init..");
+    return -1;
+  }
+  return 0;
 }
 
 static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
