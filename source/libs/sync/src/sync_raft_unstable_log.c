@@ -15,6 +15,7 @@
 
 #include "syncInt.h"
 #include "sync_raft_entry.h"
+#include "sync_raft_log.h"
 #include "sync_raft_proto.h"
 #include "sync_raft_unstable_log.h"
 
@@ -25,7 +26,7 @@ static void mustCheckOutOfBounds(const SSyncRaftUnstableLog* unstable, SyncIndex
 // position in storage; this means that the next write to storage
 // might need to truncate the log before persisting unstable.entries.
 struct SSyncRaftUnstableLog {
-  const SSyncRaft* pRaft;
+  SSyncRaft* pRaft;
 
   SyncRaftSnapshot* snapshot;
 
@@ -35,7 +36,7 @@ struct SSyncRaftUnstableLog {
   SyncIndex offset;
 };
 
-SSyncRaftUnstableLog* syncRaftCreateUnstableLog(const SSyncRaft* pRaft, SyncIndex lastIndex) {
+SSyncRaftUnstableLog* syncRaftCreateUnstableLog(SSyncRaft* pRaft, SyncIndex lastIndex) {
   SSyncRaftUnstableLog* unstable = (SSyncRaftUnstableLog*)malloc(sizeof(SSyncRaftUnstableLog));
   if (unstable == NULL) {
     return NULL;
@@ -127,11 +128,28 @@ void syncRaftUnstableLogStableTo(SSyncRaftUnstableLog* unstable, SyncIndex i, Sy
 int syncRaftUnstableLogTruncateAndAppend(SSyncRaftUnstableLog* unstable, const SSyncRaftEntry* entries, int n) {
   SyncIndex afterIndex = entries[0].index;
   int num = syncRaftNumOfEntries(unstable->entries);
+  int ret, i;
+  SSyncRaft* pRaft = unstable->pRaft;
+  SSyncLogStore* pLogStore = &(pRaft->logStore);
 
   if (afterIndex == unstable->offset + num) {
 		// after is the next index in the u.entries
 		// directly append
-    return syncRaftAppendEntries(unstable->entries, entries, n);
+    ret = syncRaftAppendEntries(unstable->entries, entries, n);
+
+    // save into logstore
+    assert(pLogStore->logLastIndex(pLogStore->pArg) == entries[0].index);
+    for (i = 0; i < n; ++i) {
+      SSyncBuffer* buf = syncRaftEncodeRaftEntry(&(entries[i]));
+      if (buf == NULL) {
+        return RAFT_OOM;
+      }
+      pLogStore->logWrite(pLogStore->pArg, entries[i].index, buf);
+      free(buf);
+    }
+    assert(pLogStore->logLastIndex(pLogStore->pArg) == entries[n - 1].index);
+    syncRaftLogStableTo(pRaft->log, entries[n - 1].index, entries[n - 1].term);
+    return ret;
   }
 
   if (afterIndex <= unstable->offset) {
@@ -139,7 +157,24 @@ int syncRaftUnstableLogTruncateAndAppend(SSyncRaftUnstableLog* unstable, const S
 		// The log is being truncated to before our current offset
 		// portion, so set the offset and replace the entries    
     unstable->offset = afterIndex;
-    return syncRaftAssignEntries(unstable->entries, entries, n);
+    ret = syncRaftAssignEntries(unstable->entries, entries, n);
+
+    // save into logstore
+    // first truncate log
+    pLogStore->logTruncate(pLogStore->pArg, afterIndex);
+    assert(pLogStore->logLastIndex(pLogStore->pArg) == entries[0].index);
+    for (i = 0; i < n; ++i) {
+      SSyncBuffer* buf = syncRaftEncodeRaftEntry(&(entries[i]));
+      if (buf == NULL) {
+        return RAFT_OOM;
+      }
+      pLogStore->logWrite(pLogStore->pArg, entries[i].index, buf);
+      free(buf);
+    }
+    assert(pLogStore->logLastIndex(pLogStore->pArg) == entries[n - 1].index);
+    syncRaftLogStableTo(pRaft->log, entries[n - 1].index, entries[n - 1].term);
+
+    return ret;
   }
 
   assert(afterIndex > unstable->offset);
@@ -154,9 +189,26 @@ int syncRaftUnstableLogTruncateAndAppend(SSyncRaftUnstableLog* unstable, const S
 
   syncRaftCleanEntryArray(unstable->entries);
   syncRaftAppendEmptyEntry(unstable->entries);
-  int ret = syncRaftAppendEntries(unstable->entries, sliceEnts, nSliceEnts);
+  ret = syncRaftAppendEntries(unstable->entries, sliceEnts, nSliceEnts);
   if (ret < 0) return ret;
-  return syncRaftAppendEntries(unstable->entries, entries, n);
+  ret = syncRaftAppendEntries(unstable->entries, entries, n);
+
+  // save into logstore
+  // first rollback log
+  pLogStore->logTruncate(pLogStore->pArg, afterIndex);
+  assert(pLogStore->logLastIndex(pLogStore->pArg) == entries[0].index);
+  for (i = 0; i < n; ++i) {
+    SSyncBuffer* buf = syncRaftEncodeRaftEntry(&(entries[i]));
+    if (buf == NULL) {
+      return RAFT_OOM;
+    }
+    pLogStore->logWrite(pLogStore->pArg, entries[i].index, buf);
+    free(buf);
+  }
+  assert(pLogStore->logLastIndex(pLogStore->pArg) == entries[n - 1].index);
+  syncRaftLogStableTo(pRaft->log, entries[n - 1].index, entries[n - 1].term);
+
+  return ret;
 }
 
 // visit entries in [lo, hi - 1]

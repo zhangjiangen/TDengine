@@ -23,10 +23,11 @@
 static void visitNumOfPendingConf(const SSyncRaftEntry* entry, void* arg);
 static SyncIndex findConflict(const SSyncRaftLog*, const SSyncRaftEntry*, int n);
 static int mustCheckOutOfBounds(const SSyncRaftLog*, SyncIndex lo, SyncIndex hi);
+static int applyCommitLogs(SSyncRaftLog*);
 
 struct SSyncRaftLog {
   // owner Raft
-  const SSyncRaft* pRaft;
+  SSyncRaft* pRaft;
 
   // storage contains all stable entries since the last snapshot.
   SSyncRaftStableLog* storage;
@@ -49,7 +50,7 @@ struct SSyncRaftLog {
   uint64_t maxNextEntsSize;
 };
 
-SSyncRaftLog* syncCreateRaftLog(SSyncRaftStableLog* storage, uint64_t maxNextEntsSize, const SSyncRaft* pRaft) {
+SSyncRaftLog* syncCreateRaftLog(SSyncRaftStableLog* storage, uint64_t maxNextEntsSize, SSyncRaft* pRaft) {
   SSyncRaftLog* log = (SSyncRaftLog*)malloc(sizeof(SSyncRaftLog));
   if (log == NULL) {
     return NULL;
@@ -70,7 +71,7 @@ SSyncRaftLog* syncCreateRaftLog(SSyncRaftStableLog* storage, uint64_t maxNextEnt
 
   // Initialize our committed and applied pointers to the time of the last compaction.
   log->committedIndex = firstIndex - 1;
-  log->committedIndex = firstIndex - 1;
+  log->appliedIndex = firstIndex - 1;
 
   log->pRaft = pRaft;
   return log;
@@ -208,6 +209,9 @@ bool syncRaftLogCommitTo(SSyncRaftLog* log, SyncIndex toCommit) {
         log->pRaft->selfGroupId, log->pRaft->selfId, toCommit, log->committedIndex);
     }
     log->committedIndex = toCommit;
+
+    // apply log to state machine
+    applyCommitLogs(log);
   }
 }
 
@@ -441,6 +445,34 @@ static int mustCheckOutOfBounds(const SSyncRaftLog* log, SyncIndex lo, SyncIndex
   }
 
   return RAFT_OK;
+}
+
+// apply commit logs to state machine
+static int applyCommitLogs(SSyncRaftLog* log) {
+  SyncIndex offsetIndex = MAX(log->appliedIndex, syncRaftLogFirstIndex(log));
+  if (log->committedIndex + 1 <= offsetIndex) {
+    return RAFT_OK;
+  }
+
+  SSyncRaftEntry *pEntries;
+  int n, i;
+  int ret = syncRaftLogSlice(log, offsetIndex, log->committedIndex + 1, &pEntries, &n);
+  if (ret != RAFT_OK || n == 0) {
+    return ret;
+  }
+
+  SSyncRaft* pRaft = log->pRaft;
+  SSyncFSM* pFsm = &(pRaft->fsm);
+  for (i = 0; i < n; ++i) {
+    SSyncRaftEntry* entry = &(pEntries[i]);
+    SSyncBuffer* buf = syncRaftEncodeRaftEntry(entry);
+    if (buf == NULL) {
+      return RAFT_OOM;
+    }
+    pFsm->applyLog(pFsm->pArg, entry->index, buf, entry->pData);
+  }
+
+  syncRaftLogAppliedTo(log, log->committedIndex);
 }
 
 SyncTerm syncRaftLogZeroTermOnErrCompacted(const SSyncRaftLog* log, SyncTerm t, ESyncRaftCode err) {

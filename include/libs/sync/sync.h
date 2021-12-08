@@ -59,70 +59,72 @@ typedef struct {
 } SNodesRole;
 
 typedef struct SSyncFSM {
-  void* pData;
+  // user define data
+  void* pArg;
 
   // apply committed log, bufs will be free by sync module
-  int32_t (*applyLog)(struct SSyncFSM* fsm, SyncIndex index, const SSyncBuffer* buf, void* pData);
+  int32_t (*applyLog)(void* pArg, SyncIndex index, const SSyncBuffer* buf, void* pData);
 
   // cluster commit callback
-  int32_t (*onClusterChanged)(struct SSyncFSM* fsm, const SSyncCluster* cluster, void* pData);
+  int32_t (*onClusterChanged)(void* pArg, const SSyncCluster* cluster, void* pData);
 
   // fsm return snapshot in ppBuf, bufs will be free by sync module
   // TODO: getSnapshot SHOULD be async?
-  int32_t (*getSnapshot)(struct SSyncFSM* fsm, SSyncBuffer** ppBuf, int32_t* objId, bool* isLast);
+  int32_t (*getSnapshot)(void* pArg, SSyncBuffer** ppBuf, int32_t* objId, bool* isLast);
 
   // fsm apply snapshot with pBuf data
-  int32_t (*applySnapshot)(struct SSyncFSM* fsm, SSyncBuffer* pBuf, int32_t objId, bool isLast);
+  int32_t (*applySnapshot)(void* pArg, SSyncBuffer* pBuf, int32_t objId, bool isLast);
 
   // call when restore snapshot and log done
-  int32_t (*onRestoreDone)(struct SSyncFSM* fsm);
+  int32_t (*onRestoreDone)(void* pArg);
 
-  void (*onRollback)(struct SSyncFSM* fsm, SyncIndex index, const SSyncBuffer* buf);
+  void (*onRollback)(void* pArg, SyncIndex index, const SSyncBuffer* buf);
 
-  void (*onRoleChanged)(struct SSyncFSM* fsm, const SNodesRole* pRole);
+  void (*onRoleChanged)(void* pArg, const SNodesRole* pRole);
 
 } SSyncFSM;
 
 typedef struct SSyncLogStore {
-  void* pData;
+  // user define data
+  void* pArg;
 
   // write log with given index
-  int32_t (*logWrite)(struct SSyncLogStore* logStore, SyncIndex index, SSyncBuffer* pBuf);
+  int32_t (*logWrite)(void* pArg, SyncIndex index, SSyncBuffer* pBuf);
 
   /** 
    * read log from given index(included) with limit, return the actual num in nBuf,
    * pBuf will be free in sync module
    **/
-  int32_t (*logRead)(struct SSyncLogStore* logStore, SyncIndex index, int limit,
+  int32_t (*logRead)(void* pArg, SyncIndex index, int limit,
                       SSyncBuffer* pBuf, int* nBuf);
 
   // mark log with given index has been commtted
-  int32_t (*logCommit)(struct SSyncLogStore* logStore, SyncIndex index);
+  int32_t (*logCommit)(void* pArg, SyncIndex index);
 
   // prune log before given index(not included)
-  int32_t (*logPrune)(struct SSyncLogStore* logStore, SyncIndex index);
+  int32_t (*logPrune)(void* pArg, SyncIndex index);
 
-  // rollback log after given index(included)
-  int32_t (*logRollback)(struct SSyncLogStore* logStore, SyncIndex index);
+  // truncate log after given index(included)
+  int32_t (*logTruncate)(void* pArg, SyncIndex index);
 
   // return last index of log
-  SyncIndex (*logLastIndex)(struct SSyncLogStore* logStore);
+  SyncIndex (*logLastIndex)(void* pArg);
 } SSyncLogStore;
 
 typedef struct SStateManager {
-  void* pData;
+  void* pArg;
 
   // save serialized server state data, buffer will be free by Sync
-  int32_t (*saveServerState)(struct SStateManager* stateMng, const char* buffer, int n);
+  int32_t (*saveServerState)(void* pArg, const char* buffer, int n);
 
   // read serialized server state data, buffer will be free by Sync
-  int32_t (*readServerState)(struct SStateManager* stateMng, char** ppBuffer, int* n);
+  int32_t (*readServerState)(void* pArg, char** ppBuffer, int* n);
 
   // save serialized cluster state data, buffer will be free by Sync
-  void (*saveClusterState)(struct SStateManager* stateMng, const char* buffer, int n);
+  void (*saveClusterState)(void* pArg, const char* buffer, int n);
 
   // read serialized cluster state data, buffer will be free by Sync
-  int32_t (*readClusterState)(struct SStateManager* stateMng, char** ppBuffer, int* n);
+  int32_t (*readClusterState)(void* pArg, char** ppBuffer, int* n);
 } SStateManager;
 
 typedef struct {

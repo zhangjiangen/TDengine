@@ -19,7 +19,7 @@
 #include "sync.h"
 #include "sync_type.h"
 
-SSyncRaftUnstableLog* syncRaftCreateUnstableLog(const SSyncRaft*, SyncIndex lastIndex);
+SSyncRaftUnstableLog* syncRaftCreateUnstableLog(SSyncRaft*, SyncIndex lastIndex);
 
 // maybeFirstIndex returns the index of the first possible entry in entries
 // if it has a snapshot.

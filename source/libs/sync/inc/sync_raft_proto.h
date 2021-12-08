@@ -74,6 +74,7 @@ struct SSyncRaftEntry {
   SyncIndex index;
   ESyncRaftEntryType type;
   SSyncBuffer buffer;
+  void *pData;
   unsigned int refCount;
 };
 
@@ -95,5 +96,8 @@ static FORCE_INLINE void syncRaftInitConfArray(SSyncConfChangeSingleArray* ary) 
 static FORCE_INLINE void syncRaftFreeConfArray(SSyncConfChangeSingleArray* ary) {
   if (ary->changes != NULL) free(ary->changes);
 }
+
+SSyncBuffer* syncRaftEncodeRaftEntry(const SSyncRaftEntry* entry);
+SSyncRaftEntry* syncRaftDecodeRaftEntry(const SSyncBuffer* buf);
 
 #endif /* TD_SYNC_RAFT_PROTO_H */

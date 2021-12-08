@@ -80,7 +80,7 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
     return -1;
   }
   // read server state
-  if (stateManager->readServerState(stateManager, &buf, &n) != 0) {
+  if (stateManager->readServerState(stateManager->pArg, &buf, &n) != 0) {
     syncError("readServerState for vgid %d fail", pInfo->vgId);
     return -1;
   }
@@ -92,7 +92,7 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   //assert(initIndex <= serverState.commitIndex);
 
   // read config state
-  if (stateManager->readClusterState(stateManager, &buf, &n) != 0) {
+  if (stateManager->readClusterState(stateManager->pArg, &buf, &n) != 0) {
     syncError("readClusterState for vgid %d fail", pInfo->vgId);
     return -1;
   }
@@ -134,6 +134,8 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
 
   syncInfo("[%d:%d] restore vgid %d state: snapshot index success", 
     pRaft->selfGroupId, pRaft->selfId, pInfo->vgId);
+
+  pRaft->fsm.onRestoreDone(pRaft->fsm.pArg);
   return 0;
 }
 
@@ -319,6 +321,7 @@ static int addClusterConfig(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   char buf[30];
 
   pRaft->selfId = -1;
+  pRaft->selfGroupId = -1;
   for (i = 0; i < pInfo->syncCfg.replica; ++i) {
     SSyncNodeInfo *pNode = malloc(sizeof(SSyncNodeInfo));
     if (pNode == NULL) {
@@ -339,7 +342,7 @@ static int addClusterConfig(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
     taosHashPut(pRaft->nodeInfoMap, &pNodeInfo->nodeId, sizeof(SyncNodeId), &pNode, sizeof(SSyncNodeInfo *));
   }
   pRaft->selfGroupId = pInfo->vgId;
-  if (pRaft->selfId == -1) {
+  if (pRaft->selfGroupId < 0 || pRaft->selfId < 0) {
     syncError("no self node cluster config, abort raft init..");
     return -1;
   }

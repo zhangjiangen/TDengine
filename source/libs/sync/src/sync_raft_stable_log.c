@@ -106,8 +106,6 @@ SyncIndex syncRaftStableLogFirstIndex(const SSyncRaftStableLog* storage) {
 }
 
 // Append the new entries to storage.
-// TODO (xiangli): ensure the entries are continuous and
-// entries[0].Index > ms.entries[0].Index
 int syncRaftStableAppendEntries(SSyncRaftStableLog* storage, SSyncRaftEntry* entries, int n) {
   if (n == 0) {
     return RAFT_OK;
@@ -133,6 +131,11 @@ int syncRaftStableAppendEntries(SSyncRaftStableLog* storage, SSyncRaftEntry* ent
   inFirstIndex = ents[0].index;
   int offset = (int)inFirstIndex - firstIndex;
   int num = syncRaftNumOfEntries(storage->entries);
+  int ret, i;
+  /*
+  SSyncRaft* pRaft = storage->pRaft;
+  SSyncLogStore* pLogStore = &(pRaft->logStore);
+  */
   if (num > offset) {
     SSyncRaftEntry* sliceEnts;
     int nSliceEnts;
@@ -142,11 +145,14 @@ int syncRaftStableAppendEntries(SSyncRaftStableLog* storage, SSyncRaftEntry* ent
     syncRaftCleanEntryArray(storage->entries);
     syncRaftAppendEmptyEntry(storage->entries);
     syncRaftAppendEntries(storage->entries, sliceEnts, nSliceEnts);
-    return syncRaftAppendEntries(storage->entries, ents, nEnts);
+    ret = syncRaftAppendEntries(storage->entries, ents, nEnts);
+
+    return ret;
   }
 
   if (num == offset) {
-    return syncRaftAppendEntries(storage->entries, ents, nEnts);
+    ret = syncRaftAppendEntries(storage->entries, ents, nEnts);
+    return ret;
   }
 
   SSyncRaft* pRaft = storage->pRaft;

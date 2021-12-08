@@ -20,7 +20,7 @@
 #include "sync_type.h"
 #include "sync_raft_code.h"
 
-SSyncRaftLog* syncCreateRaftLog(SSyncRaftStableLog* storage, uint64_t maxNextEntsSize, const SSyncRaft*);
+SSyncRaftLog* syncCreateRaftLog(SSyncRaftStableLog* storage, uint64_t maxNextEntsSize, SSyncRaft*);
 
 bool syncRaftLogMaybeAppend(SSyncRaftLog* log, SyncIndex index, SyncTerm logTerm, 
                             SyncIndex committedIndex, const SSyncRaftEntry* entries, int n, SyncIndex* lastNewIndex);
