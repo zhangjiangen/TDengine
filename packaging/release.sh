@@ -420,6 +420,11 @@ else
     BUILD_TOOLS=true
 fi
 
+if [[ "$verType" == "aarch32" ]];then
+    BUILD_HTTP=true
+fi
+
+
 # check support cpu type
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "mips64" ]] ; then
   if [ "$verMode" != "cluster" ]; then
