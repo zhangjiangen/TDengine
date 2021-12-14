@@ -476,6 +476,8 @@ typedef struct SOptrBasicInfo STableIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
   SOptrBasicInfo binfo;
+  int32_t        bufCapacity;
+
   uint32_t       seed;
 } SAggOperatorInfo;
 
