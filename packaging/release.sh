@@ -4,11 +4,11 @@
 set -e
 #set -x
 
-source ./replace_power.sh
-source ./replace_tq.sh
-source ./replace_pro.sh
-source ./replace_kh.sh
-source ./replace_jh.sh
+source ./sed_power.sh
+source ./sed_tq.sh
+source ./sed_pro.sh
+source ./sed_kh.sh
+source ./sed_jh.sh
 
 # release.sh  -v [cluster | edge]
 #             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...]

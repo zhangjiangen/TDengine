@@ -28,6 +28,7 @@ function replace_community_jh(){
   sed -i "s/log\/taos/log\/jh_taos/g"   ${top_dir}/src/util/src/tlog.c
   # src/dnode/src/dnodeSystem.c
   sed -i "s/TDengine/jh_iot/g"  ${top_dir}/src/dnode/src/dnodeSystem.c 
+  # src/dnode/src/dnodeMain.c
   sed -i "s/TDengine/jh_iot/g"   ${top_dir}/src/dnode/src/dnodeMain.c
   sed -i "s/taosdlog/jh_taosdlog/g"  ${top_dir}/src/dnode/src/dnodeMain.c
   # src/client/src/tscSystem.c
